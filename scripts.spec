@@ -2,7 +2,7 @@ Name:         scripts
 Version:      1.0
 Release:      alt1
 
-Summary:      Local scripts for my computer
+Summary:      Useful scripts for my experimental setup and data processing
 Group:        System
 License:      GPL
 
@@ -26,3 +26,4 @@ mkdir -p %buildroot%_bindir %buildroot%_datadir/octave/site/m
 %_datadir/octave/site/m/*
 
 %changelog
+
