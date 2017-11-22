@@ -1,0 +1,189 @@
+#!/usr/bin/wish
+
+## Interface for current sweeps
+
+package require Device 1.2
+package require xBlt 3
+
+set dev sweep1
+set name "Main coil"
+
+set maxlen 1000
+blt::vector create plot_x
+blt::vector create plot_y1
+blt::vector create plot_y2
+blt::vector create plot_y3
+
+## function for Start/Stop/ToZero/Clear/Reset buttons
+proc do_start {} {
+  global dest rate dev
+  if { ! [string is double -strict $rate] } { error "Rate is not a number"  }
+  if { ! [string is double -strict $dest] } { error "Destinationis not a number" }
+  if { $rate<=0 } { error "Rate must be > 0" }
+  if { $dest<0  } { error "Destination must be >= 0" }
+  $dev cmd "sweep [expr $dest/1000.0] [expr $rate/1000.0]"
+}
+proc do_stop {} {
+  global dev
+  $dev cmd sweep_stop
+}
+proc do_zero {} {
+  global rate dev
+  if { ! [string is double -strict $rate] } { error "Rate is not a number"  }
+  if { $rate<=0 } { error "Rate must be > 0" }
+  $dev cmd "sweep 0 [expr $rate/1000.0]"
+}
+proc do_reset {} {
+  global dev
+  $dev cmd reset
+}
+proc do_clear {} {
+  plot_x clear
+  plot_y1 clear
+  plot_y2 clear
+  plot_y3 clear
+}
+
+
+Device $dev
+set dest [expr int(1000*[$dev cmd get_scurr])]
+set rate 10
+
+$dev set_logfile "sw.log"
+
+## make interface
+label .name    -text $name -font {-size 20}
+pack .name
+
+labelframe .f -text {}
+label .f.curr    -textvariable curr -font {-size 20} -width 7
+label .f.stat    -textvariable stat -font {-size 15} -width 7
+entry .f.dest    -textvariable dest
+label .f.dest_l  -text "Destination, mA"
+entry .f.rate    -textvariable rate
+label .f.rate_l  -text "Rate, mA/s"
+
+grid  .f.dest_l .f.dest .f.curr -sticky we
+grid  .f.rate_l .f.rate .f.stat -sticky we
+pack .f
+
+
+button .start_btn -text "Start"  -command do_start
+button .stop_btn  -text "Stop"   -command do_stop
+button .zero_btn  -text "ToZero" -command do_zero
+button .reset_btn -text "Reset"  -command do_reset
+button .clear_btn -text "Clear"  -command do_clear
+pack .start_btn .stop_btn .zero_btn .reset_btn
+
+# make graph
+set pwid .p
+set swid .s
+
+blt::graph $pwid -leftmargin 80
+pack $pwid -fill both -expand 1
+
+scrollbar $swid -orient horizontal
+pack $swid -fill x
+
+$pwid legend configure -activebackground white
+
+
+# configure standard xBLT things:
+xblt::plotmenu   $pwid -showbutton 1 -buttonlabel Menu -menuoncanvas 0
+xblt::legmenu    $pwid -showseparator 0
+xblt::hielems    $pwid
+xblt::crosshairs $pwid -show 1
+xblt::measure    $pwid
+xblt::readout    $pwid -variable v_readout -active 1
+xblt::zoomstack  $pwid -scrollbutton 2 -axes x -recttype x
+xblt::elemop     $pwid
+xblt::scroll     $pwid $swid -timefmt 1
+xblt::xcomments  $pwid
+
+$pwid axis create I    -title "I"         -titlecolor black
+$pwid axis create Iset -title "Iset"      -titlecolor black
+$pwid axis create R    -title "R"         -titlecolor black
+
+$pwid element create I    -xdata plot_x -ydata plot_y1 -mapy I\
+  -symbol "circle" -pixels 2  -color red
+$pwid element create Iset -xdata plot_x -ydata plot_y2 -mapy Iset\
+  -symbol "circle" -pixels 2  -color blue
+$pwid element create R    -xdata plot_x -ydata plot_y3 -mapy R\
+  -symbol "circle" -pixels 2  -color green -label "R"
+
+$pwid element bind I    <Enter> [list $pwid yaxis use I]
+$pwid element bind Iset <Enter> [list $pwid yaxis use Iset]
+$pwid element bind R    <Enter> [list $pwid yaxis use R]
+
+pack $pwid
+pack $swid
+
+
+button .exit -text "Exit"  -command exit
+pack .exit -side right
+
+proc update_curr {} {
+  global curr stat dest rate dev
+  global plot_x plot_y1 plot_y2 plot_y3
+
+  # get current values from sweeper
+  set cm [$dev cmd get_mcurr]
+  set cs [$dev cmd get_scurr]
+  set stat [$dev cmd get_stat]
+
+  if { [string is double -strict $cm] } {
+    set curr [format %8.2f [expr $cm*1000]]
+  }
+
+  # get hystory from the database through sweeper
+  set dt 600
+  set t2 [clock seconds]
+  set t1 [expr {$t2-$dt}]
+  if {[ plot_x length]>0} {
+    set tl $plot_x(end)
+    set t1 [expr {max($tl, $t1)}]
+
+    # remove old data
+    if {$plot_x(end)-$plot_x(0) > 1.2*$dt} {
+      set i 0
+      for {set i 0} {$i<[ plot_x  length]} {incr i} {
+        if {$plot_x(i)>=$t1} {break}
+      }
+      if {$i>0} {
+         plot_x  delete 0:$i
+         plot_y1  delete 0:$i
+         plot_y2  delete 0:$i
+         plot_y3  delete 0:$i
+      }
+    }
+  }
+
+  set out [$dev cmd db_value get_range $t1 $t2]
+  foreach line [lindex $out 0] {
+    # append data to vectors
+    plot_x append [lindex $line 0]
+    plot_y1 append [lindex $line 1]
+    plot_y2 append [lindex $line 2]
+    plot_y3 append [lindex $line 3]/[lindex $line 1]
+  }
+
+  # clear comment data
+  xblt::xcomments::clear .p
+
+  # add comments
+  set t1 [expr {$t2-$dt}]
+  set out [$dev cmd db_comment get_range $t1 $t2]
+  foreach line [lindex $out 0] {
+    set t [lindex $line 0]
+    set text {}
+    append text {*}[lrange $line 1 end]
+    xblt::xcomments::create .p $t $text
+  }
+
+  after 2000 update_curr
+}
+
+after idle update_curr
+set status idle
+
+

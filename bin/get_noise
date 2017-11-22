@@ -1,0 +1,79 @@
+#!/usr/bin/tclsh
+
+package require Device 1.3
+package require xBlt
+
+# Script for measuring noise spectrum with an oscilloscope
+
+## set all parameters from cmdline
+#
+# -O -osc_dev  -- oscilloscope device (default osc0)
+# -s -scale    -- oscilloscope scale (default 0.05)
+# -d -dt       -- sampling rate, s (default 5e-8)
+# -N           -- sample count (default 10e6)
+# -n           -- number of output points (default 1000)
+# -A -avr      -- number of averages (default 1)
+# -F -fmin     -- filter min frequency (default "")
+# -G -fmax     -- filter max frequency (default "")
+# -T -tmin     -- filter min time (default "0.1")
+# -U -tmax     -- filter max time (default "")
+# -L -log      -- logarithmic step (default 1)
+# -D -del      -- initial delay (default 5)
+
+set options [list \
+{-O -osc_dev}  osc_dev  {osc0}\
+{-s -scale}    scale    {0.05}\
+{-d -dt}       dt       {5e-8}\
+{-N}           nsamp    {10e6}\
+{-n}           nout     {1000}\
+{-A -avr}      avr      {1}\
+{-F -fmin}     fmin     {}\
+{-G -fmax}     fmax     {}\
+{-T -tmin}     tmin     {0.1}\
+{-U -tmax}     tmax     {}\
+{-L -log}      log      {1}\
+{-D -del}      del      {5}\
+]
+
+xblt::parse_options "get_noise" $argv $options
+
+
+## build filter parameters:
+set fpars "-N $nout"
+if {$log == {}} {set fpars "$fpars -f fft_pow_lavr"}\
+else            {set fpars "$fpars -f fft_pow_avr"}
+if {$fmin != {}} {set fpars "$fpars -F $fmin"}
+if {$fmax != {}} {set fpars "$fpars -G $fmax"}
+if {$tmin != {}} {set fpars "$fpars -T $tmin"}
+if {$tmax != {}} {set fpars "$fpars -U $tmax"}
+
+
+Device $osc_dev
+
+$osc_dev cmd chan_set A 1 AC $scale
+$osc_dev cmd trig_set NONE 0.1 RISING 0
+
+puts stderr "waiting..."
+
+after [expr {int($del*1000)}]
+set names {}
+set pref [exec mktemp]
+for {set i 0} {$i<$avr} {incr i} {
+
+
+  puts stderr "recording signal $i/$avr"
+  $osc_dev cmd block A 0 $nsamp $dt $pref
+  $osc_dev cmd wait
+  exec sig_filter {*}$fpars $pref > $pref$i
+  lappend names "$pref$i"
+
+  # Overload check
+  set re {s/^\s+chan:.*(1|0)$/\1/p}
+  set ov [exec sed -r -n -e $re $pref$i]
+  if {$ov == 1} {puts stderr "OVERLOAD"}
+}
+
+set ret [exec ./avrg.pl {*}$names]
+exec rm -f -- {*}$names $pref
+
+puts $ret

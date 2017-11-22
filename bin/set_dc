@@ -1,0 +1,21 @@
+#!/usr/bin/tclsh
+
+package require DeviceRole 1.2
+package require xBlt
+
+## script for setting ac source
+
+## set all parameters from cmdline
+#
+# -d -dev   -- voltage source device (default gen0:1)
+# -v -volt  -- voltage (default 0)
+
+set options [list \
+{-d -dev}   dev  {gen0:1}\
+{-v -volt}  volt    {0.0}\
+]
+
+xblt::parse_options "get_gain" $argv $options
+set source [DeviceRole $dev dc_source]
+
+$source set_volt $volt

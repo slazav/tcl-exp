@@ -1,0 +1,76 @@
+#!/usr/bin/tclsh
+
+package require DeviceRole 1.1
+package require xBlt
+
+## script for measuring frequency response
+## with a generator and a lock-in amp.
+
+## set all parameters from cmdline
+#
+# -g -gen_dev   -- generator device (default gen0:1)
+# -m -meas_dev  -- measurement device (default lockin0:XY)
+# -v -volt      -- voltage (default 0.01)
+# -o -offs      -- offset (default 0.0)
+# -F -fmin      -- min frequency (default 23e3)
+# -G -fmax      -- max frequency (default 2e6)
+# -n            -- number of points (default 100)
+# -L -log       -- logarithmic step (default 1)
+# -d -dt        -- delay between samples  (default 0.5)
+# -D -del       -- initial delay (default 2)
+# -r -range     -- measurement range, V (default 0.1)
+# -t -tconst    -- measurement time constant, s (default 0.1)
+
+set options [list \
+{-g -gen_dev}  gen_dev  {gen0:1}\
+{-m -meas_dev} meas_dev {lockin0:XY}\
+{-v -volt}     volt     {0.01}\
+{-o -offs}     offs     {0.0}\
+{-F -fmin}     fmin     {25e3}\
+{-G -fmax}     fmax     {2e6}\
+{-n}           npts     {100}\
+{-L -log}      log      {1}\
+{-d -dt}       dt       {0.5}\
+{-D -del}      del      {2}\
+{-r -range}    range    {0.1}\
+{-t -tconst}   tconst   {0.1}\
+]
+
+xblt::parse_options "get_gain" $argv $options
+
+
+if {$npts <= 0} {error "$npts <= 0"}
+
+if {$npts!=1} {
+  if {$fmax <= $fmin} {error "$fmax <= $fmin"}
+  set df  [expr {1.0*($fmax-$fmin)/($npts-1)}]
+  set dfk [expr {pow(1.0*$fmax/$fmin, 1.0/($npts-1))}]
+} else {
+  set df  0
+  set dfk 1
+}
+
+
+## prepare generator
+set gen   [DeviceRole $gen_dev ac_source]
+$gen set_ac $fmin $volt $offs
+
+## prepare lock-in
+set gauge [DeviceRole $meas_dev gauge]
+$gauge set_range  $range
+$gauge set_tconst $tconst
+
+# initial delay
+after [expr {int($del*1000)}]
+
+set f $fmin
+for {set i 0} {$i < $npts} {incr i} {
+
+  set f [format "%.0f" $f]
+  $gen set_ac_fast $f $volt $offs
+  after [expr {int($dt*1000)}]
+  set out [$gauge get]
+  puts "$f $volt $out"
+  set f [expr {$log? $f*$dfk : $f+$df}]
+
+}

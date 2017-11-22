@@ -20,3 +20,25 @@ but sometimes a finished eps is also needed.
 ## Files in `exp` folder (should be installed into `/usr/bin/`)
 
 Here I put scripts for actual measurements.
+
+* fork_pulse -- A fork pulse controller with stdin/stdout interface. Uses
+Device library and can be used as a device itself.
+Works with 33511B Keysight generator, Pico 4224 oscilloscope
+(see pico_rec repository) and graphene database.
+
+* fork_pulse_int -- TCL GUI for fork pulse measurements.
+
+* sweeper -- current sweeper for controlling magnets and making
+measurements as a function of magnetic field. Can be used as a device in
+the Device library. Uses DeviceRole for working with any supported power
+supply and gauge devices, uses graphene database to store data.
+
+* sweep_int -- TCL GUI for sweeper. Not finished yet.
+
+* get_gain -- Script for simple gain measurement: sweep generator frequency and measure
+response by lock-in amplifier.
+
+* get_noise -- Script for simple noise measurement
+
+* set_ac, set_dc -- cmdline interfaces to DeviceRole library
+for seting AC/DC sources.

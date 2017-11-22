@@ -1,0 +1,181 @@
+#!/usr/bin/tclsh
+
+# fork pulse controller with stdin/stdout interface
+
+package require Device 1.3
+package require xBlt
+
+#############################################################
+### fork_pulse - making fork pulse measurements
+#
+## Command line options:
+#
+# -o -osc_dev   -- oscilloscope device\
+# -g -gen_dev   -- generator device\
+# -d -db_dev    -- database device (can be empty)\
+# -n -db_val    -- database name for numerical values\
+# -p -db_par    -- database name for measurement parameters\
+# -a -db_ann    -- database name for annatations\
+
+set options [list \
+{-o -osc_dev}  osc_dev  {}\
+{-g -gen_dev}  gen_dev  {}\
+{-d -db_dev}   db_dev   {}\
+{-n -db_val}   db_val   {}\
+{-p -db_par}   db_par   {}\
+{-a -db_ann}   db_ann   {}\
+]
+#############################################################
+
+## Commands:
+#
+#   list -- print list of commands which can be run from stdin
+#   setup <freq> <cnt> <volt> <sc> -- set up devices
+#      freq - pulse frequency
+#      cnt  - pulse count
+#      volt - pulse voltage
+#      sc   - oscilloscope scale
+#   pulse <tpre> <time> <dt> - do the pulse
+#      time  - record time
+#      tpre  - pretrigger time
+#      dt    - record rate
+#   get_osc_sc - get possible scale settings for the oscilloscope
+
+## Requirements:
+#
+#   - Oscilloscope is controlled by pico_rec program
+#   - Generator is HP/Agilent/Keysight 33511B.
+#   - Fork is excited by the generator and measured
+#     by channel A of the oscilloscope
+#   - Generator trigger output is connected to
+#     channel B of the oscilloscope
+
+itcl::class ForkPulseDriver {
+  variable osc_dev
+  variable gen_dev
+  variable db_dev
+  variable db_val
+  variable db_par
+  variable db_ann
+
+  variable setup_done 0
+
+  variable fmin 30000
+  variable fmax 35000
+
+  constructor {opts} {
+    # Parse options.
+    global options
+    xblt::parse_options "fork_pulse" $opts $options
+
+    ##### Open oscilloscope and generator conections and grab locks.
+    ##### Check that device models are supported.
+    if {$osc_dev  == {} } { error "osc_dev is empty" }
+    if {$gen_dev  == {} } { error "gen_dev is empty" }
+    Device $osc_dev
+    Device $gen_dev
+    $osc_dev lock
+    $gen_dev lock
+    set ind [$osc_dev cmd *idn?]
+    if {! [regexp {^pico_rec} {*}[$osc_dev cmd *idn?]] } {
+       error "unsupported osc device (pico_rec program is needed)"}
+    if {! [regexp {^Agilent Technologies,33511B} [$gen_dev cmd *idn?]]} {
+       error "unsupported gen device (agilent 33511b is needed)"}
+
+    ##### Open database connection if needed
+    if {$db_dev != {} } {
+      Device $db_dev
+      if {! [regexp {^Graphene database} {*}[$db_dev cmd *idn?]]} {
+        error "unsupported db device (graphene is needed)"}
+    }
+  }
+  destructor {
+    $osc_dev unlock
+    $gen_dev unlock
+  }
+
+  method setup {freq cnt volt sc} {
+    ## Generator setup:
+    ## Burst mode with BUS trigger.
+    $gen_dev write BURST:STATE on
+    $gen_dev write FUNC SIN
+    $gen_dev write BURST:MODE trig
+    $gen_dev write BURST:NCYC $cnt
+    $gen_dev write TRIG:SOURCE BUS
+    $gen_dev write FREQ $freq
+    $gen_dev write VOLT $volt
+    $gen_dev write OUTP ON
+
+    ## Oscilloscope setup:
+    ## A - signal, B - trigger
+    $osc_dev cmd chan_set A 1 AC $sc
+    $osc_dev cmd chan_set B 1 DC 10
+    $osc_dev cmd trig_set B 0.1 FALLING 0
+
+#    if {$db_dev != {} && $db_ann !={} } {
+#      $db_dev cmd put $db_ann now "Fork setup: FREQ=$freq CNT=$cnt VOLT=$volt SC=$sc"
+#    }
+
+    if {$db_dev != {} && $db_par !={} } {
+      set prev [lindex [$db_dev cmd get $db_par] 0]
+      if { ([lindex $prev 1] != $freq) ||\
+           ([lindex $prev 2] != $cnt)  ||\
+           ([lindex $prev 3] != $volt) ||\
+           ([lindex $prev 4] != $sc) } {
+        $db_dev cmd put $db_par now $freq $cnt $volt $sc
+      }
+    }
+
+    set setup_done 1
+    return
+  }
+
+  method set_freq_limits {min max} {
+    set fmin $min
+    set fmax $max
+  }
+
+  method pulse {tpre time dt sigfile} {
+    if {!$setup_done} {error "setup command should be used before a pulse"}
+    set N  [expr {int(1.0*$time/$dt)}]; # sample count
+    set NP [expr {int(1.0*$tpre/$dt)}]; # pretigger sample count
+    $osc_dev cmd block A $NP $N $dt $sigfile
+    $gen_dev write *TRG
+    $osc_dev cmd wait
+
+    set out [exec sig_filter -F $fmin -G $fmax -T 0 -f fit $sigfile ]
+
+    if {$db_dev != {} && $db_val !={} } {
+      $db_dev cmd put $db_val {*}$out
+      $db_dev cmd sync
+    }
+    return $out
+  }
+
+  # write a noise signal
+  method noise {noisefile} {
+    set time 10
+    set dt   1e-6
+    set N  [expr {int(1.0*$time/$dt)}]; # sample count
+
+    $osc_dev cmd chan_set A 1 AC 0.05
+    $osc_dev cmd trig_set NONE 0 FALLING 0
+    $osc_dev cmd block A 0 $N $dt $noisefile
+    $osc_dev cmd wait
+    $osc_dev cmd trig_set B 0.1 FALLING 0
+
+    return [exec sig_filter -f fft_pow_avr -F $fmin -G $fmax -N 1000 $noisefile ]
+  }
+
+  method get_osc_sc {} {
+    return [lindex [$osc_dev cmd ranges A] 0]
+  }
+
+
+  # Return list of commands which can be run from stdin.
+  method list {} {return {list pulse setup get_osc_sc get_sigfile set_freq_limits noise} }
+}
+
+#############################################################
+
+spp_server::run ForkPulseDriver $argv

@@ -1,0 +1,353 @@
+#!/usr/bin/tclsh
+
+# current sweeper with stdin/stdout interface
+
+package require Device
+package require DeviceRole 1.0
+package require xBlt
+
+#############################################################
+## Command line options:
+# -p -ps_dev1     -- power supply device
+# -P -ps_dev2     -- power supply device - 2nd channel
+# -G -gauge       -- gauge device
+# -d -db_dev      -- database device (can be empty)
+# -n -db_val      -- database name for numerical values
+# -a -db_ann      -- database name for annatations
+# -v -max_volt    -- max voltage, V (default 1)
+# -m -max_rate    -- max rate, A/S (default 1)
+# -t -tstep       -- time step, s (default 1)
+# -s -skip        -- do not write points where current was not set (0)
+
+set options [list \
+{-p -ps_dev1}  ps_dev1  {}\
+{-P -ps_dev2}  ps_dev2  {}\
+{-G -gauge}    g_dev    {}\
+{-d -db_dev}   db_dev   {}\
+{-n -db_val}   db_val   {}\
+{-a -db_ann}   db_ann   {}\
+{-v -max_volt} max_volt {1}\
+{-m -max_rate} max_rate {1}\
+{-t -tstep}    tstep    {1}\
+{-s -skip}     skip     {0}\
+]
+
+set msg {}
+
+#############################################################
+
+itcl::class SweepController {
+  variable dev1 {}; # device driver
+  variable dev2 {}; # device driver -- 2nd chan
+  variable gdev {}; # gauge device driver
+  variable rh   {}; # ramping loop handler
+  variable cs1 0;     # set current - 1st chan
+  variable cs2 0;     # set current - 2nd chan
+  variable cm1 0;     # measured current - 1st chan
+  variable cm2 0;     # measured current - 2nd chan
+  variable vm1 0;     # measured voltage - 1st chan
+  variable vm2 0;     # measured voltage - 2nd chan
+  variable st {};     # device state
+  variable mval {};   # measured value
+  variable dt   0;  # actual time from last current setting
+  variable rate 0;
+  variable dest 0;
+  variable msg "";  # message to be logged into database on the next step
+  variable state 0; # set to 1 to measure current on the next step
+
+  # see options:
+  variable db_dev
+  variable db_val
+  variable db_ann
+  variable max_volt
+  variable max_rate
+  variable tstep
+  variable skip
+
+  # device parameters
+  variable min_i_step  1;
+  variable min_i_step2 1;
+  variable min_i  0;
+  variable min_i2 0;
+  variable max_i  0;
+  variable max_i2 0;
+
+
+  ######################################
+  # Return list of commands which can be run from stdin.
+  method list {} { return\
+    {list sweep sweep_stop reset wait
+     get_scurr get_mcurr get_volt get_stat get_mval
+     db_value db_comment} }
+
+  ######################################
+  # constructor - open and lock devices, get parameters
+
+  constructor {opts} {
+    #Parse options.
+    global options
+    xblt::parse_options "sweeper" $opts $options
+
+    if {$ps_dev1  == {} } { error "ps_dev1 is empty" }
+    set dev1 [DeviceRole $ps_dev1 power_supply]
+    $dev1 lock
+
+    # get device parameters
+    set min_i_step [$dev1 cget -min_i_step]
+    set max_i [$dev1 cget -max_i]
+    set min_i [$dev1 cget -min_i]
+
+    if {$ps_dev2 != {}} {
+      if {$ps_dev1 == $ps_dev2} {error "same devices for both channels"}
+      set dev2 [DeviceRole $ps_dev2 power_supply]
+      $dev2 lock
+
+      set min_i_step2 [$dev2 cget -min_i_step]
+      set max_i2 [$dev2 cget -max_i]
+      set min_i2 [$dev2 cget -min_i]
+    }
+
+    if {$g_dev != {}} {
+      set gdev [DeviceRole $g_dev gauge]
+    }
+
+    # Open database if needed
+    if {$db_dev != {} } { Device $db_dev }
+
+    reset
+  }
+
+  destructor {
+    $dev1 unlock
+    if {$dev2 != {}} { $dev2 unlock }
+  }
+
+
+  ######################################
+  ### DB functions
+
+  # put comment into the database (internal use)
+  method put_comment {c} {
+    if {$db_dev != {} && $db_ann != {} } {
+      $db_dev cmd "put $db_ann now $c"
+      $db_dev cmd "sync"
+    }
+  }
+
+  # put value into the database (internal use)
+  method put_value {} {
+    if { $db_dev != {} && $db_val != {}} {
+      $db_dev cmd "put $db_val now [get_mcurr] [get_scurr] [get_volt] [get_mval]"
+      $db_dev cmd "sync"
+    }
+  }
+
+  # access value database
+  method db_value {cmd args} {
+    if { $db_dev != {} && $db_val != {}} {
+      return [$db_dev cmd $cmd $db_val $args]
+    }
+  }
+
+  # access comment database
+  method db_comment {cmd args} {
+    if { $db_dev != {} && $db_ann != {}} {
+      return [$db_dev cmd $cmd $db_ann $args]
+    }
+  }
+
+
+  ######################################
+  ### PS functions
+
+  # set current for both channels (internal)
+  method set_curr {ch val} {
+    if {$ch == 1} { set cs1 [expr {$val-$cs2}]; $dev1 set_curr $cs1 }\
+    else          { set cs2 [expr {$val-$cs1}]; $dev2 set_curr $cs2 }
+  }
+
+  # get measured current (sum for both channels)
+  method get_mcurr {} { return [expr {$cm1 + $cm2}] }
+
+  # get current (sum for both channels)
+  method get_scurr {} { return [expr {$cs1 + $cs2}] }
+
+  # get voltage (1st channel only)
+  method get_volt {} { return $vm1 }
+
+  # get stat
+  method get_stat {} { return $st }
+
+  # get measured value
+  method get_mval {} { return $mval }
+
+  ######################################
+  # Main loop
+
+  method loop {} {
+
+    # Errors in the loop can not go to the interface
+    # Now I ignore them, then it may be useful
+    # to catch them by bgerror and return as a program status
+
+    catch {
+      after cancel $rh
+
+      # measure all values
+      set cm1 [ $dev1 get_curr ]
+      if {$dev2 != {}} {
+        set cm2 [$dev2 get_curr]
+      }
+      set vm1 [ $dev1 get_volt ]
+      if {$dev2 != {}} {
+        set vm2 [$dev2 get_volt]
+      }
+      set st [ $dev1 get_stat ]
+      if {$dev2 != {}} {
+        set st "$st:[ $dev2 get_stat ]"
+      }
+      # do measurement if needed
+      if {$gdev != {}} { set mval [ $gdev get ] }\
+      else { set mval {} }
+
+      if {!$skip || $state==1 || $msg != {}} { put_value }
+      set state 0
+
+      if {$msg != {}} {put_comment $msg}
+      set msg {}
+
+      # stop ramping if the real current jumped outside the tolerance
+      set cm1 [ $dev1 get_curr ]
+      if {$dev2 != {}} { set cm2 [$dev2 get_curr] } else {set cm2 0}
+      set tolerance  [expr 100*$min_i_step]
+      set tolerance2 [expr 100*$min_i_step2]
+      if { abs($cm1-$cs1) > $tolerance ||\
+           abs($cm2-$cs2) > $tolerance2} {
+        set cs1 $cm1
+        set cs2 $cm2
+        set rate 0
+          put_comment "current jump to [get_scurr]"
+      }
+
+      if {$rate > 0} { step }
+    }
+
+    set rh [after [expr int($tstep*1000)] "$this loop"]
+  }
+
+  # active step (rate>0)
+  method step {} {
+    # limit rate and destination
+    if {$dest > $max_i + $max_i2} {set dest [expr {$max_i+$max_i2}]}
+    if {$dest < $min_i + $min_i2} {set dest [expr {$min_i+$min_i2}]}
+    if {$rate > $max_rate} {set rate $max_rate}
+
+    # find sweep direction
+    if {[get_scurr] <= $dest} {set dir 1} else {set dir -1}
+
+    # set current step we need
+    set dt [expr $dt + $tstep]
+    set di [expr {1.0*$dir*$rate*$dt}]
+
+    # find channel we want to sweep
+    if { $dev2 != {} &&\
+       (($dir==1  && $cs2+$di < $max_i2) ||\
+        ($dir==-1 && $cs2+$di > $min_i2)) } { set ch 2 }\
+    else {set ch 1}
+
+    # if we are near the destination
+    if { [expr {abs([get_scurr]-$dest)}] < [expr {abs($di)}] } {
+      set rate 0
+      set c $dest
+      set msg "sweep finished at $dest"
+    }\
+    else {
+      set c [expr {[get_scurr] + $di}]
+    }
+
+    # Set current if current step is large enough, or just wait
+    # for the next step.
+    # If rate was set to 0 also set current
+    if {($ch==1 && abs($di) > $min_i_step) ||\
+        ($ch==2 && abs($di) > $min_i_step2) ||\
+        ($rate == 0) } {
+      set_curr $ch $c
+      set state 1
+      set dt 0
+    }
+    return
+  }
+
+  ######################################
+  # control commands
+
+  method reset {} {
+    after cancel $rh
+
+    $dev1 set_ovp $max_volt
+    $dev1 cc_reset
+    if {$dev2 != {}} {
+      $dev2 set_ovp $max_volt
+      $dev2 cc_reset
+    }
+    set cs1 [ $dev1 get_curr ]
+    if {$dev2 != {}} { set cs2 [$dev2 get_curr] } else {set cs2 0}
+    set dest [get_scurr]
+    set rate 0
+
+    set msg "reset"
+    set rh [after idle $this loop]
+    return {}
+  }
+
+  method sweep {dest_ rate_} {
+    if {$rate == $rate_ && $dest==$dest_} {return}
+    after cancel $rh
+    set rate [expr abs($rate_)]
+    set dest $dest_
+    set msg "sweep to $dest A at $rate A/s"
+    set rh [after idle $this loop]
+    return
+  }
+
+  method sweep_stop {} {
+    if {$rate == 0} {return}
+    after cancel $rh
+    set rate 0
+    set msg "sweep stoped"
+    set rh [after idle $this loop]
+    return
+  }
+
+  # wait for msg variable avoiding nested vwait's
+  # see: https://www.tcl.tk/man/tcl/TclCmd/vwait.htm
+  # A coroutine-based wait-for-variable command
+  method waitvar {var} {
+      puts stderr ">> $var"
+  
+    trace add variable $var write \
+            [list apply {{v c args} {
+        trace remove variable $v write \
+                [lrange [info level 0] 0 3]
+        after 0 $c
+    }} $var [info coroutine]]
+    yield
+  }
+
+  method wait {} {
+    if {$rate == 0} { return }
+    puts stderr "waiting [itcl::scope msg]"
+
+    coroutine wait_for-msg eval {
+      puts stderr ">>> [itcl::scope msg]"
+      waitvar [itcl::scope msg]
+      puts stderr "done"
+    }
+  }
+
+}
+
+
+#############################################################
+
+spp_server::run SweepController $argv

@@ -1,0 +1,28 @@
+#!/usr/bin/tclsh
+
+package require DeviceRole 1.2
+package require xBlt
+
+## script for setting ac source
+
+## set all parameters from cmdline
+#
+# -d -dev   -- generator device (default gen0:1)
+# -v -volt  -- voltage (default 0.002)
+# -f -freq  -- frequency (default 10e6)
+# -o -offs  -- offset, V (default 0)
+# -O -off   -- turn the output off (default 0)
+
+set options [list \
+{-g -dev}  dev  {gen0:1}\
+{-v -volt} volt     {0.002}\
+{-f -freq} freq     {10e6}\
+{-o -offs} offs     {0}\
+{-O -off}  off      {0}\
+]
+
+xblt::parse_options "get_gain" $argv $options
+set gen [DeviceRole $dev ac_source]
+
+if {$off} {$gen off}\
+else {$gen set_ac $freq $volt $offs}

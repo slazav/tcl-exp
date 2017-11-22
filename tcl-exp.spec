@@ -1,4 +1,4 @@
-Name:         scripts
+Name:         exp_scripts
 Version:      1.0
 Release:      alt1
 
@@ -20,6 +20,7 @@ Local scripts for my computer
 mkdir -p %buildroot%_bindir %buildroot%_datadir/octave/site/m
 %__install bin/*    %buildroot%_bindir
 %__install octave/* %buildroot%_datadir/octave/site/m
+%__install exp/*    %buildroot%_bindir
 
 %files
 %_bindir/*
