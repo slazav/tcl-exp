@@ -1,5 +1,9 @@
 # Useful scripts for my experimental setup and data processing
 
+TODO: split into two packages:
+- scripts for office use (with tex dep etc)
+- scripts for experiment (with Device dep)
+
 ## Files in `octave` folder (should be installed into `/usr/share/octave/site/m/`)
 
 * find_figure.m -- find figure with given name or create new
