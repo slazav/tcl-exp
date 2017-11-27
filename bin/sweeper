@@ -32,8 +32,6 @@ set options [list \
 {-s -skip}     skip     {0}\
 ]
 
-set msg {}
-
 #############################################################
 
 itcl::class SweepController {
@@ -74,59 +72,65 @@ itcl::class SweepController {
 
 
   ######################################
-  # Return list of commands which can be run from stdin.
-  method list {} { return\
-    {list sweep sweep_stop reset wait
-     get_scurr get_mcurr get_volt get_stat get_mval
-     db_value db_comment} }
-
-  ######################################
   # constructor - open and lock devices, get parameters
+  # should call spp_server_async::ans or spp_server_async::err
 
   constructor {opts} {
     #Parse options.
-    global options
-    xblt::parse_options "sweeper" $opts $options
+    if {[catch {
 
-    if {$ps_dev1  == {} } { error "ps_dev1 is empty" }
-    set dev1 [DeviceRole $ps_dev1 power_supply]
-    $dev1 lock
+      # parse options
+      global options
+      xblt::parse_options "sweeper" $opts $options
 
-    # get device parameters
-    set min_i_step [$dev1 cget -min_i_step]
-    set max_i [$dev1 cget -max_i]
-    set min_i [$dev1 cget -min_i]
+      # open secons PS device if needed and get its parameters
+      if {$ps_dev1  == {} } { error "ps_dev1 is empty" }
+      set dev1 [DeviceRole $ps_dev1 power_supply]
+      $dev1 lock
+      set min_i_step [$dev1 cget -min_i_step]
+      set max_i [$dev1 cget -max_i]
+      set min_i [$dev1 cget -min_i]
 
-    if {$ps_dev2 != {}} {
-      if {$ps_dev1 == $ps_dev2} {error "same devices for both channels"}
-      set dev2 [DeviceRole $ps_dev2 power_supply]
-      $dev2 lock
+      # open secons PS device if needed
+      if {$ps_dev2 != {}} {
+        if {$ps_dev1 == $ps_dev2} {error "same devices for both channels"}
+        set dev2 [DeviceRole $ps_dev2 power_supply]
+        $dev2 lock
+        set min_i_step2 [$dev2 cget -min_i_step]
+        set max_i2 [$dev2 cget -max_i]
+        set min_i2 [$dev2 cget -min_i]
+      }
 
-      set min_i_step2 [$dev2 cget -min_i_step]
-      set max_i2 [$dev2 cget -max_i]
-      set min_i2 [$dev2 cget -min_i]
+      # open gauge device if needed
+      if {$g_dev != {}} {
+        set gdev [DeviceRole $g_dev gauge]
+      }
+
+      # Open database if needed
+      if {$db_dev != {} } { Device $db_dev }
+    }]} {
+      spp_server_async::err
+    }\
+    else {
+      # reset is an interactive command, it will call
+      # spp_server_async::ans or spp_server_async::err
+      reset
     }
-
-    if {$g_dev != {}} {
-      set gdev [DeviceRole $g_dev gauge]
-    }
-
-    # Open database if needed
-    if {$db_dev != {} } { Device $db_dev }
-
-    reset
   }
 
   destructor {
     $dev1 unlock
-    if {$dev2 != {}} { $dev2 unlock }
+    itcl::delete object $dev1
+    if {$dev2 != {}} {
+      $dev2 unlock
+      itcl::delete object $dev2
+    }
   }
 
-
   ######################################
-  ### DB functions
+  ### internal DB functions
 
-  # put comment into the database (internal use)
+  # put comment into the database
   method put_comment {c} {
     if {$db_dev != {} && $db_ann != {} } {
       $db_dev cmd "put $db_ann now $c"
@@ -134,52 +138,21 @@ itcl::class SweepController {
     }
   }
 
-  # put value into the database (internal use)
+  # put value into the database
   method put_value {} {
     if { $db_dev != {} && $db_val != {}} {
-      $db_dev cmd "put $db_val now [get_mcurr] [get_scurr] [get_volt] [get_mval]"
+      $db_dev cmd "put $db_val now [expr {$cm1 + $cm2}] [expr {$cs1 + $cs2}] $vm1 $mval"
       $db_dev cmd "sync"
     }
   }
 
-  # access value database
-  method db_value {cmd args} {
-    if { $db_dev != {} && $db_val != {}} {
-      return [$db_dev cmd $cmd $db_val $args]
-    }
-  }
-
-  # access comment database
-  method db_comment {cmd args} {
-    if { $db_dev != {} && $db_ann != {}} {
-      return [$db_dev cmd $cmd $db_ann $args]
-    }
-  }
-
-
   ######################################
-  ### PS functions
-
   # set current for both channels (internal)
   method set_curr {ch val} {
     if {$ch == 1} { set cs1 [expr {$val-$cs2}]; $dev1 set_curr $cs1 }\
     else          { set cs2 [expr {$val-$cs1}]; $dev2 set_curr $cs2 }
   }
 
-  # get measured current (sum for both channels)
-  method get_mcurr {} { return [expr {$cm1 + $cm2}] }
-
-  # get current (sum for both channels)
-  method get_scurr {} { return [expr {$cs1 + $cs2}] }
-
-  # get voltage (1st channel only)
-  method get_volt {} { return $vm1 }
-
-  # get stat
-  method get_stat {} { return $st }
-
-  # get measured value
-  method get_mval {} { return $mval }
 
   ######################################
   # Main loop
@@ -213,8 +186,10 @@ itcl::class SweepController {
       if {!$skip || $state==1 || $msg != {}} { put_value }
       set state 0
 
-      if {$msg != {}} {put_comment $msg}
-      set msg {}
+      if {$msg != {}} {
+        put_comment $msg
+        set msg {}
+      }
 
       # stop ramping if the real current jumped outside the tolerance
       set cm1 [ $dev1 get_curr ]
@@ -226,7 +201,7 @@ itcl::class SweepController {
         set cs1 $cm1
         set cs2 $cm2
         set rate 0
-          put_comment "current jump to [get_scurr]"
+          put_comment "current jump to [expr $cs1+$cs2]"
       }
 
       if {$rate > 0} { step }
@@ -243,7 +218,7 @@ itcl::class SweepController {
     if {$rate > $max_rate} {set rate $max_rate}
 
     # find sweep direction
-    if {[get_scurr] <= $dest} {set dir 1} else {set dir -1}
+    if {[expr $cs1+$cs2] <= $dest} {set dir 1} else {set dir -1}
 
     # set current step we need
     set dt [expr $dt + $tstep]
@@ -256,13 +231,13 @@ itcl::class SweepController {
     else {set ch 1}
 
     # if we are near the destination
-    if { [expr {abs([get_scurr]-$dest)}] < [expr {abs($di)}] } {
+    if { [expr {abs([expr $cs1+$cs2]-$dest)}] < [expr {abs($di)}] } {
       set rate 0
       set c $dest
       set msg "sweep finished at $dest"
     }\
     else {
-      set c [expr {[get_scurr] + $di}]
+      set c [expr {[expr $cs1+$cs2] + $di}]
     }
 
     # Set current if current step is large enough, or just wait
@@ -279,70 +254,118 @@ itcl::class SweepController {
   }
 
   ######################################
-  # control commands
+  # interactive methods - should be run from the interface only,
+  # should call spp_server_async::ans or spp_server_async::err
 
+  ## to be moved to spp_server_async!
+  method spp_try {proc} {
+    if {[catch {
+      set ret [exec $proc]
+    }]} {
+      spp_server_async::err
+    }\
+    else {
+      spp_server_async::ans $ret
+    }
+  }
+
+  ## get current/voltage/status/measured value
+  # get measured current (sum for both channels)
+  method get_mcurr {} { spp_server_async::ans [expr {$cm1 + $cm2}] }
+
+  # get current (sum for both channels)
+  method get_scurr {} { spp_server_async::ans [expr {$cs1 + $cs2}] }
+
+  # get voltage (1st channel only)
+  method get_volt {} { spp_server_async::ans $vm1 }
+
+  # get stat
+  method get_stat {} { spp_server_async::ans $st }
+
+  # get measured value
+  method get_mval {} { spp_server_async::ans $mval }
+
+  ######################################
+  # DB access
+  # value database
+
+  method db_value {cmd args} {
+    if { $db_dev == {} || $db_val == {}} {
+      spp_server_async::ans
+      return
+    }
+    spp_try "$db_dev cmd $cmd $db_val $args"
+  }
+
+  # comment database
+  method db_comment {cmd args} {
+    if { $db_dev == {} || $db_ann == {}} {
+      spp_server_async::ans
+      return
+    }
+    spp_try "$db_dev cmd $cmd $db_ann $args"
+  }
+
+  ######################################
+  # reset device and stop sweep
   method reset {} {
     after cancel $rh
 
-    $dev1 set_ovp $max_volt
-    $dev1 cc_reset
-    if {$dev2 != {}} {
-      $dev2 set_ovp $max_volt
-      $dev2 cc_reset
-    }
-    set cs1 [ $dev1 get_curr ]
-    if {$dev2 != {}} { set cs2 [$dev2 get_curr] } else {set cs2 0}
-    set dest [get_scurr]
-    set rate 0
+    if {[catch {
+      $dev1 set_ovp $max_volt
+      $dev1 cc_reset
+      if {$dev2 != {}} {
+        $dev2 set_ovp $max_volt
+        $dev2 cc_reset
+      }
+      set cs1 [ $dev1 get_curr ]
+      if {$dev2 != {}} { set cs2 [$dev2 get_curr] } else {set cs2 0}
+      set dest [expr $cs1+$cs2]
+      set rate 0
 
-    set msg "reset"
-    set rh [after idle $this loop]
-    return {}
+      set msg "reset"
+      set rh [after idle $this loop]
+    }]} {
+      spp_server_async::err
+    }\
+    else {
+      spp_server_async::ans
+    }
   }
 
+  ######################################
+  # start sweep
   method sweep {dest_ rate_} {
-    if {$rate == $rate_ && $dest==$dest_} {return}
-    after cancel $rh
-    set rate [expr abs($rate_)]
-    set dest $dest_
-    set msg "sweep to $dest A at $rate A/s"
-    set rh [after idle $this loop]
-    return
-  }
-
-  method sweep_stop {} {
-    if {$rate == 0} {return}
-    after cancel $rh
-    set rate 0
-    set msg "sweep stoped"
-    set rh [after idle $this loop]
-    return
-  }
-
-  # wait for msg variable avoiding nested vwait's
-  # see: https://www.tcl.tk/man/tcl/TclCmd/vwait.htm
-  # A coroutine-based wait-for-variable command
-  method waitvar {var} {
-      puts stderr ">> $var"
-  
-    trace add variable $var write \
-            [list apply {{v c args} {
-        trace remove variable $v write \
-                [lrange [info level 0] 0 3]
-        after 0 $c
-    }} $var [info coroutine]]
-    yield
-  }
-
-  method wait {} {
-    if {$rate == 0} { return }
-    puts stderr "waiting [itcl::scope msg]"
-
-    coroutine wait_for-msg eval {
-      puts stderr ">>> [itcl::scope msg]"
-      waitvar [itcl::scope msg]
-      puts stderr "done"
+    if {$rate != $rate_ || $dest!=$dest_} {
+      after cancel $rh
+      set rate [expr abs($rate_)]
+      set dest $dest_
+      set msg "sweep to $dest A at $rate A/s"
+      set rh [after idle $this loop]
     }
+    spp_server_async::ans
+  }
+
+  ######################################
+  # stop sweep
+  method sweep_stop {} {
+    if {$rate != 0} {
+      after cancel $rh
+      set rate 0
+      set msg "sweep stoped"
+      set rh [after idle $this loop]
+    }
+    spp_server_async::ans
+  }
+
+  ######################################
+  # Wait until next message appears
+  method wait {} {
+    trace add variable msg write "$this on_msg_set"
+  }
+  method on_msg_set {n1 n2 op} {
+    trace remove variable msg write "$this on_msg_set"
+    spp_server_async::ans $msg
   }
 
 }
@@ -350,4 +373,5 @@ itcl::class SweepController {
 
 #############################################################
 
-spp_server::run SweepController $argv
+spp_server_async::list {get_scurr get_mcurr get_volt get_stat get_mval db_value db_comment reset sweep sweep_stop wait}
+spp_server_async::run SweepController $argv
