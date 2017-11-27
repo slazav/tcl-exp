@@ -1,6 +1,7 @@
 Name:         exp_scripts
 Version:      1.0
 Release:      alt1
+BuildArch:    noarch
 
 Summary:      Useful scripts for my experimental setup and data processing
 Group:        System
