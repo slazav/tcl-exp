@@ -265,19 +265,7 @@ itcl::class SweepController {
 
   ######################################
   # interactive methods - should be run from the interface only,
-  # should call spp_server_async::ans or spp_server_async::err
-
-  ## to be moved to spp_server_async!
-  method spp_try {proc} {
-    if {[catch {
-      set ret [exec $proc]
-    }]} {
-      spp_server_async::err
-    }\
-    else {
-      spp_server_async::ans $ret
-    }
-  }
+  # should always call spp_server_async::ans or spp_server_async::err
 
   ## get current/voltage/status/measured value
   # get measured current (sum for both channels)
@@ -304,7 +292,7 @@ itcl::class SweepController {
       spp_server_async::ans
       return
     }
-    spp_try "$db_dev cmd $cmd $db_val $args"
+    spp_server_async::try "$db_dev cmd $cmd $db_val $args"
   }
 
   # comment database
@@ -313,7 +301,7 @@ itcl::class SweepController {
       spp_server_async::ans
       return
     }
-    spp_try "$db_dev cmd $cmd $db_ann $args"
+    spp_server_async::try "$db_dev cmd $cmd $db_ann $args"
   }
 
   ######################################
