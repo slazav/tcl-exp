@@ -47,9 +47,10 @@ itcl::class SweepController {
   variable vm2 0;     # measured voltage - 2nd chan
   variable st {};     # device state
   variable mval {};   # measured value
-  variable dt   0;  # actual time from last current setting
-  variable rate 0;
-  variable dest 0;
+  variable dt    0;   # actual time from last current setting
+  variable rate  0;
+  variable dest  0;
+  variable dest2 0;
   variable msg "";  # message to be logged into database on the next step
   variable state 0; # set to 1 to measure current on the next step
 
@@ -232,9 +233,18 @@ itcl::class SweepController {
 
     # if we are near the destination
     if { [expr {abs([expr $cs1+$cs2]-$dest)}] < [expr {abs($di)}] } {
-      set rate 0
       set c $dest
-      set msg "sweep finished at $dest"
+      if {$dest==$dest2} {
+        set rate 0
+        set msg "sweep finished at $dest A"
+      }\
+      else {
+        set c $dest
+        # swap dest and dest2
+        set dest  $dest2
+        set dest2 $c
+        set msg "sweep to $dest A at $rate A/s"
+      }
     }\
     else {
       set c [expr {[expr $cs1+$cs2] + $di}]
@@ -334,12 +344,19 @@ itcl::class SweepController {
   }
 
   ######################################
-  # start sweep
+  # start sweep to some value
   method sweep {dest_ rate_} {
-    if {$rate != $rate_ || $dest!=$dest_} {
+    sweep_between $dest_ $dest_ $rate_
+  }
+
+  ######################################
+  # sweep between two values
+  method sweep_between {dest_ dest2_ rate_} {
+    if {$rate != $rate_ || $dest!=$dest_ || $dest2!=$dest2_} {
       after cancel $rh
       set rate [expr abs($rate_)]
       set dest $dest_
+      set dest2 $dest2_
       set msg "sweep to $dest A at $rate A/s"
       set rh [after idle $this loop]
     }
@@ -373,5 +390,5 @@ itcl::class SweepController {
 
 #############################################################
 
-spp_server_async::list {get_scurr get_mcurr get_volt get_stat get_mval db_value db_comment reset sweep sweep_stop wait}
+spp_server_async::list {get_scurr get_mcurr get_volt get_stat get_mval db_value db_comment reset sweep sweep_between sweep_stop wait}
 spp_server_async::run SweepController $argv
