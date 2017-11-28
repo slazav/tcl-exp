@@ -150,8 +150,6 @@ itcl::class SweepController {
   ######################################
   # set current for both channels (internal)
   method set_curr {ch val} {
-    if {$ch == 1} { set cs1 [expr {$val-$cs2}]; $dev1 set_curr $cs1 }\
-    else          { set cs2 [expr {$val-$cs1}]; $dev2 set_curr $cs2 }
   }
 
 
@@ -213,9 +211,11 @@ itcl::class SweepController {
 
   # active step (rate>0)
   method step {} {
-    # limit rate and destination
+    # limit rate and destinations
     if {$dest > $max_i + $max_i2} {set dest [expr {$max_i+$max_i2}]}
     if {$dest < $min_i + $min_i2} {set dest [expr {$min_i+$min_i2}]}
+    if {$dest2 > $max_i + $max_i2} {set dest2 [expr {$max_i+$max_i2}]}
+    if {$dest2 < $min_i + $min_i2} {set dest2 [expr {$min_i+$min_i2}]}
     if {$rate > $max_rate} {set rate $max_rate}
 
     # find sweep direction
@@ -225,15 +225,11 @@ itcl::class SweepController {
     set dt [expr $dt + $tstep]
     set di [expr {1.0*$dir*$rate*$dt}]
 
-    # find channel we want to sweep
-    if { $dev2 != {} &&\
-       (($dir==1  && $cs2+$di < $max_i2) ||\
-        ($dir==-1 && $cs2+$di > $min_i2)) } { set ch 2 }\
-    else {set ch 1}
-
-    # if we are near the destination
+    # Now set where do we want to go on this step (in $c)
+    # Are we near the destination?
     if { [expr {abs([expr $cs1+$cs2]-$dest)}] < [expr {abs($di)}] } {
       set c $dest
+      # do we want to swap sweep direction?
       if {$dest==$dest2} {
         set rate 0
         set msg "sweep finished at $dest A"
@@ -250,16 +246,34 @@ itcl::class SweepController {
       set c [expr {[expr $cs1+$cs2] + $di}]
     }
 
-    # Set current if current step is large enough, or just wait
-    # for the next step.
-    # If rate was set to 0 also set current
-    if {($ch==1 && abs($di) > $min_i_step) ||\
-        ($ch==2 && abs($di) > $min_i_step2) ||\
-        ($rate == 0) } {
-      set_curr $ch $c
-      set state 1
-      set dt 0
+ 
+    # first try to sweep ch2:
+    if { $dev2 != {} } {
+      set v [expr {$c-$cs1}];
+      if {$v < $min_i2} {set v $min_i2}
+      if {$v > $max_i2} {set v $max_i2}
+      # is step is too small?
+      if { abs($v-$cs2) > $min_i_step2 || $rate==0 } {
+        $dev2 set_curr $v
+        set cs2 $v
+        set state 1
+        set dt 0
+      }
     }
+    # the same with ch1:
+    if { $dev1 != {} } {
+      set v [expr {$c-$cs2}];
+      if {$v < $min_i} {set v $min_i}
+      if {$v > $max_i} {set v $max_i}
+      # is step is too small?
+      if { abs($v-$cs1) > $min_i_step || $rate==0 } {
+        $dev1 set_curr $v
+        set cs1 $v
+        set state 1
+        set dt 0
+      }
+    }
+
     return
   }
 
@@ -287,12 +301,24 @@ itcl::class SweepController {
   # DB access
   # value database
 
+
+  proc try {script} {
+    if {[catch {
+      set ret [eval $script]
+    }]} {
+      spp_server_async::err
+    }\
+    else {
+      spp_server_async::ans $ret
+    }
+  }
+
   method db_value {cmd args} {
     if { $db_dev == {} || $db_val == {}} {
       spp_server_async::ans
       return
     }
-    spp_server_async::try "$db_dev cmd $cmd $db_val $args"
+    try "$db_dev cmd $cmd $db_val $args"
   }
 
   # comment database
@@ -301,7 +327,7 @@ itcl::class SweepController {
       spp_server_async::ans
       return
     }
-    spp_server_async::try "$db_dev cmd $cmd $db_ann $args"
+    try "$db_dev cmd $cmd $db_ann $args"
   }
 
   ######################################
@@ -317,7 +343,7 @@ itcl::class SweepController {
         $dev2 cc_reset
       }
       set cs1 [ $dev1 get_curr ]
-      if {$dev2 != {}} { set cs2 [$dev2 get_curr] } else {set cs2 0}
+      set cs2 0
       set dest [expr $cs1+$cs2]
       set rate 0
 
