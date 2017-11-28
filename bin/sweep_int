@@ -13,6 +13,8 @@ blt::vector create plot_x
 blt::vector create plot_y1
 blt::vector create plot_y2
 blt::vector create plot_y3
+blt::vector create plot_y4
+blt::vector create plot_y5
 
 ## function for Start/Stop/ToZero/Clear/Reset buttons
 proc do_start {} {
@@ -42,14 +44,10 @@ proc do_clear {} {
   plot_y1 clear
   plot_y2 clear
   plot_y3 clear
+  plot_y4 clear
+  plot_y5 clear
 }
 
-
-Device $dev
-set dest [expr int(1000*[$dev cmd get_scurr])]
-set rate 10
-
-$dev set_logfile "sw.log"
 
 ## make interface
 label .name    -text $name -font {-size 20}
@@ -100,20 +98,28 @@ xblt::elemop     $pwid
 xblt::scroll     $pwid $swid -timefmt 1
 xblt::xcomments  $pwid
 
-$pwid axis create I    -title "I"         -titlecolor black
-$pwid axis create Iset -title "Iset"      -titlecolor black
-$pwid axis create R    -title "R"         -titlecolor black
+$pwid axis create I    -title "I"  -titlecolor black
+$pwid axis create Iset -title "Iset"  -titlecolor black
+$pwid axis create R   -title "R"  -titlecolor black
+$pwid axis create X   -title "X" -titlecolor black
+$pwid axis create Y   -title "Y" -titlecolor black
 
 $pwid element create I    -xdata plot_x -ydata plot_y1 -mapy I\
   -symbol "circle" -pixels 2  -color red
 $pwid element create Iset -xdata plot_x -ydata plot_y2 -mapy Iset\
   -symbol "circle" -pixels 2  -color blue
 $pwid element create R    -xdata plot_x -ydata plot_y3 -mapy R\
-  -symbol "circle" -pixels 2  -color green -label "R"
+  -symbol "circle" -pixels 2  -color green
+$pwid element create X    -xdata plot_x -ydata plot_y4 -mapy X\
+  -symbol "circle" -pixels 2  -color magenta
+$pwid element create Y    -xdata plot_x -ydata plot_y5 -mapy Y\
+  -symbol "circle" -pixels 2  -color lightblue
 
 $pwid element bind I    <Enter> [list $pwid yaxis use I]
 $pwid element bind Iset <Enter> [list $pwid yaxis use Iset]
 $pwid element bind R    <Enter> [list $pwid yaxis use R]
+$pwid element bind X    <Enter> [list $pwid yaxis use X]
+$pwid element bind Y    <Enter> [list $pwid yaxis use Y]
 
 pack $pwid
 pack $swid
@@ -146,14 +152,16 @@ proc update_curr {} {
     # remove old data
     if {$plot_x(end)-$plot_x(0) > 1.2*$dt} {
       set i 0
-      for {set i 0} {$i<[ plot_x  length]} {incr i} {
-        if {$plot_x(i)>=$t1} {break}
+      for {set i 0} {$i<[plot_x length]} {incr i} {
+        if {$plot_x($i)>=$t1} {break}
       }
       if {$i>0} {
          plot_x  delete 0:$i
          plot_y1  delete 0:$i
          plot_y2  delete 0:$i
          plot_y3  delete 0:$i
+         plot_y4  delete 0:$i
+         plot_y5  delete 0:$i
       }
     }
   }
@@ -165,6 +173,8 @@ proc update_curr {} {
     plot_y1 append [lindex $line 1]
     plot_y2 append [lindex $line 2]
     plot_y3 append [lindex $line 3]/[lindex $line 1]
+    plot_y4 append [lindex $line 5]
+    plot_y5 append [lindex $line 6]
   }
 
   # clear comment data
@@ -182,6 +192,11 @@ proc update_curr {} {
 
   after 2000 update_curr
 }
+
+update
+Device $dev
+set dest [expr int(1000*[$dev cmd get_scurr])]
+set rate 10
 
 after idle update_curr
 set status idle
