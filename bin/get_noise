@@ -49,6 +49,10 @@ if {$tmax != {}} {set fpars "$fpars -U $tmax"}
 
 
 Device $osc_dev
+blt::vector create va
+blt::vector create vx
+blt::vector create vy
+blt::vector create vys
 
 $osc_dev cmd chan_set A 1 AC $scale
 $osc_dev cmd trig_set NONE 0.1 RISING 0
@@ -60,20 +64,30 @@ set names {}
 set pref [exec mktemp]
 for {set i 0} {$i<$avr} {incr i} {
 
-
   puts stderr "recording signal $i/$avr"
   $osc_dev cmd block A 0 $nsamp $dt $pref
   $osc_dev cmd wait
-  exec sig_filter {*}$fpars $pref > $pref$i
-  lappend names "$pref$i"
 
   # Overload check
   set re {s/^\s+chan:.*(1|0)$/\1/p}
-  set ov [exec sed -r -n -e $re $pref$i]
+  set ov [exec sed -r -n -e $re $pref]
   if {$ov == 1} {puts stderr "OVERLOAD"}
+
+  # read and average FFT
+  set data [exec sig_filter {*}$fpars $pref]
+  foreach {x y} $data {
+    if {$i==0} {
+      vx append $x
+      vy append $y
+    }
+  }
+  if {$i==0} { vys expr vy }\
+  else {vys expr vys+vy}
 }
+vys expr vys/$avr
 
-set ret [exec ./avrg.pl {*}$names]
-exec rm -f -- {*}$names $pref
+exec rm -f -- $pref
 
-puts $ret
+for {set i 0} {$i<[vx length]} {incr i} {
+  puts "$vx($i) $vys($i)"
+}
