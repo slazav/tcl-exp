@@ -386,10 +386,10 @@ proc mk_tplot_frame {root} {
 }
 
 proc on_tplot_clear {graph} {
-  tvec clear
-  fvec clear
-  wvec clear
-  avec clear
+  tvec delete 0:end
+  fvec delete 0:end
+  wvec delete 0:end
+  avec delete 0:end
 }
 
 ##################################################
