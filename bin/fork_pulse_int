@@ -8,7 +8,12 @@ package require xBlt 3
 package require SigLoad
 
 # fork_pulse device
-set dev fork0
+if {[llength $argv]} {
+  set dev [lindex $argv 0]
+}\
+else {
+  set dev fork0
+}
 
 
 ##################################################
@@ -126,6 +131,10 @@ proc do_pulse {} {
   global need_setup
   global sigfile
 
+  if {[catch {dev_open}]} {
+    set_state error
+    return
+  }
 
   if {$need_setup} {
     set st "Setting parameters..."
@@ -166,7 +175,6 @@ proc do_pulse {} {
   sig_xm seq $min $max [expr {($max-$min)/500}]
   sig_ym1 expr {0.5*1e-3*$amp*exp(-sig_xm*$rtau)}
   sig_ym2 expr -sig_ym1
-
 
   ## load FFT
   set ret [exec sig_filter -f fft_pow_lavr -N 10000 $sigfile]
@@ -215,6 +223,7 @@ proc do_pulse {} {
 
   # stop measurements
   if {! $meas} {
+    dev_close
     set_state ready
     return
   }
@@ -254,15 +263,19 @@ proc set_state {s} {
   }
   if {$s == "ready"} { # ready for measurements
     set meas 0
-    dev_close
     $run_btn configure -state normal -text "Run" -command "set_state busy; do_pulse"
     set st "Ready"
+    return
+  }
+  if {$s == "error"} { # error happened but ready for measurements
+    set meas 0
+    $run_btn configure -state normal -text "Run" -command "set_state busy; do_pulse"
+    set st "Can't open devices"
     return
   }
   if {$s == "busy"} { # measurement started
     $run_btn configure -state normal -text "Stop" -command {set_state wait}
     set st "Measuring..."
-    dev_open
     return
   }
   error "unknown state"
@@ -273,9 +286,9 @@ proc set_state {s} {
 
 proc mk_meas_frame {root} {
   frame $root
+  label $root.name  -text "Pulsed fork measurements: $::dev" -font {-size 12} -anchor w
 
   frame $root.res
-
   labelframe $root.res.amp -text "Amplitude, mV: "
   label $root.res.amp.val -textvariable amp  -font {-size 15} -text 0 -width 12
   pack $root.res.amp.val
@@ -297,7 +310,7 @@ proc mk_meas_frame {root} {
   button      $root.m.run
   pack   $root.m.run $root.m.dll $root.m.del $root.m.meas -side right
 
-  pack $root.res $root.m -fill x -expand 1
+  pack $root.name $root.res $root.m -fill x -expand 1
   set_state wait
 }
 
@@ -525,13 +538,17 @@ pack .st   -side left -padx 10 -fill x
 
 update
 after idle {
+  on_pars_apply
+
   # Open device,
   # fill ocilloscope range combobox with values
-  dev_open
-
-  # set some parameters, go to idle mode (close device, unlock run buttons)
-  on_pars_apply
-  set_state ready
+  if {[catch {dev_open}]} {
+    set_state error
+  }\
+  else {
+    dev_close
+    set_state ready
+  }
 }
 
 
