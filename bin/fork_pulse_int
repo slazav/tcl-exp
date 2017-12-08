@@ -241,7 +241,6 @@ proc set_state {s} {
     return
   }
   if {$s == "busy"} {
-    set meas 1
     $run_btn configure -state normal -text "Stop" -command {set_state wait}
     set st "Measuring..."
     return
@@ -272,10 +271,11 @@ proc mk_meas_frame {root} {
     -side left -fill x -expand 1
 
   frame $root.m
-  label       $root.m.dll -text "Measurement period, s:"
+  checkbutton $root.m.meas -text "Repeat measurements with period" -variable meas
+  label       $root.m.dll -text "sec"
   entry       $root.m.del -textvariable del -width 7
   button      $root.m.run
-  pack  $root.m.run $root.m.del $root.m.dll -side right
+  pack   $root.m.run $root.m.dll $root.m.del $root.m.meas -side right
 
   pack $root.res $root.m -fill x -expand 1
   set_state wait
