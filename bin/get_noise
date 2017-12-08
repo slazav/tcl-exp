@@ -10,8 +10,8 @@ package require xBlt
 # -O -osc_dev  -- oscilloscope device (default osc0)
 # -s -scale    -- oscilloscope scale (default 0.05)
 # -d -dt       -- sampling rate, s (default 5e-8)
-# -N           -- sample count (default 10e6)
-# -n           -- number of output points (default 1000)
+# -N -nsamp    -- sample count (default 10e6)
+# -n -nout     -- number of output points (default 1000)
 # -A -avr      -- number of averages (default 1)
 # -F -fmin     -- filter min frequency (default "")
 # -G -fmax     -- filter max frequency (default "")
@@ -24,8 +24,8 @@ set options [list \
 {-O -osc_dev}  osc_dev  {osc0}\
 {-s -scale}    scale    {0.05}\
 {-d -dt}       dt       {5e-8}\
-{-N}           nsamp    {10e6}\
-{-n}           nout     {1000}\
+{-N -nsamp}    nsamp    {10e6}\
+{-n -nout}     nout     {1000}\
 {-A -avr}      avr      {1}\
 {-F -fmin}     fmin     {}\
 {-G -fmax}     fmax     {}\
