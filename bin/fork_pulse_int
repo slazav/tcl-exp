@@ -213,6 +213,7 @@ proc do_pulse {} {
   set dt [expr int(1000*$del-$t1+$t0)]
   if {$dt<0} {set dt 0}
 
+  # stop measurements
   if {! $meas} {
     set_state ready
     return
@@ -222,27 +223,46 @@ proc do_pulse {} {
   after [expr $dt] do_pulse
 }
 
+# open device if needed and update range list
+proc dev_open {} {
+  global dev
+  if {![itcl::is object $dev]} {
+    Device $dev
+    set range_values [lindex [$dev cmd get_osc_sc] 0]
+    .tabs.pars.op.sc configure -values $range_values
+  }
+}
+
+# close device if needed
+proc dev_close {} {
+  global dev
+  if {[itcl::is object $dev]} {
+    itcl::delete object $dev
+  }
+}
 
 proc set_state {s} {
   global st meas
   set run_btn .meas.m.run
   set stop_btn .stop
 
-  if {$s == "wait"} {
+  if {$s == "wait"} { # stop button pressed, but measurement is running
     set meas 0
-    $run_btn configure -state disabled -text "Run" -command ""
+    $run_btn configure -state disabled -text "..." -command ""
     set st "Waiting for devices..."
     return
   }
-  if {$s == "ready"} {
+  if {$s == "ready"} { # ready for measurements
     set meas 0
+    dev_close
     $run_btn configure -state normal -text "Run" -command "set_state busy; do_pulse"
     set st "Ready"
     return
   }
-  if {$s == "busy"} {
+  if {$s == "busy"} { # measurement started
     $run_btn configure -state normal -text "Stop" -command {set_state wait}
     set st "Measuring..."
+    dev_open
     return
   }
   error "unknown state"
@@ -505,14 +525,11 @@ pack .st   -side left -padx 10 -fill x
 
 update
 after idle {
-  # Open and set up the device
-  Device $dev
+  # Open device,
+  # fill ocilloscope range combobox with values
+  dev_open
 
-  # fill scilloscope range combobox with values
-  set range_values [lindex [$dev cmd get_osc_sc] 0]
-  .tabs.pars.op.sc configure -values $range_values
-
-  # set some parameters, unlock run buttons
+  # set some parameters, go to idle mode (close device, unlock run buttons)
   on_pars_apply
   set_state ready
 }
