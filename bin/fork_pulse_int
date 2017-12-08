@@ -503,16 +503,18 @@ pack .st   -side left -padx 10 -fill x
 
 ##################################################
 
+update
+after idle {
+  # Open and set up the device
+  Device $dev
 
-# Open and set up the device
-Device $dev
+  # fill scilloscope range combobox with values
+  set range_values [lindex [$dev cmd get_osc_sc] 0]
+  .tabs.pars.op.sc configure -values $range_values
 
-# fill scilloscope range combobox with values
-set range_values [lindex [$dev cmd get_osc_sc] 0]
-.tabs.pars.op.sc configure -values $range_values
-
-# set some parameters, unlock run buttons
-on_pars_apply
-set_state ready
+  # set some parameters, unlock run buttons
+  on_pars_apply
+  set_state ready
+}
 
 
