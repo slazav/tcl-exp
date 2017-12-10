@@ -1,0 +1,179 @@
+#!/usr/bin/wish
+
+## Interface for HS
+
+package require Device 1.2
+package require xBlt 3
+
+### parameters
+
+set pars(ps_dev)    ps0:4;  # power supply device
+set pars(maxR)          5;  # max R, Ohm   // NOT USED
+set pars(minR)          0;  # min R, Ohm   // NOT USED
+set pars(minCR)       0.2;  # minimal current at which we can measure resistance, A
+set pars(ovp)           5;  # overvoltage protection, V
+set pars(ramp_tstep)    1;  # ramping time stamp
+set pars(idle_tstep)  600;  # idle time stamp
+set pars(maxI)        0.6;  # on current, A
+set pars(minI)          0;  # off current, A
+set pars(rate)       0.02;  # rate, A/s
+set pars(hist)       3600;  # history plot length, s
+
+set pars(db)          db_exp; # db device
+set pars(db_val)    drydemag/sweep_hs; # database name for sweeper values
+set pars(db_ann)  drydemag/sweep_hs_a; # database name for sweeper annotations
+set pars(db_cryo) drydemag/comments;   # database name for high-level comments
+
+set name "Heat Switch magnet"
+
+##########################################################
+
+# blt vectors for data
+set maxlen 1000
+blt::vector create plot_T
+blt::vector create plot_I
+blt::vector create plot_R
+
+
+##########################################################
+## function for Start/Stop/ToZero/Clear/Reset buttons
+
+proc go_up {} {
+  global pars
+  Device $pars(db)
+  $pars(db) cmd put now "connect HS"
+  itcl::delete object Device $pars(db)
+  sweeper sweep $pars(maxI) $pars(rate)
+}
+proc go_down {} {
+  global pars
+  Device $pars(db)
+  $pars(db) cmd put now "disconnect HS"
+  itcl::delete object Device $pars(db)
+  sweeper sweep $pars(minI) $pars(rate)
+}
+
+proc do_reset {} {
+  sweeper reset
+}
+proc do_clear {} {
+  plot_T delete 0:end
+  plot_C delete 0:end
+  plot_R delete 0:end
+}
+
+proc on_new_com {t com} {
+  ## TODO - clear comments
+  xblt::xcomments::create .p $t $com
+}
+
+## update values command
+proc on_new_val {t cm cs vm {meas 0}} {
+  global name pars plot_T plot_I plot_R
+
+  set t2 [clock seconds]
+  set t1 [expr {$t2-$pars(hist)}]
+
+  # remove old data if needed
+  if {[ plot_T length]>0 && $plot_T(end)-$plot_T(0) > 1.2*$pars(hist)} {
+    set i 0
+    for {set i 0} {$i<[plot_T length]} {incr i} {
+      if {$plot_T($i)>=$t1} {break}
+    }
+    if {$i>0} {
+      plot_T  delete 0:$i
+      plot_I  delete 0:$i
+      plot_R  delete 0:$i
+    }
+  }
+
+  plot_T append $t
+  plot_I append $cm
+  plot_R append [expr { $cm>0? $vm/$cm:0} ]
+
+  .name configure -text "$name: [format %5.3f $cm] A"
+}
+
+
+
+##########################################################
+## make interface
+
+  ######################
+  # program title
+  label .name  -text "$name" -font {-size 20}
+  pack .name
+
+  ######################
+  # buttons
+  frame .f
+  button .f.go_up   -text "Connect HS"   -command go_up
+  button .f.go_down -text "Discnnect HS" -command go_down
+  grid .f.go_up .f.go_down
+  pack .f
+
+  ######################
+  # make graph
+  set pwid .p
+  set swid .s
+
+  blt::graph $pwid -leftmargin 80
+  pack $pwid -fill both -expand 1
+
+  scrollbar $swid -orient horizontal
+  pack $swid -fill x
+
+  $pwid legend configure -activebackground white
+
+  # configure standard xBLT things:
+  xblt::plotmenu   $pwid -showbutton 1 -buttonlabel Menu -menuoncanvas 0
+  xblt::legmenu    $pwid -showseparator 0
+  xblt::hielems    $pwid
+  xblt::crosshairs $pwid -show 1
+  xblt::measure    $pwid
+  xblt::readout    $pwid -variable v_readout -active 1
+  xblt::zoomstack  $pwid -scrollbutton 2 -axes x -recttype x
+  xblt::elemop     $pwid
+  xblt::scroll     $pwid $swid -timefmt 1
+  xblt::xcomments  $pwid
+
+  $pwid axis create I -title "I"  -titlecolor black
+  $pwid axis create R -title "R"  -titlecolor black
+
+  $pwid element create I -xdata plot_T -ydata plot_I -mapy I\
+    -symbol "circle" -pixels 2  -color red
+  $pwid element create R -xdata plot_T -ydata plot_R -mapy R\
+    -symbol "circle" -pixels 2  -color blue
+
+  $pwid element bind I    <Enter> [list $pwid yaxis use I]
+  $pwid element bind R    <Enter> [list $pwid yaxis use R]
+
+  ######################
+  # exit button
+  button .clear -text "Clear plot"  -command do_clear
+  button .reset -text "Reset device"  -command do_reset
+  button .exit  -text "Exit"  -command exit
+  pack .exit .clear .reset -side right
+
+##########################################################
+
+update
+
+## build sweeper object
+source sweeper.tcl
+SweepController sweeper\
+  -ps_dev1    $pars(ps_dev)\
+  -ps_dev2    {}\
+  -gauge      {}\
+  -db_dev     $pars(db)\
+  -db_val     $pars(db_val)\
+  -db_ann     $pars(db_ann)\
+  -max_volt   $pars(ovp)\
+  -max_rate   $pars(rate)\
+  -ramp_tstep $pars(ramp_tstep)\
+  -idle_tstep $pars(idle_tstep)\
+  -on_new_val on_new_val\
+  -on_new_com on_new_com
+
+
+
