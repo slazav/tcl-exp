@@ -127,7 +127,7 @@ proc on_sel {w} {
     .f1.del_btn configure -state active
   }\
   else {
-  set tstamp [exec date "+%Y-%m-%d %H:%M:%S" ]
+  set tstamp "now"
   set text {}
     .f1.new_btn configure -state active
     .f1.mod_btn configure -state disabled
