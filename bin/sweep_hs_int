@@ -7,7 +7,7 @@ package require xBlt 3
 
 ### parameters
 
-set pars(ps_dev)    ps0:4;  # power supply device
+set pars(ps_dev)      ps1;  # power supply device
 set pars(maxR)          5;  # max R, Ohm   // NOT USED
 set pars(minR)          0;  # min R, Ohm   // NOT USED
 set pars(minCR)       0.2;  # minimal current at which we can measure resistance, A
@@ -16,7 +16,7 @@ set pars(ramp_tstep)    1;  # ramping time stamp
 set pars(idle_tstep)  600;  # idle time stamp
 set pars(maxI)        0.6;  # on current, A
 set pars(minI)          0;  # off current, A
-set pars(rate)       0.02;  # rate, A/s
+set pars(rate)      0.005;  # rate, A/s
 set pars(hist)       3600;  # history plot length, s
 
 set pars(db)          db_exp; # db device
@@ -40,16 +40,20 @@ blt::vector create plot_R
 
 proc go_up {} {
   global pars
-  Device $pars(db)
-  $pars(db) cmd put now "connect HS"
-  itcl::delete object Device $pars(db)
+  if {$pars(db) != {} && $pars(db_cryo) != {}} {
+    Device $pars(db)
+    $pars(db) cmd put $pars(db_cryo) now "connect HS"
+    itcl::delete object $pars(db)
+  }
   sweeper sweep $pars(maxI) $pars(rate)
 }
 proc go_down {} {
   global pars
-  Device $pars(db)
-  $pars(db) cmd put now "disconnect HS"
-  itcl::delete object Device $pars(db)
+  if {$pars(db) != {} && $pars(db_cryo) != {}} {
+    Device $pars(db)
+    $pars(db) cmd put $pars(db_cryo) now "disconnect HS"
+    itcl::delete object $pars(db)
+  }
   sweeper sweep $pars(minI) $pars(rate)
 }
 
@@ -58,7 +62,7 @@ proc do_reset {} {
 }
 proc do_clear {} {
   plot_T delete 0:end
-  plot_C delete 0:end
+  plot_I delete 0:end
   plot_R delete 0:end
 }
 
@@ -160,7 +164,7 @@ proc on_new_val {t cm cs vm {meas 0}} {
 update
 
 ## build sweeper object
-source sweeper.tcl
+source /usr/bin/sweeper.tcl
 SweepController sweeper\
   -ps_dev1    $pars(ps_dev)\
   -ps_dev2    {}\
@@ -174,6 +178,3 @@ SweepController sweeper\
   -idle_tstep $pars(idle_tstep)\
   -on_new_val on_new_val\
   -on_new_com on_new_com
-
-
-
