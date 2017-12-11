@@ -12,11 +12,14 @@ set pars(maxR)          5;  # max R, Ohm   // NOT USED
 set pars(minR)          0;  # min R, Ohm   // NOT USED
 set pars(minCR)       0.2;  # minimal current at which we can measure resistance, A
 set pars(ovp)           5;  # overvoltage protection, V
-set pars(ramp_tstep)    1;  # ramping time stamp
-set pars(idle_tstep)  600;  # idle time stamp
+set pars(ramp_tstep)    1;  # ramping time step
+set pars(idle_tstep)  600;  # idle time step
 set pars(maxI)        0.6;  # on current, A
 set pars(minI)          0;  # off current, A
-set pars(rate)      0.005;  # rate, A/s
+set pars(is_on)      0.55;  # "open"   if current is greater then this value, A
+set pars(is_off)     0.10;  # "closed" if current is smaller then this value, A
+set pars(minI)          0;  # off current, A
+set pars(rate)      0.005;  # rate, A/s  (0.02 A/s produce small heating of mixing chamber, 0.005 does not)
 set pars(hist)       3600;  # history plot length, s
 
 set pars(db)          db_exp; # db device
@@ -36,7 +39,23 @@ blt::vector create plot_R
 
 
 ##########################################################
-## function for Start/Stop/ToZero/Clear/Reset buttons
+## control functions (one can use this from external scripts)
+
+set current 0; ## current value
+
+proc get_current {} {
+  return $::current
+}
+
+proc is_open {} {
+  global pars
+  return [expr {$::current > $pars(is_on)}];
+}
+
+proc is_closed {} {
+  global pars
+  return [expr {$::current < $pars(is_off)}];
+}
 
 proc go_up {} {
   global pars
@@ -60,11 +79,15 @@ proc go_down {} {
 proc do_reset {} {
   sweeper reset
 }
+
 proc do_clear {} {
   plot_T delete 0:end
   plot_I delete 0:end
   plot_R delete 0:end
 }
+
+##########################################################
+## function for Start/Stop/ToZero/Clear/Reset buttons
 
 proc on_new_com {t com} {
   ## TODO - clear comments
@@ -96,6 +119,7 @@ proc on_new_val {t cm cs vm {meas 0}} {
   plot_R append [expr { $cm>0? $vm/$cm:0} ]
 
   .name configure -text "$name: [format %5.3f $cm] A"
+  set ::current $cm
 }
 
 
