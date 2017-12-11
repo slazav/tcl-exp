@@ -1,0 +1,39 @@
+#!/usr/bin/wish
+
+set root {}
+
+  foreach coil {grad quad helm} title {Gradient Quadratic Helmholtz} {
+
+    set ::vars($coil,vI) 0.12034
+    set ::vars($coil,vR) 0.02034
+
+    labelframe $root.$coil -padx 5 -pady 5
+
+    frame $root.$coil.m;  # measure frame
+    label $root.$coil.m.ll -text "$title: " -font {-size 12} -padx 5 -pady 5
+    label $root.$coil.m.lI -text " I = " -font {-size 12}
+    label $root.$coil.m.vI -textvariable ::vars($coil,vI) -font {-size 14 -weight bold}
+    label $root.$coil.m.uI -text " A, " -font {-size 12}
+    label $root.$coil.m.lR -text " R = " -font {-size 12}
+    label $root.$coil.m.vR -textvariable ::vars($coil,vR) -font {-size 14 -weight bold}
+    label $root.$coil.m.uR -text " Ohm " -font {-size 12}
+    grid $root.$coil.m.ll $root.$coil.m.lI $root.$coil.m.vI $root.$coil.m.uI\
+         $root.$coil.m.lR $root.$coil.m.vR $root.$coil.m.uR -sticky w
+    pack $root.$coil.m
+
+    frame $root.$coil.g;  # go frame
+    label $root.$coil.g.ldest -text "destination: " -padx 2 -pady 2
+    entry $root.$coil.g.dest -width 10
+    label $root.$coil.g.udest -text "(A), "
+    label $root.$coil.g.lrate -text "rate: " -padx 2 -pady 2
+    entry $root.$coil.g.rate -width 6
+    label $root.$coil.g.urate -text "(A/s) "
+    button $root.$coil.g.go    -text "Go"
+    button $root.$coil.g.reset -text "Reset"
+    grid $root.$coil.g.ldest $root.$coil.g.dest $root.$coil.g.udest\
+         $root.$coil.g.lrate $root.$coil.g.rate $root.$coil.g.urate\
+         $root.$coil.g.go $root.$coil.g.reset
+    pack $root.$coil.g
+
+    pack $root.$coil -fill x -expand 1
+  }
