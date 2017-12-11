@@ -135,7 +135,7 @@ itcl::class SweepController {
   # put comment into the database
   method put_comment {c} {
     set t [expr [clock milliseconds]/1000]
-    if {$on_new_com != {}} {{*}[list $on_new_com] $t $c}
+    if {$on_new_com != {}} { uplevel \#0 [eval $on_new_com $t $c]}
     if {$db_dev != {} && $db_ann != {} } {
       $db_dev cmd "put $db_ann $t $c"
       $db_dev cmd "sync"
@@ -147,7 +147,7 @@ itcl::class SweepController {
     set cm [expr {$cm1 + $cm2}]
     set cs [expr {$cs1 + $cs2}]
     set t [expr [clock milliseconds]/1000]
-    if {$on_new_val != {}} {{*}[list $on_new_val] $t $cm $cs $vm1 $mval}
+    if {$on_new_val != {}} { uplevel \#0 [eval $on_new_val $t $cm $cs $vm1 $mval]}
     if { $db_dev != {} && $db_val != {}} {
       $db_dev cmd "put $db_val $t $cm $cs $vm1 $mval"
       $db_dev cmd "sync"
