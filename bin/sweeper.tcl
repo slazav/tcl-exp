@@ -79,17 +79,19 @@ itcl::class SweepController {
   variable max_i  0;
   variable max_i2 0;
 
+  variable state 0; # off/on
 
   ######################################
   # constructor - open and lock devices, get parameters
   # should call spp_server_async::ans or spp_server_async::err
 
-  constructor {args} {
-    # parse options
-    global options
-    xblt::parse_options "sweeper" $args $options
+  constructor {args} { xblt::parse_options "sweeper" $args $::options }
+  destructor { if {$state == 1 } { turn_off } }
 
-    # open secons PS device if needed and get its parameters
+  # open devices an start main loop
+  method turn_on {} {
+
+    # open first PS device get its parameters
     if {$ps_dev1  == {} } { error "ps_dev1 is empty" }
     set dev1 [DeviceRole $ps_dev1 power_supply]
     $dev1 lock
@@ -118,15 +120,20 @@ itcl::class SweepController {
     # reset the device and starm main loop
     set tstep $idle_tstep
     reset
+    set state 1
   }
 
-  destructor {
+
+
+  # open devices an start main loop
+  method turn_off {} {
     $dev1 unlock
     itcl::delete object $dev1
     if {$dev2 != {}} {
       $dev2 unlock
       itcl::delete object $dev2
     }
+    set state 0
   }
 
   ######################################
