@@ -1,0 +1,18 @@
+#!/usr/bin/wish
+
+## Test timeplot
+
+source ./timeplot.tcl
+
+TimePlot pl .pl -ncols 2 -maxt 10
+pack .pl
+
+proc add {} {
+  set t [expr [clock milliseconds]/1000.0]
+  set d1 [expr rand()]
+  set d2 [expr rand()]
+  pl add_data $t [list $d1 $d2]
+  after 200 add
+}
+
+add
