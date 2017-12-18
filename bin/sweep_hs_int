@@ -4,6 +4,7 @@
 
 package require Device 1.2
 package require xBlt 3
+package require Exp
 
 ### parameters
 
@@ -20,7 +21,6 @@ set pars(is_on)      0.55;  # "open"   if current is greater then this value, A
 set pars(is_off)     0.10;  # "closed" if current is smaller then this value, A
 set pars(minI)          0;  # off current, A
 set pars(rate)      0.005;  # rate, A/s  (0.02 A/s produce small heating of mixing chamber, 0.005 does not)
-set pars(hist)       3600;  # history plot length, s
 
 set pars(db)          db_exp; # db device
 set pars(db_val)    drydemag/sweep_hs; # database name for sweeper values
@@ -30,18 +30,10 @@ set pars(db_cryo) drydemag/comments;   # database name for high-level comments
 set name "Heat Switch magnet"
 
 ##########################################################
-
-# blt vectors for data
-set maxlen 1000
-blt::vector create plot_T
-blt::vector create plot_I
-blt::vector create plot_R
-
-
-##########################################################
 ## control functions (one can use this from external scripts)
 
 set current 0; ## current value
+set state 0;   ## does sweeper work
 
 proc get_current {} {
   return $::current
@@ -59,6 +51,7 @@ proc is_closed {} {
 
 proc go_up {} {
   global pars
+  if {$::state == 0} {return}
   if {$pars(db) != {} && $pars(db_cryo) != {}} {
     Device $pars(db)
     $pars(db) cmd put $pars(db_cryo) now "connect HS"
@@ -66,8 +59,10 @@ proc go_up {} {
   }
   sweeper sweep $pars(maxI) $pars(rate)
 }
+
 proc go_down {} {
   global pars
+  if {$::state == 0} {return}
   if {$pars(db) != {} && $pars(db_cryo) != {}} {
     Device $pars(db)
     $pars(db) cmd put $pars(db_cryo) now "disconnect HS"
@@ -77,49 +72,43 @@ proc go_down {} {
 }
 
 proc do_reset {} {
+  if {$::state == 0} {return}
   sweeper reset
 }
 
-proc do_clear {} {
-  plot_T delete 0:end
-  plot_I delete 0:end
-  plot_R delete 0:end
+proc do_on {} {
+  sweeper turn_on
+  .g.onoff configure -text "Turn OFF" -command do_off
+  .f.go_down configure -state normal
+  .f.go_up configure -state normal
+  set ::state 1
+}
+
+proc do_off {} {
+  sweeper turn_off
+  .g.onoff configure -text "Turn ON" -command do_on
+  .f.go_down configure -state disabled
+  .f.go_up configure -state disabled
+  set ::state 0
 }
 
 ##########################################################
 ## function for Start/Stop/ToZero/Clear/Reset buttons
 
 proc on_new_com {t com} {
-  ## TODO - clear comments
-  xblt::xcomments::create .p $t $com
+  p add_comment $t $com
+  return
 }
 
 ## update values command
 proc on_new_val {t cm cs vm {meas 0}} {
-  global name pars plot_T plot_I plot_R
-
-  set t2 [clock seconds]
-  set t1 [expr {$t2-$pars(hist)}]
-
-  # remove old data if needed
-  if {[ plot_T length]>0 && $plot_T(end)-$plot_T(0) > 1.2*$pars(hist)} {
-    set i 0
-    for {set i 0} {$i<[plot_T length]} {incr i} {
-      if {$plot_T($i)>=$t1} {break}
-    }
-    if {$i>0} {
-      plot_T  delete 0:$i
-      plot_I  delete 0:$i
-      plot_R  delete 0:$i
-    }
-  }
-
-  plot_T append $t
-  plot_I append $cm
-  plot_R append [expr { $cm>0? $vm/$cm:0} ]
+  global name
+  set R [expr { $cm>0? $vm/$cm:0} ]
+  p add_data $t [list $cm $R]
 
   .name configure -text "$name: [format %5.3f $cm] A"
   set ::current $cm
+  return
 }
 
 
@@ -130,65 +119,36 @@ proc on_new_val {t cm cs vm {meas 0}} {
   ######################
   # program title
   label .name  -text "$name" -font {-size 20}
-  pack .name
+  pack .name -side top
 
   ######################
   # buttons
   frame .f
-  button .f.go_up   -text "Connect HS"   -command go_up
-  button .f.go_down -text "Discnnect HS" -command go_down
+  button .f.go_up   -text "Connect HS"   -command go_up -state disabled
+  button .f.go_down -text "Discnnect HS" -command go_down -state disabled
   grid .f.go_up .f.go_down
   pack .f
 
+  frame .g
+  button .g.exit  -text "Exit"  -command exit
+  button .g.onoff   -text "Turn ON" -command do_on
+  grid .g.onoff .g.exit -sticky e
+  pack .g -anchor e
+
+
   ######################
   # make graph
-  set pwid .p
-  set swid .s
-
-  blt::graph $pwid -leftmargin 80
-  pack $pwid -fill both -expand 1
-
-  scrollbar $swid -orient horizontal
-  pack $swid -fill x
-
-  $pwid legend configure -activebackground white
-
-  # configure standard xBLT things:
-  xblt::plotmenu   $pwid -showbutton 1 -buttonlabel Menu -menuoncanvas 0
-  xblt::legmenu    $pwid -showseparator 0
-  xblt::hielems    $pwid
-  xblt::crosshairs $pwid -show 1
-  xblt::measure    $pwid
-  xblt::readout    $pwid -variable v_readout -active 1
-  xblt::zoomstack  $pwid -scrollbutton 2 -axes x -recttype x
-  xblt::elemop     $pwid
-  xblt::scroll     $pwid $swid -timefmt 1
-  xblt::xcomments  $pwid
-
-  $pwid axis create I -title "I"  -titlecolor black
-  $pwid axis create R -title "R"  -titlecolor black
-
-  $pwid element create I -xdata plot_T -ydata plot_I -mapy I\
-    -symbol "circle" -pixels 2  -color red
-  $pwid element create R -xdata plot_T -ydata plot_R -mapy R\
-    -symbol "circle" -pixels 2  -color blue
-
-  $pwid element bind I    <Enter> [list $pwid yaxis use I]
-  $pwid element bind R    <Enter> [list $pwid yaxis use R]
+  TimePlot p .p -ncols 2 -maxt 600 -titles {I R} -names {I R}
+  pack .p -fill both -expand 1
 
   ######################
   # exit button
-  button .clear -text "Clear plot"  -command do_clear
-  button .reset -text "Reset device"  -command do_reset
-  button .exit  -text "Exit"  -command exit
-  pack .exit .clear .reset -side right
 
 ##########################################################
 
 update
 
 ## build sweeper object
-source /usr/bin/sweeper.tcl
 SweepController sweeper\
   -ps_dev1    $pars(ps_dev)\
   -ps_dev2    {}\

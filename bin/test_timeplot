@@ -1,11 +1,10 @@
 #!/usr/bin/wish
 
 ## Test timeplot
-
-source ./timeplot.tcl
+package require Exp
 
 TimePlot pl .pl -ncols 2 -maxt 10
-pack .pl
+pack .pl -expand yes -fill both
 
 proc add {} {
   set t [expr [clock milliseconds]/1000.0]
@@ -15,4 +14,12 @@ proc add {} {
   after 200 add
 }
 
+
+proc add_comm {} {
+  set t [expr [clock milliseconds]/1000.0]
+  pl add_comment $t "$t"
+  after 5000 add_comm
+}
+
 add
+add_comm

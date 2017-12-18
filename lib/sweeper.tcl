@@ -40,10 +40,13 @@ itcl::class SweepController {
   variable dest  0;
   variable dest2 0;
   variable msg "";  # message to be logged into database on the next step
-  variable state 0; # set to 1 to measure current on the next step
+  variable changed 0; # set to 1 if current was changed
   variable tstep;   # current time step
 
   # see options:
+  variable ps_dev1
+  variable ps_dev2
+  variable g_dev
   variable db_dev
   variable db_val
   variable db_ann
@@ -91,6 +94,7 @@ itcl::class SweepController {
 
   # open devices an start main loop
   method turn_on {} {
+    if {$state == 1 } {return}
 
     # open first PS device get its parameters
     if {$ps_dev1  == {} } { error "ps_dev1 is empty" }
@@ -128,6 +132,7 @@ itcl::class SweepController {
 
   # open devices an start main loop
   method turn_off {} {
+    if {$state == 0} {return}
     $dev1 unlock
     itcl::delete object $dev1
     if {$dev2 != {}} {
@@ -143,7 +148,7 @@ itcl::class SweepController {
   # put comment into the database
   method put_comment {c} {
     set t [expr [clock milliseconds]/1000]
-    if {$on_new_com != {}} { uplevel \#0 [$on_new_com $t $c]}
+    if {$on_new_com != {}} { uplevel \#0 [eval {$on_new_com $t $c}]}
     if {$db_dev != {} && $db_ann != {} } {
       $db_dev cmd "put $db_ann $t $c"
       $db_dev cmd "sync"
@@ -155,7 +160,7 @@ itcl::class SweepController {
     set cm [expr {$cm1 + $cm2}]
     set cs [expr {$cs1 + $cs2}]
     set t [expr [clock milliseconds]/1000]
-    if {$on_new_val != {}} { uplevel \#0 [$on_new_val $t $cm $cs $vm1 $mval]}
+    if {$on_new_val != {}} { uplevel \#0 [eval {$on_new_val $t $cm $cs $vm1 $mval}]}
     if { $db_dev != {} && $db_val != {}} {
       $db_dev cmd "put $db_val $t $cm $cs $vm1 $mval"
       $db_dev cmd "sync"
@@ -192,7 +197,7 @@ itcl::class SweepController {
     if {$gdev != {}} { set mval [ $gdev get ] }\
     else { set mval {} }
 
-    if {!$skip || $state==1 || $msg != {}} { put_value }
+    if {!$skip || $changed==1 || $msg != {}} { put_value }
     set state 0
 
     if {$msg != {}} {
@@ -264,7 +269,7 @@ itcl::class SweepController {
       if { abs($v-$cs2) > $min_i_step2 || $rate==0 } {
         $dev2 set_curr $v
         set cs2 $v
-        set state 1
+        set changed 1
         set dt 0
       }
     }
@@ -277,7 +282,7 @@ itcl::class SweepController {
       if { abs($v-$cs1) > $min_i_step || $rate==0 } {
         $dev1 set_curr $v
         set cs1 $v
-        set state 1
+        set changed 1
         set dt 0
       }
     }
