@@ -4,17 +4,6 @@ package require Device 1.3
 package require xBlt
 package require itcl
 
-set options [list \
-{-n -ncols}    ncols    1\
-{-a -names}    names    {}\
-{-t -titles}   titles   {}\
-{-c -colors}   colors   {}\
-{-h -hides}    hides    {}\
-{-f -fmts}     fmts     {}\
-{-l -logs}     logs     {}\
-{-N -maxn}     maxn     0\
-{-T -maxt}     maxt     0\
-]
 
 itcl::class TimePlot {
   # parameters /see options/
@@ -24,10 +13,23 @@ itcl::class TimePlot {
   variable maxn
   variable maxt
 
+  variable graph
+
   ##########################################################
   constructor {plot args} {
+
     # Parse options.
-    global options
+    set options [list \
+    {-n -ncols}    ncols    1\
+    {-a -names}    names    {}\
+    {-t -titles}   titles   {}\
+    {-c -colors}   colors   {}\
+    {-h -hides}    hides    {}\
+    {-f -fmts}     fmts     {}\
+    {-l -logs}     logs     {}\
+    {-N -maxn}     maxn     0\
+    {-T -maxt}     maxt     0\
+    ]
     xblt::parse_options "timeplot" $args $options
 
     # Check that ncols>0 and titles and colors have enough values
@@ -73,6 +75,18 @@ itcl::class TimePlot {
     # clear button
     button $plot.clear -command "$this clear" -text Clear
     pack $plot.clear -side right -padx 2
+    # hystory entries
+    if {$maxt > 0} {
+      label $plot.mtl -text "History length, s:"
+      entry $plot.mt -textvariable [itcl::scope maxt] -width 8
+      pack $plot.mtl $plot.mt -side left -padx 2
+    }
+    if {$maxn > 0} {
+      label $plot.mtl -text "History length, pts:"
+      entry $plot.mt -textvariable [itcl::scope maxt] -width 8
+      pack $plot.mtl $plot.mt -side left -padx 2
+    }
+
 
     $graph legend configure -activebackground white
 
@@ -86,6 +100,8 @@ itcl::class TimePlot {
     xblt::zoomstack  $graph -scrollbutton 2 -axes x -recttype x
     xblt::elemop     $graph
     xblt::scroll     $graph $scroll -timefmt 1
+
+    xblt::xcomments  $graph
 
     # create BLT vectors for data, set up BLT plot
     blt::vector create "$this:T"
@@ -156,17 +172,26 @@ itcl::class TimePlot {
 
       # remove old data if needed
       if {["$this:T" length]>0 && ["$this:T" index end] - ["$this:T" index 0] > $maxt+$dt} {
-        set i 0
-        for {set i 0} {$i<["$this:T" length]} {incr i} {
-          if {["$this:T" index $i]>=$t1} {break}
-        }
-        if {$i>0} {
-          "$this:T" delete 0:$i
+        for {set n 0} {$n<["$this:T" length]} {incr n} {
+          if {["$this:T" index $n]>=$t1} {break} }
+        if {$n>0} {
+          "$this:T" delete 0:$n
           for {set i 0} {$i < $ncols} {incr i} {
-            "$this:D$i" delete 0:$i }
+            "$this:D$i" delete 0:$n }
         }
       }
     }
+
+    # remove old comments:
+    set t1 ["$this:T" index 0]
+    xblt::xcomments::delete_old $graph $t1
+
+  }
+
+  ##########################################################
+  # add comments
+  method add_comment {t com} {
+    xblt::xcomments::create $graph $t $com
   }
 
 }

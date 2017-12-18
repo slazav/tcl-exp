@@ -20,22 +20,6 @@ package require xBlt
 # -on_new_val     -- function prefix for running with new values ($t $cm $cs $vm $meas)
 # -on_new_com     -- function prefix for running with new comment ($t $comm)
 
-set options [list \
-{-p -ps_dev1}  ps_dev1  {}\
-{-P -ps_dev2}  ps_dev2  {}\
-{-G -gauge}    g_dev    {}\
-{-d -db_dev}   db_dev   {}\
-{-n -db_val}   db_val   {}\
-{-a -db_ann}   db_ann   {}\
-{-v -max_volt} max_volt {1}\
-{-m -max_rate} max_rate {1}\
-{-r -ramp_tstep} ramp_tstep {1}\
-{-i -idle_tstep} idle_tstep {10}\
-{-s -skip}     skip     {0}\
-{-on_new_val}  on_new_val {}\
-{-on_new_com}  on_new_com {}\
-]
-
 #############################################################
 
 itcl::class SweepController {
@@ -85,7 +69,24 @@ itcl::class SweepController {
   # constructor - open and lock devices, get parameters
   # should call spp_server_async::ans or spp_server_async::err
 
-  constructor {args} { xblt::parse_options "sweeper" $args $::options }
+  constructor {args} {
+    set options [list \
+      {-p -ps_dev1}  ps_dev1  {}\
+      {-P -ps_dev2}  ps_dev2  {}\
+      {-G -gauge}    g_dev    {}\
+      {-d -db_dev}   db_dev   {}\
+      {-n -db_val}   db_val   {}\
+      {-a -db_ann}   db_ann   {}\
+      {-v -max_volt} max_volt {1}\
+      {-m -max_rate} max_rate {1}\
+      {-r -ramp_tstep} ramp_tstep {1}\
+      {-i -idle_tstep} idle_tstep {10}\
+      {-s -skip}     skip     {0}\
+      {-on_new_val}  on_new_val {}\
+      {-on_new_com}  on_new_com {}\
+    ]
+    xblt::parse_options "sweeper" $args $options
+  }
   destructor { if {$state == 1 } { turn_off } }
 
   # open devices an start main loop
@@ -142,7 +143,7 @@ itcl::class SweepController {
   # put comment into the database
   method put_comment {c} {
     set t [expr [clock milliseconds]/1000]
-    if {$on_new_com != {}} { uplevel \#0 [eval $on_new_com $t $c]}
+    if {$on_new_com != {}} { uplevel \#0 [$on_new_com $t $c]}
     if {$db_dev != {} && $db_ann != {} } {
       $db_dev cmd "put $db_ann $t $c"
       $db_dev cmd "sync"
@@ -154,7 +155,7 @@ itcl::class SweepController {
     set cm [expr {$cm1 + $cm2}]
     set cs [expr {$cs1 + $cs2}]
     set t [expr [clock milliseconds]/1000]
-    if {$on_new_val != {}} { uplevel \#0 [eval $on_new_val $t $cm $cs $vm1 $mval]}
+    if {$on_new_val != {}} { uplevel \#0 [$on_new_val $t $cm $cs $vm1 $mval]}
     if { $db_dev != {} && $db_val != {}} {
       $db_dev cmd "put $db_val $t $cm $cs $vm1 $mval"
       $db_dev cmd "sync"
