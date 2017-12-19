@@ -136,9 +136,10 @@ itcl::class TimePlot {
   ##########################################################
   # clear plot
   method clear {} {
-    "$this:T" delete 0:end
+    if {["$this:T" length] > 0} { "$this:T" delete 0:end }
     for {set i 0} {$i < $ncols} {incr i} {
-      "$this:D$i" delete 0:end }
+      if {["$this:D$i" length] > 0} { "$this:D$i" delete 0:end }
+    }
   }
 
   ##########################################################
