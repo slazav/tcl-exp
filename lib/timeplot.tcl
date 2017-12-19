@@ -7,13 +7,24 @@ package require itcl
 
 itcl::class TimePlot {
   # parameters /see options/
+  # parameters /see options/
   variable ncols
+  variable names
   variable titles
   variable colors
+  variable hides
+  variable logs
+  variable fmts
   variable maxn
   variable maxt
+  variable plots_x
+  variable plots_y
+  variable use_comm
 
+  variable plot_type
+  variable plot_types
   variable graph
+  variable scroll
 
   ##########################################################
   constructor {plot args} {
@@ -29,6 +40,9 @@ itcl::class TimePlot {
     {-l -logs}     logs     {}\
     {-N -maxn}     maxn     0\
     {-T -maxt}     maxt     0\
+    {-X -plots_x}  plots_x  {time}\
+    {-Y -plots_y}  plots_y  {{}}\
+    {-C -use_comm}  use_comm 0\
     ]
     xblt::parse_options "timeplot" $args $options
 
@@ -75,6 +89,21 @@ itcl::class TimePlot {
     # clear button
     button $plot.clear -command "$this clear" -text Clear
     pack $plot.clear -side right -padx 2
+    # modes selection
+    if {[llength $plots_x] > 0} {
+      foreach x $plots_x y $plots_y {
+        if {$y == {}} { lappend plot_types "all vs. $x" }\
+        else { lappend plot_types "[join $y {, }] vs. $x" }
+      }
+      set plot_type [lindex $plot_types 0]
+    } else {error "not enough plot types"}
+    if {[llength $plot_types] > 1} {
+      ttk::combobox $plot.modes -width 12\
+          -textvariable [itcl::scope plot_type]\
+          -values $plot_types
+      pack $plot.modes -side left -padx 4
+      bind $plot.modes <<ComboboxSelected>> "$this setup_plot"
+    }
     # hystory entries
     if {$maxt > 0} {
       label $plot.mtl -text "History length, s:"
@@ -86,7 +115,6 @@ itcl::class TimePlot {
       entry $plot.mt -textvariable [itcl::scope maxt] -width 8
       pack $plot.mtl $plot.mt -side left -padx 2
     }
-
 
     $graph legend configure -activebackground white
 
@@ -101,28 +129,26 @@ itcl::class TimePlot {
     xblt::elemop     $graph
     xblt::scroll     $graph $scroll -timefmt 1
 
-    xblt::xcomments  $graph
+    if {$use_comm == 1} {xblt::xcomments $graph}
 
-    # create BLT vectors for data, set up BLT plot
+    # create BLT vectors for data, create axis for each data column
     blt::vector create "$this:T"
     for {set i 0} {$i < $ncols} {incr i} {
       blt::vector create "$this:D$i"
       set t [lindex $titles $i]
       set n [lindex $names $i]
       set c [lindex $colors $i]
-      set f [lindex $fmts $i]
-      set h [lindex $hides $i]
       set l [lindex $logs $i]
-      # create vertical axis and the element, bind them
+      set h [lindex $hides $i]
       $graph axis create $n -title $t -titlecolor black -logscale $l
       $graph element create $n -mapy $n -symbol circle -pixels 1.5 -color $c
+      # For time plot we need a separate axis for each element
       $graph element bind $n <Enter> [list $graph yaxis use [list $n]]
+      # set data vectors for the element
+      $graph element configure $n -xdata "$this:T" -ydata "$this:D$i" -mapy $n
       # hide element if needed
       if {$h} {xblt::hielems::toggle_hide $graph $n}
-      # set data vectors for the element
-      $graph element configure $n -xdata "$this:T" -ydata "$this:D$i"
     }
-
 
   }
 
@@ -131,6 +157,54 @@ itcl::class TimePlot {
     blt::vector destroy "$this:T"
     for {set i 0} {$i < $ncols} {incr i} {
       blt::vector destroy "$this:D$i" }
+  }
+
+  ##########################################################
+  # change plot type
+  method setup_plot {} {
+
+    # find plot type in plot_types list
+    set n [lsearch -exact $plot_types $plot_type]
+    if {$n == -1 } {error "Badly formed plot_types: $plot_types"}
+
+    # what is x-axis?
+    set x  [lindex $plots_x $n]; # name
+    set ix [lsearch -exact $names $x]; # columns number (-1 for time)
+    if {$ix == -1 && $x != "time"} {error "Bad column name in plot_x: $x"}
+
+    # xBLT hacks
+    xblt::zoomstack::unzoom $graph
+    set xblt::zoomstack::data($graph,axes) [expr {$x == "time"?"x":"x y"}]
+    set xblt::rubberrect::data($graph,rr1,usey) [expr {$x == "time"?0:1}]
+    set xblt::scroll::data($graph,timefmt) [expr {$x == "time"?1:0}]
+
+    # delete all elements
+    foreach e [$graph element names *] {
+      $graph element delete $e }
+
+    # set up BLT plot
+    set yy [lindex $plots_y $n]; # y columns
+    if {[llength $yy] == 0} {set yy $names}
+    foreach y $yy {
+      set iy [lsearch -exact $names $y]; # column number
+      if {$iy == -1 } {error "Bad column name in plot_y: $y"}
+      if {$iy == $ix} {continue}
+      # column parameters
+      set t [lindex $titles $iy]
+      set n [lindex $names $iy]
+      set c [lindex $colors $iy]
+      $graph element create $n -mapy $n -symbol circle -pixels 1.5 -color $c
+      if {$x == "time"} {
+        # For time plot we need a separate axis for each element
+        $graph element bind $n <Enter> [list $graph yaxis use [list $n]]
+        # set data vectors for the element
+        $graph element configure $n -xdata "$this:T" -ydata "$this:D$iy" -mapy $n
+      } else {
+        $graph element bind $n <Enter> {}
+        # set data vectors for the element
+        $graph element configure $n -xdata "$this:D$ix" -ydata "$this:D$iy" -mapy y
+      }
+    }
   }
 
   ##########################################################
@@ -193,6 +267,7 @@ itcl::class TimePlot {
   ##########################################################
   # add comments
   method add_comment {t com} {
+    if {$use_comm == 0} {return}
     xblt::xcomments::create $graph $t $com
   }
 
