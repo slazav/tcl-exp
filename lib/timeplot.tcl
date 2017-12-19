@@ -140,6 +140,7 @@ itcl::class TimePlot {
       set c [lindex $colors $i]
       set l [lindex $logs $i]
       set h [lindex $hides $i]
+      set f [lindex $fmts $i]
       $graph axis create $n -title $t -titlecolor black -logscale $l
       $graph element create $n -mapy $n -symbol circle -pixels 1.5 -color $c
       # For time plot we need a separate axis for each element
@@ -173,10 +174,17 @@ itcl::class TimePlot {
     if {$ix == -1 && $x != "time"} {error "Bad column name in plot_x: $x"}
 
     # xBLT hacks
-    xblt::zoomstack::unzoom $graph
     set xblt::zoomstack::data($graph,axes) [expr {$x == "time"?"x":"x y"}]
     set xblt::rubberrect::data($graph,rr1,usey) [expr {$x == "time"?0:1}]
     set xblt::scroll::data($graph,timefmt) [expr {$x == "time"?1:0}]
+    xblt::zoomstack::unzoom $graph
+    if {$x != "time"} {
+      $graph axis configure x -stepsize 0 -subdivisions 0 -majorticks "" -command ""\
+                               -title [lindex $titles $ix]\
+                               -titlecolor black\
+                               -logscale [lindex $logs $ix]
+
+    }
 
     # delete all elements
     foreach e [$graph element names *] {
