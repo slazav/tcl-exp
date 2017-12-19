@@ -259,7 +259,7 @@ itcl::class TimePlot {
 
     # remove old comments:
     if {["$this:T" length]>0} {
-      xblt::xcomments::delete_old $graph ["$this:T" index 0]
+      xblt::xcomments::delete_range $graph 0 ["$this:T" index 0]
     }
 
   }
