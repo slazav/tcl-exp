@@ -18,14 +18,14 @@ set pars(idle_tstep)  600;  # idle time step
 set pars(maxI)        0.6;  # on current, A
 set pars(minI)          0;  # off current, A
 set pars(is_on)      0.55;  # "open"   if current is greater then this value, A
-set pars(is_off)     0.10;  # "closed" if current is smaller then this value, A
+set pars(is_off)     0.01;  # "closed" if current is greater then this value, A
 set pars(minI)          0;  # off current, A
 set pars(rate)      0.005;  # rate, A/s  (0.02 A/s produce small heating of mixing chamber, 0.005 does not)
 
-set pars(db)          db_exp; # db device
-set pars(db_val)    drydemag/sweep_hs; # database name for sweeper values
-set pars(db_ann)  drydemag/sweep_hs_a; # database name for sweeper annotations
-set pars(db_cryo) drydemag/comments;   # database name for high-level comments
+set pars(db)       db_exp;              # db device
+set pars(db_val)   drydemag/sweep_hs;   # database name for sweeper values
+set pars(db_ann)   drydemag/sweep_hs_a; # database name for sweeper annotations
+set pars(db_cryo)  drydemag/comments;   # database name for high-level comments
 
 set name "Heat Switch magnet"
 
@@ -105,9 +105,15 @@ proc on_new_val {t cm cs vm {meas 0}} {
   global name
   set R [expr { $cm>0? $vm/$cm:0} ]
   p add_data $t [list $cm $R]
-
-  .name configure -text "$name: [format %5.3f $cm] A"
   set ::current $cm
+
+  .n.state configure -text "[format %5.3f $cm] A"
+
+  if     {[is_open]} {.n.state configure -fg green}\
+  elseif {[is_closed]} {.n.state configure -fg red}\
+  else {.n.state configure -fg black}
+
+  .n.name configure -text "$name:"
   return
 }
 
@@ -118,16 +124,19 @@ proc on_new_val {t cm cs vm {meas 0}} {
 
   ######################
   # program title
-  label .name  -text "$name" -font {-size 20}
-  pack .name -side top
+  frame .n
+  label .n.name   -text "$name" -font {-size 20}
+  label .n.state  -text ""      -font {-size 20}
+  pack .n.name .n.state -side left
+  pack .n -anchor w
 
   ######################
   # buttons
   frame .f
-  button .f.go_up   -text "Connect HS"   -command go_up -state disabled
-  button .f.go_down -text "Discnnect HS" -command go_down -state disabled
-  grid .f.go_up .f.go_down
-  pack .f
+  button .f.go_up   -text "Connect"   -command go_up -state disabled -bg #bdc1d4
+  button .f.go_down -text "Discnnect" -command go_down -state disabled -bg #bdc1d4
+  grid .f.go_up .f.go_down -padx 5
+  pack .f -anchor w
 
   frame .g
   button .g.exit  -text "Exit"  -command exit
