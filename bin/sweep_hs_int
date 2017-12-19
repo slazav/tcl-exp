@@ -8,26 +8,25 @@ package require Exp
 
 ### parameters
 
-set pars(ps_dev)      ps1;  # power supply device
-set pars(maxR)          5;  # max R, Ohm   // NOT USED
-set pars(minR)          0;  # min R, Ohm   // NOT USED
-set pars(minCR)       0.2;  # minimal current at which we can measure resistance, A
-set pars(ovp)           5;  # overvoltage protection, V
-set pars(ramp_tstep)    1;  # ramping time step
-set pars(idle_tstep)  600;  # idle time step
-set pars(maxI)        0.6;  # on current, A
-set pars(minI)          0;  # off current, A
-set pars(is_on)      0.55;  # "open"   if current is greater then this value, A
-set pars(is_off)     0.01;  # "closed" if current is greater then this value, A
-set pars(minI)          0;  # off current, A
-set pars(rate)      0.005;  # rate, A/s  (0.02 A/s produce small heating of mixing chamber, 0.005 does not)
+set par_list [list \
+  name     {Heat Switch magnet} {program title}\
+  ps_dev      ps1   {power supply device}\
+  ovp           5   {overvoltage protection, V}\
+  ramp_tstep    1   {ramping time step}\
+  idle_tstep  600   {idle time step}\
+  maxI        0.6   {on destination, A}\
+  minI          0   {off destination, A}\
+  is_on      0.55   {on limit, A}\
+  is_off     0.01   {off limit, A}\
+  rate       0.01   {rate, A/s}\
+  db       db_exp               {db device}\
+  db_val   drydemag/sweep_hs    {database for sweeper values}\
+  db_ann   drydemag/sweep_hs_a  {database for sweeper annotations}\
+  db_cryo  drydemag/comments    {database for high-level comments}\
+]
 
-set pars(db)       db_exp;              # db device
-set pars(db_val)   drydemag/sweep_hs;   # database name for sweeper values
-set pars(db_ann)   drydemag/sweep_hs_a; # database name for sweeper annotations
-set pars(db_cryo)  drydemag/comments;   # database name for high-level comments
+foreach {name def title} $par_list { set pars($name) $def }
 
-set name "Heat Switch magnet"
 
 ##########################################################
 ## control functions (one can use this from external scripts)
@@ -102,7 +101,7 @@ proc on_new_com {t com} {
 
 ## update values command
 proc on_new_val {t cm cs vm {meas 0}} {
-  global name
+  global pars
   set R [expr { $cm>0? $vm/$cm:0} ]
   p add_data $t [list $cm $R]
   set ::current $cm
@@ -113,7 +112,7 @@ proc on_new_val {t cm cs vm {meas 0}} {
   elseif {[is_closed]} {.n.state configure -fg red}\
   else {.n.state configure -fg black}
 
-  .n.name configure -text "$name:"
+  .n.name configure -text "$pars(name):"
   return
 }
 
@@ -122,36 +121,51 @@ proc on_new_val {t cm cs vm {meas 0}} {
 ##########################################################
 ## make interface
 
-  ######################
-  # program title
-  frame .n
-  label .n.name   -text "$name" -font {-size 20}
-  label .n.state  -text ""      -font {-size 20}
-  pack .n.name .n.state -side left
-  pack .n -anchor w
+######################
+# program title
+frame .n
+label .n.name   -text "$pars(name)" -font {-size 20}
+label .n.state  -text ""      -font {-size 20}
+pack .n.name .n.state -side left
+pack .n -anchor w
 
-  ######################
-  # buttons
-  frame .f
-  button .f.go_up   -text "Connect"   -command go_up -state disabled -bg #bdc1d4
-  button .f.go_down -text "Discnnect" -command go_down -state disabled -bg #bdc1d4
-  grid .f.go_up .f.go_down -padx 5
-  pack .f -anchor w
+######################
+# buttons
+frame .f
+button .f.go_up   -text "Connect"   -command go_up -state disabled -bg #bdc1d4
+button .f.go_down -text "Discnnect" -command go_down -state disabled -bg #bdc1d4
+grid .f.go_up .f.go_down -padx 5
+pack .f -anchor w
 
-  frame .g
-  button .g.exit  -text "Exit"  -command exit
-  button .g.onoff   -text "Turn ON" -command do_on
-  grid .g.onoff .g.exit -sticky e
-  pack .g -anchor e
+frame .g
+button .g.exit  -text "Exit"  -command exit
+button .g.onoff   -text "Turn ON" -command do_on
+grid .g.onoff .g.exit -sticky e
+pack .g -anchor e
 
 
-  ######################
-  # make graph
-  TimePlot p .p -ncols 2 -maxt 600 -titles {I R} -names {I R}
-  pack .p -fill both -expand 1
+blt::tabset .tabs -side top
 
-  ######################
-  # exit button
+######################
+# make graph
+TimePlot p .tabs.p -ncols 2 -maxt 600 -titles {I R} -names {I R}
+
+######################
+# parameter page
+frame .tabs.pars
+foreach {name def title} $par_list {
+  label .tabs.pars.l:$name -text "$title:"
+  label .tabs.pars.$name -text "$def" -font bold
+  grid .tabs.pars.l:$name .tabs.pars.$name -sticky w
+}
+
+.tabs insert end plot -window .tabs.p\
+   -anchor n -text "Plot" -fill both
+.tabs insert end pars -window .tabs.pars\
+   -anchor n -text "Rarameters" -fill both
+pack .tabs -fill both -expand 1
+
+
 
 ##########################################################
 
