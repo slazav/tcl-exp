@@ -147,7 +147,7 @@ itcl::class SweepController {
 
   # put comment into the database
   method put_comment {c} {
-    set t [expr [clock milliseconds]/1000]
+    set t [expr [clock milliseconds]/1000.0]
     if {$on_new_com != {}} { uplevel \#0 [eval {$on_new_com $t $c}]}
     if {$db_dev != {} && $db_ann != {} } {
       $db_dev cmd "put $db_ann $t $c"
@@ -159,7 +159,7 @@ itcl::class SweepController {
   method put_value {} {
     set cm [expr {$cm1 + $cm2}]
     set cs [expr {$cs1 + $cs2}]
-    set t [expr [clock milliseconds]/1000]
+    set t [expr [clock milliseconds]/1000.0]
     if {$on_new_val != {}} { uplevel \#0 [eval {$on_new_val $t $cm $cs $vm1 $mval}]}
     if { $db_dev != {} && $db_val != {}} {
       $db_dev cmd "put $db_val $t $cm $cs $vm1 $mval"
