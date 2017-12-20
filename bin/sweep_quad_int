@@ -1,0 +1,180 @@
+#!/usr/bin/wish
+
+## Interface for HS
+
+package require Device 1.2
+package require xBlt 3
+package require Exp
+
+### parameters
+
+set par_list [list \
+  name     {Quadratic magnet} {program title}\
+  ps_dev      ps0:4 {power supply device}\
+  ovp           5   {overvoltage protection, V}\
+  ramp_tstep    1   {ramping time step}\
+  idle_tstep  600   {idle time step}\
+  maxI          2   {max current, A}\
+  minI          0   {off destination, A}\
+  max_rate      0.1 {max rate, A/s}\
+  def_rate     0.01 {default rate, A/s}\
+  db       db_exp               {db device}\
+  db_val   drydemag/sweep_grad    {database for sweeper values}\
+  db_ann   drydemag/sweep_grad_a  {database for sweeper annotations}\
+  db_cryo  drydemag/comments      {database for high-level comments}\
+]
+
+
+foreach {name def title} $par_list { set pars($name) $def }
+
+set pars(db) {}
+
+
+##########################################################
+## control functions (one can use this from external scripts)
+
+set current 0; ## current value
+set resistance 0; ## resistance value
+set state 0;   ## does sweeper work
+set rate $pars(def_rate);
+set dest 0;
+
+proc get_current {} {
+  return $::current
+}
+
+proc do_go {dest rate} {
+  set ::dest $dest
+  set ::rate $rate
+  if {$::state == 0} {return}
+  sweeper sweep $dest $rate
+}
+
+proc do_reset {} {
+  if {$::state == 0} {return}
+  sweeper reset
+}
+
+proc do_onoff {state} {
+  if {$state == 0} {
+    sweeper turn_off
+    .f.g.go configure -state disabled
+  }\
+  else {
+    sweeper turn_on
+    .f.g.go configure -state normal
+  }
+  set ::state $state
+}
+
+##########################################################
+## function for Start/Stop/ToZero/Clear/Reset buttons
+
+proc on_new_com {t com} {
+  p add_comment $t $com
+  return
+}
+
+## update values command
+proc on_new_val {t cm cs vm {meas 0}} {
+  global pars
+  set ::resistance [expr { $cm>0? $vm/$cm:0} ]
+  set ::current $cm
+  p add_data $t [list $::current $::resistance]
+
+  .f.m.vI configure -text [format "%.3f" $::current]
+  .f.m.vR configure -text [format "%.3f" $::resistance]
+
+  return
+}
+
+
+
+##########################################################
+## make interface
+
+proc make_coil_control {root coil} {
+  labelframe $root -padx 5 -pady 5
+
+  frame $root.m;  # measure frame
+  label $root.m.vI -font {-size 14 -weight bold}
+  label $root.m.uI -text " A, " -font {-size 12}
+  label $root.m.vR -font {-size 14 -weight bold}
+  label $root.m.uR -text " Ohm " -font {-size 12}
+  grid $root.m.vI $root.m.uI\
+       $root.m.vR $root.m.uR -sticky w
+  pack $root.m -fill x
+
+  frame $root.g;  # go frame
+  label $root.g.ldest -text "destination: " -padx 2 -pady 2
+  entry $root.g.dest -width 10 -textvariable ::dest
+  label $root.g.udest -text "(A), "
+  label $root.g.lrate -text "rate: " -padx 2 -pady 2
+  entry $root.g.rate -width 6 -textvariable ::rate
+  label $root.g.urate -text "(A/s) "
+  button $root.g.go   -text "Go" -pady 3 -bg #bdc1d4 -command {do_go $::dest $::rate} -state disabled
+  grid $root.g.ldest $root.g.dest $root.g.udest\
+       $root.g.lrate $root.g.rate $root.g.urate\
+       $root.g.go -sticky w
+  pack $root.g -fill x
+
+  frame $root.b;  # button frame
+  checkbutton $root.b.oo -text "on/off" -variable ::state -command {do_onoff $::state}
+  grid $root.b.oo -sticky w
+  pack $root.b -fill x
+}
+
+
+######################
+# program title
+frame .n
+label .n.name   -text "$pars(name)" -font {-size 20}
+pack .n.name -side left
+pack .n -anchor w
+
+######################
+# buttons
+make_coil_control .f grad
+pack .f -anchor w -fill x -expand 0
+
+blt::tabset .tabs -side top
+
+######################
+# make graph
+TimePlot p .tabs.p -ncols 2 -maxt 600 -titles {I R} -names {I R} -use_comm 1
+
+######################
+# parameter page
+frame .tabs.pars
+foreach {name def title} $par_list {
+  label .tabs.pars.l:$name -text "$title:"
+  label .tabs.pars.$name -text "$def" -font bold
+  grid .tabs.pars.l:$name .tabs.pars.$name -sticky w
+}
+
+.tabs insert end plot -window .tabs.p\
+   -anchor n -text "Plot" -fill both
+.tabs insert end pars -window .tabs.pars\
+   -anchor n -text "Parameters" -fill both
+pack .tabs -fill both -expand yes
+
+
+
+##########################################################
+
+update
+
+## build sweeper object
+SweepController sweeper\
+  -ps_dev1    $pars(ps_dev)\
+  -ps_dev2    {}\
+  -gauge      {}\
+  -db_dev     $pars(db)\
+  -db_val     $pars(db_val)\
+  -db_ann     $pars(db_ann)\
+  -max_volt   $pars(ovp)\
+  -max_rate   $pars(max_rate)\
+  -ramp_tstep $pars(ramp_tstep)\
+  -idle_tstep $pars(idle_tstep)\
+  -on_new_val on_new_val\
+  -on_new_com on_new_com

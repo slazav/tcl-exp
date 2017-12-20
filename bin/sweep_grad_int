@@ -9,65 +9,45 @@ package require Exp
 ### parameters
 
 set par_list [list \
-  name     {Heat Switch magnet} {program title}\
-  ps_dev      ps1   {power supply device}\
+  name     {Gradient magnet} {program title}\
+  ps_dev      ps0:3 {power supply device}\
   ovp           5   {overvoltage protection, V}\
   ramp_tstep    1   {ramping time step}\
   idle_tstep  600   {idle time step}\
-  maxI        0.6   {on destination, A}\
+  maxI          2   {max current, A}\
   minI          0   {off destination, A}\
-  is_on      0.55   {on limit, A}\
-  is_off     0.01   {off limit, A}\
-  rate       0.01   {rate, A/s}\
+  max_rate      0.1 {max rate, A/s}\
+  def_rate     0.01 {default rate, A/s}\
   db       db_exp               {db device}\
-  db_val   drydemag/sweep_hs    {database for sweeper values}\
-  db_ann   drydemag/sweep_hs_a  {database for sweeper annotations}\
-  db_cryo  drydemag/comments    {database for high-level comments}\
+  db_val   drydemag/sweep_grad    {database for sweeper values}\
+  db_ann   drydemag/sweep_grad_a  {database for sweeper annotations}\
+  db_cryo  drydemag/comments      {database for high-level comments}\
 ]
 
+
 foreach {name def title} $par_list { set pars($name) $def }
+
+set pars(db) {}
 
 
 ##########################################################
 ## control functions (one can use this from external scripts)
 
 set current 0; ## current value
+set resistance 0; ## resistance value
 set state 0;   ## does sweeper work
+set rate $pars(def_rate);
+set dest 0;
 
 proc get_current {} {
   return $::current
 }
 
-proc is_open {} {
-  global pars
-  return [expr {$::current > $pars(is_on)}];
-}
-
-proc is_closed {} {
-  global pars
-  return [expr {$::current < $pars(is_off)}];
-}
-
-proc go_up {} {
-  global pars
+proc do_go {dest rate} {
+  set ::dest $dest
+  set ::rate $rate
   if {$::state == 0} {return}
-  if {$pars(db) != {} && $pars(db_cryo) != {}} {
-    Device $pars(db)
-    $pars(db) cmd put $pars(db_cryo) now "connect HS"
-    itcl::delete object $pars(db)
-  }
-  sweeper sweep $pars(maxI) $pars(rate)
-}
-
-proc go_down {} {
-  global pars
-  if {$::state == 0} {return}
-  if {$pars(db) != {} && $pars(db_cryo) != {}} {
-    Device $pars(db)
-    $pars(db) cmd put $pars(db_cryo) now "disconnect HS"
-    itcl::delete object $pars(db)
-  }
-  sweeper sweep $pars(minI) $pars(rate)
+  sweeper sweep $dest $rate
 }
 
 proc do_reset {} {
@@ -75,20 +55,16 @@ proc do_reset {} {
   sweeper reset
 }
 
-proc do_on {} {
-  sweeper turn_on
-  .g.onoff configure -text "Turn OFF" -command do_off
-  .f.go_down configure -state normal
-  .f.go_up configure -state normal
-  set ::state 1
-}
-
-proc do_off {} {
-  sweeper turn_off
-  .g.onoff configure -text "Turn ON" -command do_on
-  .f.go_down configure -state disabled
-  .f.go_up configure -state disabled
-  set ::state 0
+proc do_onoff {state} {
+  if {$state == 0} {
+    sweeper turn_off
+    .f.g.go configure -state disabled
+  }\
+  else {
+    sweeper turn_on
+    .f.g.go configure -state normal
+  }
+  set ::state $state
 }
 
 ##########################################################
@@ -102,17 +78,13 @@ proc on_new_com {t com} {
 ## update values command
 proc on_new_val {t cm cs vm {meas 0}} {
   global pars
-  set R [expr { $cm>0? $vm/$cm:0} ]
-  p add_data $t [list $cm $R]
+  set ::resistance [expr { $cm>0? $vm/$cm:0} ]
   set ::current $cm
+  p add_data $t [list $::current $::resistance]
 
-  .n.state configure -text "[format %5.3f $cm] A"
+  .f.m.vI configure -text [format "%.3f" $::current]
+  .f.m.vR configure -text [format "%.3f" $::resistance]
 
-  if     {[is_open]} {.n.state configure -fg green}\
-  elseif {[is_closed]} {.n.state configure -fg red}\
-  else {.n.state configure -fg black}
-
-  .n.name configure -text "$pars(name):"
   return
 }
 
@@ -121,27 +93,49 @@ proc on_new_val {t cm cs vm {meas 0}} {
 ##########################################################
 ## make interface
 
+proc make_coil_control {root coil} {
+  labelframe $root -padx 5 -pady 5
+
+  frame $root.m;  # measure frame
+  label $root.m.vI -font {-size 14 -weight bold}
+  label $root.m.uI -text " A, " -font {-size 12}
+  label $root.m.vR -font {-size 14 -weight bold}
+  label $root.m.uR -text " Ohm " -font {-size 12}
+  grid $root.m.vI $root.m.uI\
+       $root.m.vR $root.m.uR -sticky w
+  pack $root.m -fill x
+
+  frame $root.g;  # go frame
+  label $root.g.ldest -text "destination: " -padx 2 -pady 2
+  entry $root.g.dest -width 10 -textvariable ::dest
+  label $root.g.udest -text "(A), "
+  label $root.g.lrate -text "rate: " -padx 2 -pady 2
+  entry $root.g.rate -width 6 -textvariable ::rate
+  label $root.g.urate -text "(A/s) "
+  button $root.g.go   -text "Go" -pady 3 -bg #bdc1d4 -command {do_go $::dest $::rate} -state disabled
+  grid $root.g.ldest $root.g.dest $root.g.udest\
+       $root.g.lrate $root.g.rate $root.g.urate\
+       $root.g.go -sticky w
+  pack $root.g -fill x
+
+  frame $root.b;  # button frame
+  checkbutton $root.b.oo -text "on/off" -variable ::state -command {do_onoff $::state}
+  grid $root.b.oo -sticky w
+  pack $root.b -fill x
+}
+
+
 ######################
 # program title
 frame .n
 label .n.name   -text "$pars(name)" -font {-size 20}
-label .n.state  -text ""      -font {-size 20}
-pack .n.name .n.state -side left
+pack .n.name -side left
 pack .n -anchor w
 
 ######################
 # buttons
-frame .f
-button .f.go_up   -text "Connect"   -command go_up -state disabled -bg #bdc1d4
-button .f.go_down -text "Discnnect" -command go_down -state disabled -bg #bdc1d4
-grid .f.go_up .f.go_down -padx 5
-pack .f -anchor w
-
-frame .g
-button .g.exit  -text "Exit"  -command exit
-button .g.onoff   -text "Turn ON" -command do_on
-grid .g.onoff .g.exit -sticky e
-pack .g -anchor e
+make_coil_control .f grad
+pack .f -anchor w -fill x -expand 0
 
 
 blt::tabset .tabs -side top
@@ -180,7 +174,7 @@ SweepController sweeper\
   -db_val     $pars(db_val)\
   -db_ann     $pars(db_ann)\
   -max_volt   $pars(ovp)\
-  -max_rate   $pars(rate)\
+  -max_rate   $pars(max_rate)\
   -ramp_tstep $pars(ramp_tstep)\
   -idle_tstep $pars(idle_tstep)\
   -on_new_val on_new_val\
