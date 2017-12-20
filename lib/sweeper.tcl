@@ -90,7 +90,7 @@ itcl::class SweepController {
     ]
     xblt::parse_options "sweeper" $args $options
   }
-  destructor { if {$state == 1 } { turn_off } }
+  destructor { turn_off }
 
   # open devices an start main loop
   method turn_on {} {
@@ -132,12 +132,12 @@ itcl::class SweepController {
 
   # open devices an start main loop
   method turn_off {} {
-    after cancel $rh
     if {$state == 0} {return}
+    after cancel $rh
     $dev1 unlock
+    $dev2 unlock
     itcl::delete object $dev1
     if {$dev2 != {}} {
-      $dev2 unlock
       itcl::delete object $dev2
     }
     set state 0
@@ -199,7 +199,7 @@ itcl::class SweepController {
     else { set mval {} }
 
     if {!$skip || $changed==1 || $msg != {}} { put_value }
-    set state 0
+    set changed 0
 
     if {$msg != {}} {
       put_comment $msg
