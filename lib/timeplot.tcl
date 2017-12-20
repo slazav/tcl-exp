@@ -137,20 +137,11 @@ itcl::class TimePlot {
       blt::vector create "$this:D$i"
       set t [lindex $titles $i]
       set n [lindex $names $i]
-      set c [lindex $colors $i]
       set l [lindex $logs $i]
-      set h [lindex $hides $i]
-      set f [lindex $fmts $i]
       $graph axis create $n -title $t -titlecolor black -logscale $l
-      $graph element create $n -mapy $n -symbol circle -pixels 1.5 -color $c
-      # For time plot we need a separate axis for each element
-      $graph element bind $n <Enter> [list $graph yaxis use [list $n]]
-      # set data vectors for the element
-      $graph element configure $n -xdata "$this:T" -ydata "$this:D$i" -mapy $n
-      # hide element if needed
-      if {$h} {xblt::hielems::toggle_hide $graph $n}
     }
 
+    setup_plot
   }
 
   ##########################################################
@@ -198,9 +189,9 @@ itcl::class TimePlot {
       if {$iy == -1 } {error "Bad column name in plot_y: $y"}
       if {$iy == $ix} {continue}
       # column parameters
-      set t [lindex $titles $iy]
       set n [lindex $names $iy]
       set c [lindex $colors $iy]
+      set h [lindex $hides $iy]
       $graph element create $n -mapy $n -symbol circle -pixels 1.5 -color $c
       if {$x == "time"} {
         # For time plot we need a separate axis for each element
@@ -212,6 +203,8 @@ itcl::class TimePlot {
         # set data vectors for the element
         $graph element configure $n -xdata "$this:D$ix" -ydata "$this:D$iy" -mapy y
       }
+      # hide element if needed
+      if {$h} {xblt::hielems::toggle_hide $graph $n}
     }
   }
 
