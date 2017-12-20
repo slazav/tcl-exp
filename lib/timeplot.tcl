@@ -137,8 +137,10 @@ itcl::class TimePlot {
       blt::vector create "$this:D$i"
       set t [lindex $titles $i]
       set n [lindex $names $i]
+      set c [lindex $colors $i]
       set l [lindex $logs $i]
       $graph axis create $n -title $t -titlecolor black -logscale $l
+      $graph element create $n -mapy $n -symbol circle -pixels 1.5 -color $c
     }
 
     setup_plot
@@ -156,19 +158,19 @@ itcl::class TimePlot {
   method setup_plot {} {
 
     # find plot type in plot_types list
-    set n [lsearch -exact $plot_types $plot_type]
-    if {$n == -1 } {error "Badly formed plot_types: $plot_types"}
+    set i [lsearch -exact $plot_types $plot_type]
+    if {$i == -1 } {error "Badly formed plot_types: $plot_types"}
 
     # what is x-axis?
-    set x  [lindex $plots_x $n]; # name
+    set x  [lindex $plots_x $i]; # name
     set ix [lsearch -exact $names $x]; # columns number (-1 for time)
     if {$ix == -1 && $x != "time"} {error "Bad column name in plot_x: $x"}
 
     # xBLT hacks
-    set xblt::zoomstack::data($graph,axes) [expr {$x == "time"?"x":"x y"}]
-    set xblt::rubberrect::data($graph,rr1,usey) [expr {$x == "time"?0:1}]
+    #set xblt::zoomstack::data($graph,axes) [expr {$x == "time"?"x":"x y"}]
+    #set xblt::rubberrect::data($graph,rr1,usey) [expr {$x == "time"?0:1}]
+    #xblt::zoomstack::unzoom $graph
     set xblt::scroll::data($graph,timefmt) [expr {$x == "time"?1:0}]
-    xblt::zoomstack::unzoom $graph
     if {$x != "time"} {
       $graph axis configure x -stepsize 0 -subdivisions 0 -majorticks "" -command ""\
                                -title [lindex $titles $ix]\
@@ -177,34 +179,31 @@ itcl::class TimePlot {
 
     }
 
-    # delete all elements
-    foreach e [$graph element names *] {
-      $graph element delete $e }
+    # Reset all elements and their bindings to axes
+    # (because we may want to use this axis for x)
+    foreach n [$graph element names *] {
+      $graph element configure $n -hide 1 -label {} -mapx x -mapy y
+      $graph element bind $n <Enter> {}
+    }
 
     # set up BLT plot
-    set yy [lindex $plots_y $n]; # y columns
+    set yy [lindex $plots_y $i]; # y columns
     if {[llength $yy] == 0} {set yy $names}
     foreach y $yy {
       set iy [lsearch -exact $names $y]; # column number
       if {$iy == -1 } {error "Bad column name in plot_y: $y"}
-      if {$iy == $ix} {continue}
+      if {$iy == $ix} {continue}; # no need to plot X vs. X
       # column parameters
-      set n [lindex $names $iy]
-      set c [lindex $colors $iy]
       set h [lindex $hides $iy]
-      $graph element create $n -mapy $n -symbol circle -pixels 1.5 -color $c
-      if {$x == "time"} {
-        # For time plot we need a separate axis for each element
-        $graph element bind $n <Enter> [list $graph yaxis use [list $n]]
-        # set data vectors for the element
-        $graph element configure $n -xdata "$this:T" -ydata "$this:D$iy" -mapy $n
-      } else {
-        $graph element bind $n <Enter> {}
-        # set data vectors for the element
-        $graph element configure $n -xdata "$this:D$ix" -ydata "$this:D$iy" -mapy y
-      }
+      # configure xdata and show element
+      set xdata [expr {$x == "time"? "$this:T":"$this:D$ix"}]
+      set xaxis [expr {$x == "time"? "x":"$x"}]
+
+      $graph element configure $y -hide 0 -label $y\
+              -xdata $xdata -ydata "$this:D$iy" -mapx $xaxis -mapy $y
+      $graph element bind $y <Enter> [list $graph yaxis use [list $y]]
       # hide element if needed
-      if {$h} {xblt::hielems::toggle_hide $graph $n}
+      if {$h} {xblt::hielems::toggle_hide $graph $y}
     }
   }
 
