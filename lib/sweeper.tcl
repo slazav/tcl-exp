@@ -132,6 +132,7 @@ itcl::class SweepController {
 
   # open devices an start main loop
   method turn_off {} {
+    after cancel $rh
     if {$state == 0} {return}
     $dev1 unlock
     itcl::delete object $dev1
