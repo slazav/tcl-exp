@@ -19,6 +19,7 @@ package require xBlt
 # -U -tmax     -- filter max time (default "")
 # -L -log      -- logarithmic step (default 1)
 # -D -del      -- initial delay (default 5)
+# -c -chan     -- channel (default A), only single channel is supported now
 
 set options [list \
 {-O -osc_dev}  osc_dev  {osc0}\
@@ -33,6 +34,7 @@ set options [list \
 {-U -tmax}     tmax     {}\
 {-L -log}      log      {1}\
 {-D -del}      del      {5}\
+{-c -chan}     chan     {A}\
 ]
 
 xblt::parse_options "get_noise" $argv $options
@@ -54,7 +56,7 @@ blt::vector create vx
 blt::vector create vy
 blt::vector create vys
 
-$osc_dev cmd chan_set A 1 AC $scale
+$osc_dev cmd chan_set $chan 1 AC $scale
 $osc_dev cmd trig_set NONE 0.1 RISING 0
 
 puts stderr "waiting..."
@@ -65,7 +67,7 @@ set pref [exec mktemp]
 for {set i 0} {$i<$avr} {incr i} {
 
   puts stderr "recording signal $i/$avr"
-  $osc_dev cmd block A 0 $nsamp $dt $pref
+  $osc_dev cmd block $chan 0 $nsamp $dt $pref
   $osc_dev cmd wait
 
   # Overload check
@@ -75,6 +77,7 @@ for {set i 0} {$i<$avr} {incr i} {
 
   # read and average FFT
   set data [exec sig_filter {*}$fpars $pref]
+
   foreach {x y} $data {
     if {$i==0} {
       vx append $x
