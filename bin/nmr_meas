@@ -54,11 +54,13 @@ itcl::class LockinInt {
     # Sensitivity combobox
     label $widget.range_l -text "Sensitivity, V:"
     ttk::combobox $widget.range -width 9 -textvariable [itcl::scope range]
+    bind $widget.range <<ComboboxSelected>> "$this apply"
     grid $widget.range_l $widget.range -padx 5 -pady 2 -sticky e
 
     # Time constant combobox
     label $widget.tconst_l -text "Time constant, s:"
     ttk::combobox $widget.tconst -width 9 -textvariable [itcl::scope tconst]
+    bind $widget.tconst <<ComboboxSelected>> "$this apply"
     grid $widget.tconst_l $widget.tconst -padx 5 -pady 2 -sticky e
 
     # Measured values
