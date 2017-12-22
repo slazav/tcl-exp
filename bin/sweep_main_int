@@ -21,16 +21,16 @@ set par_list [list \
   max_rate      0.1 {max rate, A/s}\
   def_rate     0.01 {default rate, A/s}\
   db       db_exp               {db device}\
-  db_val   drydemag/sweep_grad    {database for sweeper values}\
-  db_ann   drydemag/sweep_grad_a  {database for sweeper annotations}\
+  db_val   drydemag/sweep_main    {database for sweeper values}\
+  db_ann   drydemag/sweep_main_a  {database for sweeper annotations}\
   db_cryo  drydemag/comments      {database for high-level comments}\
 ]
 
 
+
 foreach {name def title} $par_list { set pars($name) $def }
 
-set pars(db) {}
-
+set pars(db) ""
 
 ##########################################################
 ## control functions (one can use this from external scripts)
@@ -44,17 +44,31 @@ set P 0; ## resistance value
 
 set state 0;   ## does sweeper work
 set rate $pars(def_rate);
-set dest 0;
+set dest1 0;
+set dest2 0;
 
 proc get_current {} {
   return $::current
 }
 
+proc do_sweep {dest1 dest2 rate} {
+  set ::dest1 $dest1
+  set ::dest2 $dest2
+  set ::rate $rate
+  if {$::state == 0} {return}
+  sweeper sweep_between $dest1 $dest2 $rate
+}
+
 proc do_go {dest rate} {
-  set ::dest $dest
+  set ::dest1 $dest
   set ::rate $rate
   if {$::state == 0} {return}
   sweeper sweep $dest $rate
+}
+
+proc do_stop {dest rate} {
+  if {$::state == 0} {return}
+  sweeper sweep_stop
 }
 
 proc do_reset {} {
@@ -66,10 +80,14 @@ proc do_onoff {state} {
   if {$state == 0} {
     sweeper turn_off
     .f.g.go configure -state disabled
+    .f.g.sw configure -state disabled
+    .f.g.st configure -state disabled
   }\
   else {
     sweeper turn_on
     .f.g.go configure -state normal
+    .f.g.sw configure -state normal
+    .f.g.st configure -state normal
   }
   set ::state $state
 }
@@ -118,16 +136,22 @@ proc make_coil_control {root coil} {
   pack $root.m -fill x
 
   frame $root.g;  # go frame
-  label $root.g.ldest -text "destination: " -padx 2 -pady 2
-  entry $root.g.dest -width 10 -textvariable ::dest
-  label $root.g.udest -text "(A), "
+  label $root.g.ldest1 -text "destination 1: " -padx 2 -pady 2
+  entry $root.g.dest1  -width 10 -textvariable ::dest1
+  label $root.g.udest1 -text "(A), "
+  label $root.g.ldest2 -text "destination 2: " -padx 2 -pady 2
+  entry $root.g.dest2  -width 10 -textvariable ::dest2
+  label $root.g.udest2 -text "(A), "
   label $root.g.lrate -text "rate: " -padx 2 -pady 2
   entry $root.g.rate -width 6 -textvariable ::rate
   label $root.g.urate -text "(A/s) "
-  button $root.g.go   -text "Go" -pady 3 -bg #bdc1d4 -command {do_go $::dest $::rate} -state disabled
-  grid $root.g.ldest $root.g.dest $root.g.udest\
+  button $root.g.go   -text "Goto 1" -pady 3 -bg #bdc1d4 -command {do_go $::dest1 $::rate} -state disabled
+  button $root.g.sw   -text "Sweep between" -pady 3 -bg #bdc1d4 -command {do_sweep $::dest1 $::dest2 $::rate} -state disabled
+  button $root.g.st   -text "Stop" -pady 3 -bg #bdc1d4 -command {do_stop $::dest1 $::dest2 $::rate} -state disabled
+  grid $root.g.ldest1 $root.g.dest1 $root.g.udest1\
+       $root.g.ldest2 $root.g.dest2 $root.g.udest2\
        $root.g.lrate $root.g.rate $root.g.urate\
-       $root.g.go -sticky w
+       $root.g.go $root.g.sw $root.g.st -sticky w
   pack $root.g -fill x
 
   frame $root.b;  # button frame
@@ -157,10 +181,12 @@ blt::tabset .tabs -side top
 TimePlot p .tabs.tplot\
    -ncols 5\
    -maxt 600\
+   -colors {red magenta darkcyan green blue}\
    -titles {I Amp Ph X Y}\
    -names {I Amp Ph X Y }\
    -plots_x {time I X }\
    -plots_y {{} {} {Y}}\
+   -hides {0 1 1 0 0}\
    -use_comm 1
 
 ######################
