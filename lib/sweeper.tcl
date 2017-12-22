@@ -124,23 +124,15 @@ itcl::class SweepController {
 
     # reset the device and starm main loop
     set tstep $idle_tstep
-    reset
     set state 1
+    reset
   }
-
-
 
   # open devices an start main loop
   method turn_off {} {
-    if {$state == 0} {return}
     after cancel $rh
-    $dev1 unlock
-    $dev2 unlock
-    itcl::delete object $dev1
-    if {$dev2 != {}} {
-      itcl::delete object $dev2
-    }
     set state 0
+    after idle $this loop
   }
 
   ######################################
@@ -159,6 +151,7 @@ itcl::class SweepController {
   # put value into the database
   method put_value {} {
     set cm [expr {$cm1 + $cm2}]
+
     set cs [expr {$cs1 + $cs2}]
     set t [expr [clock milliseconds]/1000.0]
     if {$on_new_val != {}} { uplevel \#0 [eval {$on_new_val $t $cm $cs $vm1 $mval}]}
@@ -173,11 +166,22 @@ itcl::class SweepController {
 
   method loop {} {
 
-    # Errors in the loop can not go to the interface
-    # Now I ignore them, then it may be useful
-    # to catch them by bgerror and return as a program status
-
     after cancel $rh
+
+    # remove device and stop the loop
+    if {$state == 0} {
+      $dev1 unlock
+      itcl::delete object $dev1
+
+      if {$dev2 != {}} {
+        $dev2 unlock
+        itcl::delete object $dev2
+      }
+      if {$db_dev != {} } { itcl::delete object $db_dev }
+      if {$g_dev != {} } { itcl::delete object $g_dev }
+      return
+    }
+
     if {$rate==0} {set tstep $idle_tstep}\
     else          {set tstep $ramp_tstep}
 
