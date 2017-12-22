@@ -183,17 +183,16 @@ itcl::class SweepController {
 
     # measure all values
     set cm1 [ $dev1 get_curr ]
-    if {$dev2 != {}} {
-      set cm2 [$dev2 get_curr]
-    }
+    if {$dev2 != {}} {set cm2 [$dev2 get_curr]}\
+    else {set cm2 0}
+
     set vm1 [ $dev1 get_volt ]
-    if {$dev2 != {}} {
-      set vm2 [$dev2 get_volt]
-    }
+    if {$dev2 != {}} { set vm2 [$dev2 get_volt]}\
+    else {set vm2 0}
+
     set st [ $dev1 get_stat ]
-    if {$dev2 != {}} {
-      set st "$st:[ $dev2 get_stat ]"
-    }
+    if {$dev2 != {}} { set st "$st:[ $dev2 get_stat ]" }
+
     # do measurement if needed
     if {$gdev != {}} { set mval [ $gdev get ] }\
     else { set mval {} }
@@ -207,8 +206,6 @@ itcl::class SweepController {
     }
 
     # stop ramping if the real current jumped outside the tolerance
-    set cm1 [ $dev1 get_curr ]
-    if {$dev2 != {}} { set cm2 [$dev2 get_curr] } else {set cm2 0}
     set tolerance  [expr 100*$min_i_step]
     set tolerance2 [expr 100*$min_i_step2]
     if { abs($cm1-$cs1) > $tolerance ||\
@@ -320,7 +317,9 @@ itcl::class SweepController {
       $dev2 cc_reset
     }
     set cs1 [ $dev1 get_curr ]
-    set cs2 [ $dev2 get_curr ]
+    if {$dev2 != {}} {set cs2 [$dev2 get_curr]}\
+    else {set cs2 0}
+
     set dest [expr $cs1+$cs2]
     set rate 0
 
