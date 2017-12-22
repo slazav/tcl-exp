@@ -320,7 +320,7 @@ itcl::class SweepController {
       $dev2 cc_reset
     }
     set cs1 [ $dev1 get_curr ]
-    set cs2 0
+    set cs2 [ $dev2 get_curr ]
     set dest [expr $cs1+$cs2]
     set rate 0
 
