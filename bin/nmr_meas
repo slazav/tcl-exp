@@ -1,0 +1,283 @@
+#!/usr/bin/wish
+
+## Interface for NMR generator and lock-in setting
+
+package require DeviceRole
+package require xBlt
+package require itcl
+
+### parameters
+
+set par_list [list \
+  exc_dev   {gen0:1} {Excitation generator name}\
+  com_dev   {gen0:2} {Compensation generator name}\
+  gauge_dev {lockin0:XY} {Lock-in device name}
+]
+
+foreach {name def title} $par_list { set pars($name) $def }
+
+## program variables
+set vars(exc)           {}; # Excitation generator device
+set vars(com)           {}; # Excitation generator device
+set vars(gauge)         {}; # Lock-in device
+set vars(onoff_widgets) {}; # Widgets disabled in OFF state
+set vars(cbox_ranges)   {}; # Combobox with lock-in ranges
+set vars(cbox_tconsts)  {}; # Combobox with lock-in time constants
+set vars(range)         {}; # Lock-in range setting
+set vars(tconst)        {}; # Lock-in time constant setting
+set vars(freq)          {}; # Working frequency
+set vars(exc_amp)       {}; # Excitation amplitude
+set vars(com_amp)       {}; # Compensation amplitude
+set vars(phase)         {}; # Compensation phase
+
+set state 0
+
+##########################################################
+# lock-in interface
+itcl::class LockinInt {
+
+  variable dev_name {};
+  variable widget {};
+
+  variable range  {}
+  variable tconst {}
+  variable dev    {}
+  variable value  {}
+  variable ww 250; # value bar width
+  variable hh 10;  # value bar height
+
+  constructor {dev_name_ widget_} {
+    set dev_name $dev_name_
+    set widget   $widget_
+    labelframe $widget -text "Lock-in settings" -font {-weight bold -size 10}
+
+    # Sensitivity combobox
+    label $widget.range_l -text "Sensitivity, V:"
+    ttk::combobox $widget.range -width 9 -textvariable [itcl::scope range]
+    grid $widget.range_l $widget.range -padx 5 -pady 2 -sticky e
+
+    # Time constant combobox
+    label $widget.tconst_l -text "Time constant, s:"
+    ttk::combobox $widget.tconst -width 9 -textvariable [itcl::scope tconst]
+    grid $widget.tconst_l $widget.tconst -padx 5 -pady 2 -sticky e
+
+    # Measured values
+    set v $widget.val
+    canvas $v -width $ww -height $hh
+    $v create rectangle 1 1 $ww $hh -fill white -outline grey
+    $v create line [expr $ww/2] 1 [expr $ww/2] $hh
+    grid $v -padx 5 -pady 2 -sticky e -columnspan 2
+
+    # Apply/Update buttons
+    button $widget.abtn -text "Apply"  -command "$this apply" -state disabled
+    button $widget.ubtn -text "Update" -command "$this update" -state disabled
+    grid $widget.abtn $widget.ubtn -padx 3 -pady 3
+
+    set bg #E0E0F0
+    foreach ch [winfo children $widget] { $ch configure -background $bg }
+    $widget configure -background $bg
+  }
+
+  # write settings to lock-in device
+  method apply {} {
+    if {$dev == {}} return
+    $dev set_range  $range
+    $dev set_tconst $tconst
+    update_val
+  }
+
+  # read settings from lock-in device
+  method update {} {
+    if {$dev == {}} return
+    $widget.tconst configure -values [$dev list_tconsts]
+    $widget.range  configure -values [$dev list_ranges]
+    set range    [$dev get_range]
+    set tconst   [$dev get_tconst]
+    update_val
+  }
+
+
+  method update_val {} {
+    set value    [$dev get]
+    set x [lindex $value 0]
+    set y [lindex $value 1]
+    set v $widget.val
+    set x1 [expr int((1.0+$x/$range)*0.5*$ww)]
+    set y1 [expr int((1.0+$y/$range)*0.5*$ww)]
+    set z [expr $ww/2]
+    $v delete data
+    $v create rectangle $z 1 $x1 [expr $hh/2] -fill red -tags data
+    $v create rectangle $z [expr $hh/2] $y1 $hh -fill green -tags data
+    return $value
+  }
+
+  method update_val_w {} {
+    after [expr int($tconst*1000)] $this update_val
+  }
+
+  method on {} {
+    if {$dev == {}} { set dev [DeviceRole $dev_name gauge] }
+    update
+    foreach w [list $widget.abtn $widget.ubtn] {
+      $w configure -state normal }
+  }
+
+  method off {} {
+    if {$dev != {}} { itcl::delete object $dev }
+    set dev {}
+    foreach w [list $widget.abtn $widget.ubtn] {
+      $w configure -state disabled }
+  }
+
+}
+
+
+##########################################################
+# generator interface
+itcl::class GenInt {
+
+  variable dev {};
+  variable widget {};
+
+  variable fre  {}
+  variable amp1 {}
+  variable amp2 {}
+  variable ph1 {}
+  variable ph2 {}
+  public variable on_change {}
+
+  constructor {dev_ widget_} {
+    set dev $dev_
+    set widget $widget_
+    labelframe $widget -text "Generator settings" -font {-weight bold -size 10}
+
+    # Frequency entry
+
+    foreach n {fre amp1 ph1}\
+            t {"Frequency, Hz:" "Excitation, Vpp:" "Phase, deg:"} {
+      label $widget.${n}_l -text $t
+      entry $widget.${n} -width 12 -textvariable [itcl::scope ${n}] -state normal
+      grid $widget.${n}_l $widget.${n} -padx 5 -pady 2 -sticky e
+    }
+
+    # Apply/Update buttons
+    button $widget.abtn -text "Apply"  -command "$this apply_exc" -state disabled
+    button $widget.ubtn -text "Update" -command "$this update" -state disabled
+    grid $widget.abtn $widget.ubtn -padx 3 -pady 3
+
+    label $widget.amp2_l -text "Compensation, Vpp:"
+    spinbox $widget.amp2 -from 0.000 -to 9.999 -increment 0.01 -width 8\
+             -format %1.3f -textvariable [itcl::scope amp2] -command "$this apply_comp"
+    grid $widget.amp2_l $widget.amp2 -padx 5 -pady 2 -sticky e
+
+    label $widget.ph2_l -text "Comp.phase, deg:"
+    spinbox $widget.ph2 -from -360 -to 360 -increment 1 -width 8\
+             -format %7.3f -textvariable [itcl::scope ph2] -command "$this apply_comp"
+    grid $widget.ph2_l $widget.ph2 -padx 5 -pady 2 -sticky e
+
+
+    set bg #F0E0E0
+    foreach ch [winfo children $widget] { $ch configure -background $bg }
+    $widget configure -background $bg
+  }
+
+  # write settings to generator device
+  method apply_exc {} {
+    if {[info command $dev] == {}} return
+    # get old values of excitation amplitude and phase:
+    set oamp1 [$dev cmd "SOUR1:VOLT?"]
+    set oph1  [$dev cmd "SOUR1:PHAS?"]
+    # change compensation amplitude and phase
+    set amp2 [format "%.3f" [expr {$amp2 * $amp1/$oamp1}]]
+    set ph1  [format "%.3f" [fix_phase $ph1]]
+    set ph2  [format "%.3f" [fix_phase [expr {$ph2+$ph1-$oph1}]]]
+    # change values in the generator
+    $dev cmd "SOUR1:FREQ $fre"
+    $dev cmd "SOUR1:VOLT $amp1"
+    $dev cmd "SOUR2:VOLT $amp2"
+    $dev cmd "SOUR1:PHAS $ph1"
+    $dev cmd "SOUR2:PHAS $ph2"
+    if {$on_change!={}} {eval $on_change}
+  }
+
+  method apply_comp {} {
+    if {[info command $dev] == {}} return
+    set ph2  [format "%.3f" [fix_phase $ph2]]
+    $dev cmd "SOUR2:VOLT $amp2"
+    $dev cmd "SOUR2:PHAS $ph2"
+    if {$on_change!={}} {eval $on_change}
+  }
+
+  # read settings from generator device
+  method update {} {
+    if {[info command $dev] == {}} return
+    set fre   [format "%.3f" [$dev cmd "SOUR1:FREQ?"]]
+    set amp1  [format "%.3f" [$dev cmd "SOUR1:VOLT?"]]
+    set amp2  [format "%.3f" [$dev cmd "SOUR2:VOLT?"]]
+    set ph1   [format "%.3f" [$dev cmd "SOUR1:PHAS?"]]
+    set ph2   [format "%.3f" [$dev cmd "SOUR2:PHAS?"]]
+  }
+
+  method on {} {
+    if {[info command $dev] == {}}  { Device $dev }
+    $dev cmd SOUR1:VOLT:UNIT VPP
+    $dev cmd SOUR2:VOLT:UNIT VPP
+    $dev cmd UNIT:ANGL DEG
+    $dev cmd SOUR1:FUNC SIN
+    $dev cmd SOUR2:FUNC SIN
+    $dev cmd OUTP1:LOAD INF
+    $dev cmd OUTP2:LOAD INF
+    $dev cmd "FREQ:COUP ON"
+    update
+    foreach w [list $widget.abtn $widget.ubtn] {
+      $w configure -state normal }
+  }
+
+  method off {} {
+    if {[info command $dev] != {}} { itcl::delete object $dev }
+    foreach w [list $widget.abtn $widget.ubtn] {
+      $w configure -state disabled }
+  }
+
+  method fix_phase {ph} { return [expr $ph-int($ph/360.0)*360] }
+
+}
+
+
+
+
+##########################################################
+
+proc set_state {state} {
+  set ::state $state
+  if {$state} on else off
+}
+
+proc on {} {
+  gen_int on
+  lockin_int on
+}
+
+proc off {} {
+  lockin_int off
+  gen_int off
+}
+
+##########################################################
+
+## make interface
+LockinInt lockin_int $pars(gauge_dev) .l
+pack .l -padx 5 -fill x -expand 1
+
+Device gen0
+
+GenInt gen_int gen0 .g
+gen_int configure -on_change "lockin_int update_val_w"
+pack .g -padx 5 -fill x -expand 1
+
+#button .onbtn -text "On"  -command on
+#button .offbtn -text "Off" -command off
+#pack .onbtn .offbtn -side right
+
+checkbutton .oo -text "on/off" -variable ::state -command {set_state $::state}
+pack .oo -side right
