@@ -129,7 +129,7 @@ itcl::class TimePlot {
     xblt::elemop     $graph
     xblt::scroll     $graph $scroll -timefmt 1
 
-    if {$use_comm == 1} {xblt::xcomments $graph}
+    if {$use_comm == 1} {xblt::xcomments $graph -interactive 0}
 
     # create BLT vectors for data, create axis for each data column
     blt::vector create "$this:T"
