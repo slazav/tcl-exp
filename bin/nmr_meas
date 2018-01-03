@@ -70,10 +70,10 @@ itcl::class LockinInt {
     $v create line [expr $ww/2] 1 [expr $ww/2] $hh
     grid $v -padx 5 -pady 2 -sticky e -columnspan 2
 
-    # Apply/Update buttons
-    button $widget.abtn -text "Apply"  -command "$this apply" -state disabled
+#    # Apply/Update buttons
+#    button $widget.abtn -text "Apply"  -command "$this apply" -state disabled
     button $widget.ubtn -text "Update" -command "$this update" -state disabled
-    grid $widget.abtn $widget.ubtn -padx 3 -pady 3
+    grid x $widget.ubtn -padx 3 -pady 3
 
     set bg #E0E0F0
     foreach ch [winfo children $widget] { $ch configure -background $bg }
@@ -98,8 +98,9 @@ itcl::class LockinInt {
     update_val
   }
 
-
+  # measure values, update picture
   method update_val {} {
+    if {$dev == {}} return
     set value    [$dev get]
     set x [lindex $value 0]
     set y [lindex $value 1]
@@ -113,21 +114,36 @@ itcl::class LockinInt {
     return $value
   }
 
+  # same but with waiting
   method update_val_w {} {
     after [expr int($tconst*1000)] $this update_val
   }
 
+  # silent measurement with autorange
+  method get_auto {} {
+    if {$dev == {}} return
+    return [$dev get_auto]
+  }
+
+  # silent measurement without autorange
+  method get {} {
+    if {$dev == {}} return
+    return [$dev get]
+  }
+
+  # open devices
   method on {} {
     if {$dev == {}} { set dev [DeviceRole $dev_name gauge] }
     update
-    foreach w [list $widget.abtn $widget.ubtn] {
+    foreach w [list $widget.ubtn] {
       $w configure -state normal }
   }
 
+  # release opened devices
   method off {} {
     if {$dev != {}} { itcl::delete object $dev }
     set dev {}
-    foreach w [list $widget.abtn $widget.ubtn] {
+    foreach w [list $widget.ubtn] {
       $w configure -state disabled }
   }
 
@@ -141,11 +157,11 @@ itcl::class GenInt {
   variable dev {};
   variable widget {};
 
-  variable fre  {}
-  variable amp1 {}
-  variable amp2 {}
-  variable ph1 {}
-  variable ph2 {}
+  public variable fre  {}
+  public variable amp1 {}
+  public variable amp2 {}
+  public variable ph1 {}
+  public variable ph2 {}
   public variable on_change {}
 
   constructor {dev_ widget_} {
@@ -220,6 +236,21 @@ itcl::class GenInt {
     set ph2   [format "%.3f" [$dev cmd "SOUR2:PHAS?"]]
   }
 
+  method measure {} {
+    if {[info command $dev] == {}} return
+    return [list\
+           [$dev cmd "SOUR1:FREQ?"]\
+           [$dev cmd "SOUR1:VOLT?"]\
+           [$dev cmd "SOUR2:VOLT?"]\
+           [$dev cmd "SOUR1:PHAS?"]\
+           [$dev cmd "SOUR2:PHAS?"]]
+  }
+
+  method switch_channels {v1 v2} {
+    $dev cmd OUTP1 [expr "$v1?ON:OFF"]
+    $dev cmd OUTP2 [expr "$v2?ON:OFF"]
+  }
+
   method on {} {
     if {[info command $dev] == {}}  { Device $dev }
     $dev cmd SOUR1:VOLT:UNIT VPP
@@ -245,7 +276,93 @@ itcl::class GenInt {
 
 }
 
+##########################################################
 
+
+##########################################################
+proc calibrate {lockin_int gen_int} {
+  set r2d [expr {180/3.1415926}]
+  global cgain cturn egain eturn
+
+  # calibrate excitation:
+  $gen_int switch_channels 1 0
+  set v [$lockin_int get_auto]
+  if {[llength $v]==0} {return}
+  set x [lindex $v 0]
+  set y [lindex $v 1]
+  set r1 [expr {hypot($x,$y)}]
+  set p1 [expr {atan2($y,$x)*$r2d}]
+
+  # calibrate compensation:
+  $gen_int switch_channels 0 1
+  set v [$lockin_int get_auto]
+  if {[llength $v]==0} {return}
+  set x [lindex $v 0]
+  set y [lindex $v 1]
+  set r2 [expr {hypot($x,$y)}]
+  set p2 [expr {atan2($y,$x)*$r2d}]
+
+  set g [$gen_int measure]
+  set ev [lindex $g 1]
+  set cv [lindex $g 2]
+  set ep [lindex $g 3]
+  set cp [lindex $g 4]
+
+  set egain  [expr {$r1/$ev}]
+  set cgain  [expr {$r2/$cv}]
+  set eturn [$gen_int fix_phase [expr "$p1 - $ep"]]
+  set cturn [$gen_int fix_phase [expr "$p2 - $cp"]]
+
+  puts "Calibration: $egain $eturn $cgain $cturn"
+
+  # restore settings
+  $gen_int switch_channels 1 1
+
+  # compensate
+  $gen_int configure -amp2 [expr {$ev * $egain / $cgain}]
+  $gen_int configure -ph2  [expr {(180 + $ep + $eturn) - $cturn}]
+  $gen_int apply_comp
+
+  # measure values
+#  set v [$lockin_int get_auto]
+#
+#  if {[llength $v]==0} {return}
+
+  $lockin_int update
+}
+
+# adjust compensation using old calibration
+# no change in lock-in and excitation settings
+proc adjust_comp {lockin_int gen_int} {
+  set r2d [expr {180/3.1415926}]
+  global cgain cturn egain eturn
+  if {$cgain == 0} return
+
+  set v [$lockin_int get]
+  if {[llength $v]==0} {return}
+  set x [lindex $v 0]
+  set y [lindex $v 1]
+  set r [expr {hypot($x,$y)}]
+  set p [expr {atan2($y,$x)*$r2d}]
+
+  set amp2 [$gen_int cget -amp2]
+  set ph2  [$gen_int cget -ph2]
+
+  set damp2 [expr {-$r / $cgain}]
+  set dph2  [expr {$p - $cturn}]
+
+  puts "V1 $amp2 $ph2"
+  puts "DA $damp2 $dph2"
+
+  set x [expr {$amp2*cos($ph2/$r2d) + $damp2*cos($dph2/$r2d)}]
+  set y [expr {$amp2*sin($ph2/$r2d) + $damp2*sin($dph2/$r2d)}]
+
+  puts "V2 [expr hypot($x,$y)] [expr {atan2($y,$x)*$r2d}]"
+
+  $gen_int configure -amp2 [expr {hypot($x,$y)}]
+  $gen_int configure -ph2  [expr {atan2($y,$x)*$r2d}]
+  $gen_int apply_comp
+}
 
 
 ##########################################################
@@ -277,9 +394,16 @@ GenInt gen_int gen0 .g
 gen_int configure -on_change "lockin_int update_val_w"
 pack .g -padx 5 -fill x -expand 1
 
-#button .onbtn -text "On"  -command on
-#button .offbtn -text "Off" -command off
-#pack .onbtn .offbtn -side right
+button .cal_btn -text "Calibrate" -command "calibrate lockin_int gen_int"
+button .adj_btn -text "Adjust"    -command "adjust_comp lockin_int gen_int"
 
 checkbutton .oo -text "on/off" -variable ::state -command {set_state $::state}
-pack .oo -side right
+pack .oo .cal_btn .adj_btn -side right
+
+
+proc loop {} {
+  lockin_int update_val
+  after 1000 loop
+}
+
+loop
