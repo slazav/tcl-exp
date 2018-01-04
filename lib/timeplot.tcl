@@ -174,6 +174,9 @@ itcl::class TimePlot {
     set xaxis [expr {$x == "time"? "x":"x$x"}]
     $graph xaxis use $xaxis
 
+    if {$x == "time"} {xblt::xcomments::show_all $graph}\
+    else { xblt::xcomments::hide_all $graph }
+
     # xBLT hacks
     #set xblt::zoomstack::data($graph,axes) [expr {$x == "time"?"x":"x y"}]
     #set xblt::rubberrect::data($graph,rr1,usey) [expr {$x == "time"?0:1}]
