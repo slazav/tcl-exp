@@ -12,7 +12,7 @@ set par_list [list \
   name     {Main magnet} {program title}\
   ps_dev      ps0:1L {1st power supply device}\
   ps_dev2     ps0:2H {2nd power supply device}\
-  gauge_dev   lockin0:FXY {measure device}\
+  gauge_dev   lockin0:XY {measure device}\
   ovp           5   {overvoltage protection, V}\
   ramp_tstep  0.2   {ramping time step}\
   idle_tstep  0.2   {idle time step}\
@@ -27,10 +27,8 @@ set par_list [list \
 ]
 
 
-
 foreach {name def title} $par_list { set pars($name) $def }
 
-set pars(db) ""
 
 ##########################################################
 ## control functions (one can use this from external scripts)
@@ -66,7 +64,7 @@ proc do_go {dest rate} {
   sweeper sweep $dest $rate
 }
 
-proc do_stop {dest rate} {
+proc do_stop {} {
   if {$::state == 0} {return}
   sweeper sweep_stop
 }
@@ -105,8 +103,8 @@ proc on_new_val {t cm cs vm {meas 0}} {
   global pars
   set ::resistance [expr { $cm>0? $vm/$cm:0} ]
   set ::current $cm
-  set ::X [lindex $meas 1]
-  set ::Y [lindex $meas 2]
+  set ::X [lindex $meas 0]
+  set ::Y [lindex $meas 1]
   set ::A [expr hypot($::X,$::Y)]
   set ::P [expr atan2($::Y,$::X)]
 
@@ -147,7 +145,7 @@ proc make_coil_control {root coil} {
   label $root.g.urate -text "(A/s) "
   button $root.g.go   -text "Goto 1" -pady 3 -bg #bdc1d4 -command {do_go $::dest1 $::rate} -state disabled
   button $root.g.sw   -text "Sweep between" -pady 3 -bg #bdc1d4 -command {do_sweep $::dest1 $::dest2 $::rate} -state disabled
-  button $root.g.st   -text "Stop" -pady 3 -bg #bdc1d4 -command {do_stop $::dest1 $::dest2 $::rate} -state disabled
+  button $root.g.st   -text "Stop" -pady 3 -bg #bdc1d4 -command {do_stop} -state disabled
   grid $root.g.ldest1 $root.g.dest1 $root.g.udest1\
        $root.g.ldest2 $root.g.dest2 $root.g.udest2\
        $root.g.lrate $root.g.rate $root.g.urate\
