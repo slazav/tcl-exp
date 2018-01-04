@@ -8,6 +8,7 @@ package require xBlt
 ## Command line options:
 # -p -ps_dev1     -- power supply device
 # -P -ps_dev2     -- power supply device - 2nd channel
+# -A -antipar     -- anti-parallel connection
 # -G -gauge       -- gauge device
 # -d -db_dev      -- database device (can be empty)
 # -n -db_val      -- database name for numerical values
@@ -46,6 +47,7 @@ itcl::class SweepController {
   # see options:
   variable ps_dev1
   variable ps_dev2
+  variable antipar
   variable g_dev
   variable db_dev
   variable db_val
@@ -76,6 +78,7 @@ itcl::class SweepController {
     set options [list \
       {-p -ps_dev1}  ps_dev1  {}\
       {-P -ps_dev2}  ps_dev2  {}\
+      {-A -antipar}  antipar  0\
       {-G -gauge}    g_dev    {}\
       {-d -db_dev}   db_dev   {}\
       {-n -db_val}   db_val   {}\
@@ -112,6 +115,10 @@ itcl::class SweepController {
       set min_i_step2 [$dev2 cget -min_i_step]
       set max_i2 [$dev2 cget -max_i]
       set min_i2 [$dev2 cget -min_i]
+      if {$antipar} {
+        set max_i2 [expr {-[$dev2 cget -min_i]}]
+        set min_i2 [expr {-[$dev2 cget -max_i]}]
+      }
     }
 
     # open gauge device if needed
@@ -151,12 +158,12 @@ itcl::class SweepController {
   # put value into the database
   method put_value {} {
     set cm [expr {$cm1 + $cm2}]
-
     set cs [expr {$cs1 + $cs2}]
+    set vm [expr {abs($vm1)>abs($vm2)? $vm1:$vm2}]
     set t [expr [clock milliseconds]/1000.0]
-    if {$on_new_val != {}} { uplevel \#0 [eval {$on_new_val $t $cm $cs $vm1 $mval}]}
+    if {$on_new_val != {}} { uplevel \#0 [eval {$on_new_val $t $cm $cs $vm $mval}]}
     if { $db_dev != {} && $db_val != {}} {
-      $db_dev cmd "put $db_val $t $cm $cs $vm1 $mval"
+      $db_dev cmd "put $db_val $t $cm $cs $vm $mval"
       $db_dev cmd "sync"
     }
   }
@@ -187,11 +194,17 @@ itcl::class SweepController {
 
     # measure all values
     set cm1 [ $dev1 get_curr ]
-    if {$dev2 != {}} {set cm2 [$dev2 get_curr]}\
+    if {$dev2 != {}} {
+      set cm2 [$dev2 get_curr]
+      if {$antipar} {set cm2 [expr -$cm2]}
+    }\
     else {set cm2 0}
 
     set vm1 [ $dev1 get_volt ]
-    if {$dev2 != {}} { set vm2 [$dev2 get_volt]}\
+    if {$dev2 != {}} {
+      set vm2 [$dev2 get_volt]
+      if {$antipar} {set vm2 [expr -$vm2]}
+    }\
     else {set vm2 0}
 
     set st [ $dev1 get_stat ]
@@ -262,34 +275,53 @@ itcl::class SweepController {
       set c [expr {[expr $cs1+$cs2] + $di}]
     }
 
-    # first try to sweep ch2:
-    if { $dev2 != {} } {
-      set v [expr {$c-$cs1}];
-      if {$v < $min_i2} {set v $min_i2}
-      if {$v > $max_i2} {set v $max_i2}
-      # is step is too small?
-      if { abs($v-$cs2) > $min_i_step2 || $rate==0 } {
-        $dev2 set_curr $v
-        set cs2 $v
-        set changed 1
-        set dt 0
-      }
+    # Sweep method is different for parallel and for anti-parallel
+    # power supply connection. First is used for accurate sweep with low-range
+    # second device. We should always sweep ch2 first if it is possible.
+    # In the anti-parallel connection we want to sweep first the device which
+    # has opposite sign then the the destination.
+
+    if {$antipar && $dest<0} {
+      sweep_ch1 $c
+      sweep_ch2 $c
+    }\
+    else {
+      sweep_ch2 $c
+      sweep_ch1 $c
     }
-    # the same with ch1:
-    if { $dev1 != {} } {
-      set v [expr {$c-$cs2}];
-      if {$v < $min_i} {set v $min_i}
-      if {$v > $max_i} {set v $max_i}
-      # is step is too small?
-      if { abs($v-$cs1) > $min_i_step || $rate==0 } {
-        $dev1 set_curr $v
-        set cs1 $v
-        set changed 1
-        set dt 0
-      }
-    }
-    return
   }
+
+  ######################################
+
+  method sweep_ch2 {c} {
+    if { $dev2 == {} } {return}
+    set v [expr {$c-$cs1}];
+    if {$v < $min_i2} {set v $min_i2}
+    if {$v > $max_i2} {set v $max_i2}
+    # is step is too small?
+    if { abs($v-$cs2) > $min_i_step2 || $rate==0 } {
+      if {$antipar} { $dev2 set_curr [expr -$v] }\
+      else {$dev2 set_curr $v}
+      set cs2 $v
+      set changed 1
+      set dt 0
+    }
+  }
+
+  method sweep_ch1 {c} {
+    if { $dev1 == {} } {return}
+    set v [expr {$c-$cs2}];
+    if {$v < $min_i} {set v $min_i}
+    if {$v > $max_i} {set v $max_i}
+    # is step is too small?
+    if { abs($v-$cs1) > $min_i_step || $rate==0 } {
+      $dev1 set_curr $v
+      set cs1 $v
+      set changed 1
+      set dt 0
+    }
+  }
+
 
   ######################################
   ## get current/voltage/status/measured value
@@ -299,8 +331,8 @@ itcl::class SweepController {
   # get current (sum for both channels)
   method get_scurr {} { return [expr {$cs1 + $cs2}] }
 
-  # get voltage (1st channel only)
-  method get_volt {} { return $vm1 }
+  # get voltage (max absolute value)
+  method get_volt {} { return [expr {abs($vm1)>abs($vm2)? $vm1:$vm2}] }
 
   # get stat
   method get_stat {} { return $st }
@@ -321,7 +353,10 @@ itcl::class SweepController {
       $dev2 cc_reset
     }
     set cs1 [ $dev1 get_curr ]
-    if {$dev2 != {}} {set cs2 [$dev2 get_curr]}\
+    if {$dev2 != {}} {
+      set cs2 [$dev2 get_curr]
+      if {$antipar} {set cs2 [expr -$cs2]}
+    }\
     else {set cs2 0}
 
     set dest [expr $cs1+$cs2]
