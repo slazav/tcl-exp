@@ -170,6 +170,7 @@ itcl::class GenInt {
 
   variable dev {};
   variable widget {};
+  variable btnlist {}
 
   public variable fre  {}
   public variable amp1 {}
@@ -231,10 +232,11 @@ itcl::class GenInt {
            -command "$this adjust_comp" -state disabled
     grid $widget.cal_btn $widget.adj_btn -padx 5 -pady 2 -sticky e
 
-
     set bg #F0E0E0
     foreach ch [winfo children $widget] { $ch configure -background $bg }
     $widget configure -background $bg
+
+    set btnlist [list $widget.cal_btn $widget.adj_btn $widget.abtn $widget.ubtn]
   }
 
   # write settings to generator device
@@ -302,14 +304,12 @@ itcl::class GenInt {
     $dev cmd OUTP2:LOAD INF
     $dev cmd "FREQ:COUP ON"
     update
-    foreach w [list $widget.abtn $widget.ubtn $widget.cal_btn $widget.adj_btn] {
-      $w configure -state normal }
+    foreach w $btnlist {$w configure -state normal }
   }
 
   method off {} {
     if {[info command $dev] != {}} { itcl::delete object $dev }
-    foreach w [list $widget.abtn $widget.ubtn $widget.cal_btn $widget.adj_btn] {
-      $w configure -state disabled }
+    foreach w $btnlist { $w configure -state disabled }
   }
 
   method fix_phase {ph} { return [expr $ph-int($ph/360.0)*360] }
@@ -319,6 +319,11 @@ itcl::class GenInt {
     if {$lockin_int == {}} return
     # save original range
     set range [$lockin_int get_range]
+    # read actual generator values
+    update
+
+    # disable buttons
+    foreach w $btnlist { $w configure -state disabled }
 
     # calibrate excitation:
     switch_channels 1 0
@@ -359,6 +364,10 @@ itcl::class GenInt {
     $lockin_int set_range $range
     $lockin_int update
     after 500 $this adjust_comp
+
+    # enable buttons
+    foreach w $btnlist { $w configure -state normal }
+
   }
 
   # adjust compensation using old calibration
