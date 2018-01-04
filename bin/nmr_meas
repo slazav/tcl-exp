@@ -9,9 +9,12 @@ package require itcl
 ### parameters
 
 set par_list [list \
-  exc_dev   {gen0:1} {Excitation generator name}\
-  com_dev   {gen0:2} {Compensation generator name}\
-  gauge_dev {lockin0:XY} {Lock-in device name}
+  gen_dev   {gen0}   {2-ch generator}\
+  gauge_dev {lockin0:XY} {Lock-in device name}\
+  db_dev         db_exp      {db device}\
+  db_nmr_lockin  drydemag/nmr_lockin {database for nmr lockin parameters (range, tconst)}\
+  db_nmr_gen     drydemag/nmr_gen    {database for nmr generator parameters (exc_amp, exc_ph, comp_amp, comp_ph)}\
+  db_nmr_cal     drydemag/nmr_cal    {database for nmr calibration (exc_gain, exc_turn, comp_gain, comp_turn)}\
 ]
 
 foreach {name def title} $par_list { set pars($name) $def }
@@ -39,8 +42,8 @@ itcl::class LockinInt {
   variable dev_name {};
   variable widget {};
 
-  variable range  {}
-  variable tconst {}
+  variable range  1
+  variable tconst 1
   variable dev    {}
   variable value  {}
   variable ww 250; # value bar width
@@ -85,6 +88,7 @@ itcl::class LockinInt {
     if {$dev == {}} return
     $dev set_range  $range
     $dev set_tconst $tconst
+    $::pars(db_dev) cmd put $::pars(db_nmr_lockin) now $range $tconst
     update_val
   }
 
@@ -129,6 +133,16 @@ itcl::class LockinInt {
   method get {} {
     if {$dev == {}} return
     return [$dev get]
+  }
+
+  # get/set range
+  method get_range {} {
+    if {$dev == {}} return
+    return [$dev get_range]
+  }
+  method set_range {r} {
+    if {$dev == {}} return
+    return [$dev set_range $r]
   }
 
   # open devices
@@ -230,9 +244,9 @@ itcl::class GenInt {
     set oamp1 [$dev cmd "SOUR1:VOLT?"]
     set oph1  [$dev cmd "SOUR1:PHAS?"]
     # change compensation amplitude and phase
-    set amp2 [format "%.3f" [expr {$amp2 * $amp1/$oamp1}]]
-    set ph1  [format "%.3f" [fix_phase $ph1]]
-    set ph2  [format "%.3f" [fix_phase [expr {$ph2+$ph1-$oph1}]]]
+    set amp2 [format "%.4f" [expr {$amp2 * $amp1/$oamp1}]]
+    set ph1  [format "%.4f" [fix_phase $ph1]]
+    set ph2  [format "%.4f" [fix_phase [expr {$ph2+$ph1-$oph1}]]]
     # change values in the generator
     $dev cmd "SOUR1:FREQ $fre"
     $dev cmd "SOUR1:VOLT $amp1"
@@ -240,24 +254,26 @@ itcl::class GenInt {
     $dev cmd "SOUR1:PHAS $ph1"
     $dev cmd "SOUR2:PHAS $ph2"
     if {$lockin_int!={}} {$lockin_int update_val_w}
+    $::pars(db_dev) cmd put $::pars(db_nmr_gen) now $fre $amp1 $ph1 $amp2 $ph2
   }
 
   method apply_comp {} {
     if {[info command $dev] == {}} return
-    set ph2  [format "%.3f" [fix_phase $ph2]]
+    set ph2  [format "%.4f" [fix_phase $ph2]]
     $dev cmd "SOUR2:VOLT $amp2"
     $dev cmd "SOUR2:PHAS $ph2"
     if {$lockin_int!={}} {$lockin_int update_val_w}
+    $::pars(db_dev) cmd put $::pars(db_nmr_gen) now $fre $amp1 $ph1 $amp2 $ph2
   }
 
   # read settings from generator device
   method update {} {
     if {[info command $dev] == {}} return
-    set fre   [format "%.3f" [$dev cmd "SOUR1:FREQ?"]]
-    set amp1  [format "%.3f" [$dev cmd "SOUR1:VOLT?"]]
-    set amp2  [format "%.3f" [$dev cmd "SOUR2:VOLT?"]]
-    set ph1   [format "%.3f" [$dev cmd "SOUR1:PHAS?"]]
-    set ph2   [format "%.3f" [$dev cmd "SOUR2:PHAS?"]]
+    set fre   [format "%.4f" [$dev cmd "SOUR1:FREQ?"]]
+    set amp1  [format "%.4f" [$dev cmd "SOUR1:VOLT?"]]
+    set amp2  [format "%.4f" [$dev cmd "SOUR2:VOLT?"]]
+    set ph1   [format "%.4f" [$dev cmd "SOUR1:PHAS?"]]
+    set ph2   [format "%.4f" [$dev cmd "SOUR2:PHAS?"]]
   }
 
   method measure {} {
@@ -301,6 +317,8 @@ itcl::class GenInt {
   # calibrate compensation/excitation gains
   method calibrate {} {
     if {$lockin_int == {}} return
+    # save original range
+    set range [$lockin_int get_range]
 
     # calibrate excitation:
     switch_channels 1 0
@@ -310,6 +328,7 @@ itcl::class GenInt {
     set y [lindex $v 1]
     set r1 [expr {hypot($x,$y)}]
     set p1 [expr {atan2($y,$x)*$r2d}]
+
 
     # calibrate compensation:
     switch_channels 0 1
@@ -322,25 +341,29 @@ itcl::class GenInt {
 
     # measure parameters
     update
-    set egain [format "%.3e" [expr {$r1/$amp1}]]
-    set cgain [format "%.3e" [expr {$r2/$amp2}]]
-    set eturn [format "%.3f" [fix_phase [expr "$p1 - $ph1"]]]
-    set cturn [format "%.3f" [fix_phase [expr "$p2 - $ph2"]]]
+    set egain [format "%.4e" [expr {$r1/$amp1}]]
+    set cgain [format "%.4e" [expr {$r2/$amp2}]]
+    set eturn [format "%.4f" [fix_phase [expr "$p1 - $ph1"]]]
+    set cturn [format "%.4f" [fix_phase [expr "$p2 - $ph2"]]]
+    $::pars(db_dev) cmd put $::pars(db_nmr_cal) now $egain $eturn $cgain $cturn
 
     # restore settings
     switch_channels 1 1
 
     # compensate
-    set amp2 [format "%.3f" [expr {$amp1 * $egain / $cgain}]]
-    set ph2  [format "%.3f" [expr {(180 + $ph1 + $eturn) - $cturn}]]
-    apply_comp
+    set amp2 [format "%.4f" [expr {$amp1 * $egain / $cgain}]]
+    set ph2  [format "%.4f" [expr {(180 + $ph1 + $eturn) - $cturn}]]
+    # apply_comp
 
+    #restore lock_in range
+    $lockin_int set_range $range
     $lockin_int update
+    after 500 $this adjust_comp
   }
 
   # adjust compensation using old calibration
   # no change in lock-in and excitation settings
-  proc adjust_comp {} {
+  method adjust_comp {} {
     if {$lockin_int == {}} return
     if {$cgain == 0} {calibrate}
 
@@ -358,8 +381,8 @@ itcl::class GenInt {
     set x [expr {$amp2*cos($ph2/$r2d) + $damp2*cos($dph2/$r2d)}]
     set y [expr {$amp2*sin($ph2/$r2d) + $damp2*sin($dph2/$r2d)}]
 
-    set amp2 [format "%.3f" [expr {hypot($x,$y)}]]
-    set ph2  [format "%.3f" [expr {atan2($y,$x)*$r2d}]]
+    set amp2 [format "%.4f" [expr {hypot($x,$y)}]]
+    set ph2  [format "%.4f" [expr {atan2($y,$x)*$r2d}]]
     apply_comp
   }
 
@@ -385,13 +408,13 @@ proc off {} {
 
 ##########################################################
 
+Device $pars(db_dev)
+
 ## make interface
 LockinInt lockin_int $pars(gauge_dev) .l
 pack .l -padx 5 -fill x -expand 1
 
-Device gen0
-
-GenInt gen_int gen0 .g
+GenInt gen_int $pars(gen_dev) .g
 gen_int configure -lockin_int lockin_int
 pack .g -padx 5 -fill x -expand 1
 
@@ -402,6 +425,7 @@ pack .oo -side right
 
 proc loop {} {
   lockin_int update_val
+  $::pars(db_dev) cmd sync
   after 1000 loop
 }
 
