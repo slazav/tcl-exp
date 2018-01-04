@@ -9,6 +9,7 @@ TimePlot pl .pl\
   -names {D1 D2 D3}\
   -plots_x {time D1 D2 D3}\
   -plots_y {{} {D2 D3} D3 {}}\
+  -use_comm 1
 
 pack .pl -expand yes -fill both
 
