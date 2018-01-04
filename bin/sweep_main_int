@@ -10,8 +10,8 @@ package require Exp
 
 set par_list [list \
   name     {Main magnet} {program title}\
-  ps_dev      ps0:1L {1st power supply device}\
-  ps_dev2     ps0:2H {2nd power supply device}\
+  ps_dev      ps0:1H {1st power supply device}\
+  ps_dev2     ps0:2L {2nd power supply device}\
   gauge_dev   lockin0:XY {measure device}\
   ovp           5   {overvoltage protection, V}\
   ramp_tstep  0.2   {ramping time step}\
@@ -110,7 +110,7 @@ proc on_new_val {t cm cs vm {meas 0}} {
 
   p add_data $t [list $::current $::A $::P $::X $::Y]
 
-  .f.m.vI configure -text [format "%.3f" $::current]
+  .f.m.vI configure -text [format "%.5f" $::current]
   .f.m.vR configure -text [format "%.3f" $::resistance]
 
   return
