@@ -19,20 +19,6 @@ set par_list [list \
 
 foreach {name def title} $par_list { set pars($name) $def }
 
-## program variables
-set vars(exc)           {}; # Excitation generator device
-set vars(com)           {}; # Excitation generator device
-set vars(gauge)         {}; # Lock-in device
-set vars(onoff_widgets) {}; # Widgets disabled in OFF state
-set vars(cbox_ranges)   {}; # Combobox with lock-in ranges
-set vars(cbox_tconsts)  {}; # Combobox with lock-in time constants
-set vars(range)         {}; # Lock-in range setting
-set vars(tconst)        {}; # Lock-in time constant setting
-set vars(freq)          {}; # Working frequency
-set vars(exc_amp)       {}; # Excitation amplitude
-set vars(com_amp)       {}; # Compensation amplitude
-set vars(phase)         {}; # Compensation phase
-
 set state 0
 
 ##########################################################
@@ -302,7 +288,9 @@ itcl::class GenInt {
     $dev cmd SOUR2:FUNC SIN
     $dev cmd OUTP1:LOAD INF
     $dev cmd OUTP2:LOAD INF
-    $dev cmd "FREQ:COUP ON"
+    $dev cmd FREQ:COUP ON
+    $dev cmd OUTP:SYNC:SOUR 1
+
     update
     foreach w $btnlist {$w configure -state normal }
   }
