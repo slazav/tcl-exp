@@ -234,11 +234,12 @@ proc do_pulse {} {
 
 # open device if needed and update range list
 proc dev_open {} {
-  global dev
+  global dev need_setup
   if {![itcl::is object $dev]} {
     Device $dev
     set range_values [lindex [$dev cmd get_osc_sc] 0]
     .tabs.pars.op.sc configure -values $range_values
+    set need_setup 1
   }
 }
 
