@@ -26,7 +26,7 @@ set pars(cyc) 10;     # pulse count
 
 # oscilloscope parameters
 set pars(time) 5;     # record time
-set pars(tpre) 0.01;  # pretrigger time
+set pars(tpre) 5.0;   # pretrigger percent
 set pars(rate) 1e5;   # record sampling rate
 set pars(sc)   1;     # oscilloscope range
 
@@ -142,8 +142,12 @@ proc do_pulse {} {
   set st "Measuring..."
 
   set t0 [clock milliseconds]
+  if ($apars(tpre)<0)   { set apars(tpre) 0 }
+  if ($apars(tpre)>100) { set apars(tpre) 100 }
+  set t1 [expr {0.01*$apars(tpre)*$apars(time)}]
+  set t2 [expr {$apars(time)-$t1}]
   set dt [expr {1.0/$apars(rate)}]
-  set ret [lindex [$dev cmd pulse $apars(tpre) $apars(time) $dt $sigfile] 0]
+  set ret [lindex [$dev cmd pulse $t1 $t2 $dt $sigfile] 0]
 
   ## pars results
   set time [lindex $ret 0]
@@ -370,8 +374,9 @@ proc mk_fft_frame {root} {
   xblt::measure $pwid
   xblt::readout $pwid -variable v_readout -active 1
   xblt::zoomstack $pwid -axes {x y} -recttype xy
-  $pwid element create fft     -xdata fft_x  -ydata fft_y -symbol "" -color blue
+  $pwid element create fft -xdata fft_x  -ydata fft_y -symbol "" -color blue
   $pwid axis configure y -title {Spectral density, nV/sqrt(Hz)} -logscale 1
+  $pwid axis configure x -title {Frequency, Hz} -logscale 1
 }
 
 ##################################################
@@ -431,8 +436,8 @@ proc mk_pars_frame {root} {
   labelframe $w -text {oscilloscope parameters}\
                 -font {-weight bold} -padx 5 -pady 5
   foreach {v title} {
-        tpre "Pretrigger time, s"
         time "Record time, s"
+        tpre "Pretrigger, %"
         rate "Sampling rate, Hz"
         } {
     mk_entry $w.${v} pars($v) $title
