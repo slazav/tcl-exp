@@ -5,7 +5,7 @@ package require DeviceRole 1.0
 package require xBlt
 
 #############################################################
-## Command line options:
+## Arguments for constructor:
 # -p -ps_dev1     -- power supply device
 # -P -ps_dev2     -- power supply device - 2nd channel
 # -A -antipar     -- anti-parallel connection
@@ -20,6 +20,22 @@ package require xBlt
 # -s -skip        -- do not write points if current was not set (0)
 # -on_new_val     -- function prefix for running with new values ($t $cm $cs $vm $meas)
 # -on_new_com     -- function prefix for running with new comment ($t $comm)
+#
+#  Other methods:
+
+#  turn_on {}   -- open devices and start main loop
+#  turn_off {}  -- stop main loop and close devices
+#  get_mcurr {} -- get measured current (from the last loop step)
+#  get_scurr {} -- get set current (from the last loop step)
+#  get_colt {}  -- get measured voltage (from the last loop step)
+#  get_stat {}  -- get device status
+#  get_mval {}  -- get gauge data
+#  reset {}     -- reset devices
+
+#  sweep {dest rate} -- sweep to a destination
+#  sweep_between {dest1 dest2 rate} -- sweep between dest1 and dest2
+#  sweep_stop {} -- stop sweep
+#  sweep_back {} -- go back
 
 #############################################################
 
@@ -71,9 +87,7 @@ itcl::class SweepController {
   variable state 0; # off/on
 
   ######################################
-  # constructor - open and lock devices, get parameters
-  # should call spp_server_async::ans or spp_server_async::err
-
+  # constructor, set parameters
   constructor {args} {
     set options [list \
       {-p -ps_dev1}  ps_dev1  {}\
@@ -95,6 +109,7 @@ itcl::class SweepController {
   }
   destructor { turn_off }
 
+  ######################################
   # open devices an start main loop
   method turn_on {} {
     if {$state == 1 } {return}
@@ -135,7 +150,7 @@ itcl::class SweepController {
     reset
   }
 
-  # open devices an start main loop
+  ######################################
   method turn_off {} {
     after cancel $rh
     set state 0
@@ -396,6 +411,13 @@ itcl::class SweepController {
       set rh [after idle $this loop]
     }
     return
+  }
+
+  ######################################
+  # go back
+  method sweep_back {} {
+    if {$rate != 0 && $dest != $dest2} {
+      sweep_between $dest2 $dest $rate }
   }
 
 }
