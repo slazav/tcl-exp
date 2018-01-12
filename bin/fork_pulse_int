@@ -27,14 +27,14 @@ set pars(cyc) 10;     # pulse count
 set pars(time) 5;     # record time
 set pars(tpre) 0.01;  # pretrigger time
 set pars(rate) 1e5;   # record sampling rate
-set pars(sc)   0.5;   # oscilloscope range
+set pars(sc)   1;     # oscilloscope range
 
 # auto adjust parameters
 set pars(fadj) 1;     # adjust frequency
 set pars(fmin) 32000; # min value
 set pars(fmax) 33000; # max value
 set pars(tadj) 1;     # adjust time
-set pars(tmin) 0.1;   # min value
+set pars(tmin) 0.01;  # min value
 set pars(tmax) 200;   # max value
 set pars(tx)   5;     # time factor
 set pars(radj) 0;     # adjust range
@@ -44,7 +44,7 @@ set pars(sadj) 1;     # adjust sampling rate
 # apply settings!
 
 # measurement parameters
-set del  1.0;   # delay between measurements,s
+set del  10.0;   # delay between measurements,s
 set meas 0;     # repeat measurements
 
 set st   "Opening devices..."; # status line
