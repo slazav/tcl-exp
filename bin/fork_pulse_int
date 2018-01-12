@@ -37,7 +37,8 @@ set pars(tadj) 1;     # adjust time
 set pars(tmin) 0.1;   # min value
 set pars(tmax) 200;   # max value
 set pars(tx)   5;     # time factor
-set pars(radj) 1;     # adjust range
+set pars(radj) 0;     # adjust range
+set pars(sadj) 1;     # automatic sampling rate
 
 # After setting parameters use on_pars_apply to
 # apply settings!
@@ -45,6 +46,7 @@ set pars(radj) 1;     # adjust range
 # measurement parameters
 set del  1.0;   # delay between measurements,s
 set meas 0;     # repeat measurements
+
 set st   "Opening devices..."; # status line
 set maxlen 1024; # number of points visible on the plot
 set sigfile   "/tmp/${dev}_sig.dat"
@@ -215,6 +217,19 @@ proc do_pulse {} {
       }
     }
   }
+  ## adjust sampling rate if needed
+  if {$apars(sadj)} {
+    set max_rate [expr { 2.0/$apars(fmin)}]
+    set min_rate 1e-8
+    set num 1e6
+    set dt [expr {$apars(time)/$num}]
+    if {$dt > $max_rate} {set dt $max_rate}
+    if {$dt < $min_rate} {set dt $min_rate}
+    set dt [format {%.2e} $dt]
+    set apars(dt) $dt
+    set  pars(dt) $dt
+  }
+
 
   ## set up the next measurement if needed
   set t1 [clock milliseconds]
@@ -441,6 +456,9 @@ proc on_pars_apply {} {
 
 proc mk_pars_frame {root} {
   frame $root
+
+  #######################
+  ## generator parameters
   set w $root.pp
   labelframe $w -text {generator parameters}\
                 -font {-weight bold} -padx 5 -pady 5
@@ -455,6 +473,8 @@ proc mk_pars_frame {root} {
   grid $w -sticky ew -padx 5 -row 1 -column 1 -sticky ns
 
 
+  #######################
+  ## osc parameters
   set w $root.op
   labelframe $w -text {oscilloscope parameters}\
                 -font {-weight bold} -padx 5 -pady 5
@@ -470,6 +490,8 @@ proc mk_pars_frame {root} {
   grid $w -sticky ew -padx 5 -row 2 -column 1 -sticky ns
 
 
+  #######################
+  ## auto
   set w $root.ap
   labelframe $w -text {auto adjustments}\
                 -font {-weight bold} -padx 5 -pady 5
@@ -489,6 +511,7 @@ proc mk_pars_frame {root} {
         } {
     mk_entry $w.${v} pars($v) $title
   }
+  mk_check $w.sadj pars(sadj) "Adjust sampling rate"
   mk_check $w.radj pars(radj) "Adjust oscilloscope range"
   mk_empty $w.e
   grid $w -sticky ew -padx 5  -row 1 -column 2 -rowspan 2 -sticky ns
