@@ -116,10 +116,38 @@ proc mk_empty {w} {
   grid $w -sticky nw
 }
 
+##################################################
+# open device if needed and update range list
+proc dev_open {} {
+  global dev need_setup
+  if {![itcl::is object $dev]} {
+    Device $dev
+    set range_values [lindex [$dev cmd get_osc_sc] 0]
+    .tabs.pars.op.sc configure -values $range_values
+    set need_setup 1
+  }
+}
 
+# close device if needed
+proc dev_close {} {
+  global dev
+  if {[itcl::is object $dev]} {
+    itcl::delete object $dev
+  }
+}
 
 ##################################################
 ## pulse function
+
+## version with error handling:
+proc do_pulse_e {} {
+  if {[catch {do_pulse}]} {
+    set_state error
+    return
+  }
+}
+
+set bgerror {set_state error}
 
 proc do_pulse {} {
   global dev del meas st
@@ -128,11 +156,10 @@ proc do_pulse {} {
   global need_setup
   global sigfile
 
-  if {[catch {dev_open}]} {
-    set_state error
-    return
-  }
+  # open devices if needed
+  dev_open
 
+  # setup
   if {$need_setup} {
     set st "Setting parameters..."
     $dev cmd setup $apars(fre) $apars(cyc) $apars(amp) $apars(sc)
@@ -157,7 +184,6 @@ proc do_pulse {} {
 
   ## push data to the time plot
   pl add_data $time [lrange $ret 1 3]
-
 
   ## load signal
   set ncols [sig_load sig $sigfile]
@@ -235,28 +261,10 @@ proc do_pulse {} {
   }
 
   set st "Waiting for the next measurement..."
-  after [expr $dt] do_pulse
+  after [expr $dt] do_pulse_e
 }
 
-# open device if needed and update range list
-proc dev_open {} {
-  global dev need_setup
-  if {![itcl::is object $dev]} {
-    Device $dev
-    set range_values [lindex [$dev cmd get_osc_sc] 0]
-    .tabs.pars.op.sc configure -values $range_values
-    set need_setup 1
-  }
-}
-
-# close device if needed
-proc dev_close {} {
-  global dev
-  if {[itcl::is object $dev]} {
-    itcl::delete object $dev
-  }
-}
-
+##################################################
 proc set_state {s} {
   global st meas
   set run_btn .meas.m.run
@@ -270,14 +278,18 @@ proc set_state {s} {
   }
   if {$s == "ready"} { # ready for measurements
     set meas 0
-    $run_btn configure -state normal -text "Run" -command "set_state busy; do_pulse"
     set st "Ready"
+    $run_btn configure -state normal -text "Run" -command "set_state busy; do_pulse_e"
     return
   }
   if {$s == "error"} { # error happened but ready for measurements
     set meas 0
-    $run_btn configure -state normal -text "Run" -command "set_state busy; do_pulse"
-    set st "Can't open devices"
+    set e $::errorInfo
+    set n [string first "\n" $e]
+    if {n>0} { set e [string range $e 0 [expr $n-1]]}
+    set st "Error: $e"
+    dev_close
+    $run_btn configure -state normal -text "Run" -command "set_state busy; do_pulse_e"
     return
   }
   if {$s == "busy"} { # measurement started
