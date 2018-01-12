@@ -6,6 +6,7 @@ package require Device 1.2
 package require BLT
 package require xBlt 3
 package require SigLoad
+package require Exp
 
 # fork_pulse device
 if {[llength $argv]} {
@@ -62,12 +63,6 @@ set time 0;  # system time
 set amp 0;   # amplitude
 set rtau 0;  # 1/relaxation time
 set fre 0;   # frequency
-
-# data for time plot
-blt::vector create tvec
-blt::vector create avec
-blt::vector create wvec
-blt::vector create fvec
 
 # data for raw signal plot and fitted curves
 blt::vector create sig_x
@@ -153,21 +148,12 @@ proc do_pulse {} {
   ## pars results
   set time [lindex $ret 0]
   set fre  [format %.6f [lindex $ret 1]]
-  set rtau [format %.6f [lindex $ret 2]]
+  set rtau [format %.8f [lindex $ret 2]]
   set amp  [format %.6f [expr {1000*[lindex $ret 3]}]]
 
-  global maxlen
-  tvec append $time
-  fvec append $fre
-  wvec append $rtau
-  avec append $amp
-  # remove old values:
-  if {[tvec length] > [expr $maxlen+100]} {
-    tvec delete 0:99
-    fvec delete 0:99
-    wvec delete 0:99
-    avec delete 0:99
-  }
+  ## push data to the time plot
+  pl add_data $time [lrange $ret 1 3]
+
 
   ## load signal
   set ncols [sig_load sig $sigfile]
@@ -396,51 +382,16 @@ proc mk_tplot_frame {root} {
   set graph $root.p
   set swid $root.sb
 
-  blt::graph $graph -leftmargin 100
-  pack $graph -side top -expand yes -fill both
-  $graph legend configure -activebackground white
-
-  scrollbar $swid -orient horizontal
-  pack $swid -fill x
-
-  button $root.clear_btn -text "Clear" -command "on_tplot_clear $graph"
-  pack $root.clear_btn -side right
-
-  # configure standard xBLT things:
-  xblt::plotmenu   $graph -showbutton 1 -buttonlabel Menu -menuoncanvas 0
-  xblt::legmenu    $graph
-  xblt::hielems    $graph
-  xblt::crosshairs $graph -variable v_crosshairs
-  xblt::measure    $graph
-  xblt::readout    $graph -variable v_readout -active 1;
-  xblt::zoomstack  $graph -scrollbutton 2 -axes x -recttype x
-  xblt::elemop     $graph
-  xblt::scroll     $graph $swid -timefmt 1
-
-  $graph axis create fre  -title Frequency -titlecolor black
-  $graph axis create amp  -title Amplitude -titlecolor black
-  $graph axis create rtau -title Width     -titlecolor black
-
-  $graph element create fre -xdata tvec -ydata fvec -mapy fre\
-    -symbol circle -pixels 1.5 -linewidth 1 -color blue
-  $graph element create rtau -xdata tvec -ydata wvec -mapy rtau\
-    -symbol circle -pixels 1.5 -linewidth 1 -color green
-  $graph element create amp  -xdata tvec -ydata avec -mapy amp\
-    -symbol circle -pixels 1.5 -linewidth 1 -color red
-
-  $graph element bind fre  <Enter> [list $graph yaxis use fre]
-  $graph element bind rtau <Enter> [list $graph yaxis use rtau]
-  $graph element bind amp  <Enter> [list $graph yaxis use amp]
-
-#  tvec notify callback "$graph axis configure x -stepsize 0 -subdivisions 0"
+  TimePlot pl $graph\
+    -ncols 3\
+    -maxt 3600\
+    -names {amp width freq}\
+    -plots_x {time freq}\
+    -plots_y {{}   width}\
+    -use_comm 0
+  pack $graph -fill both -expand 1
 }
 
-proc on_tplot_clear {graph} {
-  tvec delete 0:end
-  fvec delete 0:end
-  wvec delete 0:end
-  avec delete 0:end
-}
 
 ##################################################
 ## parameters frame
