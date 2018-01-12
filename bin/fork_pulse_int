@@ -26,8 +26,8 @@ set pars(cyc) 10;     # pulse count
 # oscilloscope parameters
 set pars(time) 5;     # record time
 set pars(tpre) 0.01;  # pretrigger time
-set pars(dt) 1e-5;    # record sampling rate
-set pars(sc)  0.5;    # oscilloscope range
+set pars(rate) 1e5;   # record sampling rate
+set pars(sc)   0.5;   # oscilloscope range
 
 # auto adjust parameters
 set pars(fadj) 1;     # adjust frequency
@@ -38,7 +38,7 @@ set pars(tmin) 0.1;   # min value
 set pars(tmax) 200;   # max value
 set pars(tx)   5;     # time factor
 set pars(radj) 0;     # adjust range
-set pars(sadj) 1;     # automatic sampling rate
+set pars(sadj) 1;     # adjust sampling rate
 
 # After setting parameters use on_pars_apply to
 # apply settings!
@@ -147,7 +147,8 @@ proc do_pulse {} {
   set st "Measuring..."
 
   set t0 [clock milliseconds]
-  set ret [lindex [$dev cmd pulse $apars(tpre) $apars(time) $apars(dt) $sigfile] 0]
+  set dt [expr {1.0/$apars(rate)}]
+  set ret [lindex [$dev cmd pulse $apars(tpre) $apars(time) $dt $sigfile] 0]
 
   ## pars results
   set time [lindex $ret 0]
@@ -219,15 +220,15 @@ proc do_pulse {} {
   }
   ## adjust sampling rate if needed
   if {$apars(sadj)} {
-    set max_rate [expr { 2.0/$apars(fmin)}]
-    set min_rate 1e-8
+    set min_rate [expr {2*$apars(fmax)}]
+    set max_rate 20e6;
     set num 1e6
-    set dt [expr {$apars(time)/$num}]
-    if {$dt > $max_rate} {set dt $max_rate}
-    if {$dt < $min_rate} {set dt $min_rate}
-    set dt [format {%.2e} $dt]
-    set apars(dt) $dt
-    set  pars(dt) $dt
+    set r [expr {$num/$apars(time)}]
+    if {$r > $max_rate} {set r $max_rate}
+    if {$r < $min_rate} {set r $min_rate}
+    set r [format {%.2e} $r]
+    set apars(rate) $r
+    set  pars(rate) $r
   }
 
 
@@ -481,7 +482,7 @@ proc mk_pars_frame {root} {
   foreach {v title} {
         tpre "Pretrigger time, s"
         time "Record time, s"
-        dt   "Sampling rate, s"
+        rate "Sampling rate, Hz"
         } {
     mk_entry $w.${v} pars($v) $title
   }
