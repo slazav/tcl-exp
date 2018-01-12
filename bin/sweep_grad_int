@@ -10,7 +10,9 @@ package require Exp
 
 set par_list [list \
   name     {Gradient magnet} {program title}\
-  ps_dev      ps0:3 {power supply device}\
+  ps_dev1     ps0:3 {power supply device}\
+  ps_dev2     ps0:4 {power supply device}\
+  antipar       1   {anti-parallel connection}\
   ovp           5   {overvoltage protection, V}\
   ramp_tstep    1   {ramping time step}\
   idle_tstep  600   {idle time step}\
@@ -24,10 +26,7 @@ set par_list [list \
   db_cryo  drydemag/comments      {database for high-level comments}\
 ]
 
-
 foreach {name def title} $par_list { set pars($name) $def }
-
-set pars(db) {}
 
 
 ##########################################################
@@ -78,7 +77,7 @@ proc on_new_com {t com} {
 ## update values command
 proc on_new_val {t cm cs vm {meas 0}} {
   global pars
-  set ::resistance [expr { $cm>0? $vm/$cm:0} ]
+  set ::resistance [expr {abs($cm)>0? $vm/$cm:0} ]
   set ::current $cm
   p add_data $t [list $::current $::resistance]
 
@@ -167,8 +166,9 @@ update
 
 ## build sweeper object
 SweepController sweeper\
-  -ps_dev1    $pars(ps_dev)\
-  -ps_dev2    {}\
+  -ps_dev1    $pars(ps_dev1)\
+  -ps_dev2    $pars(ps_dev2)\
+  -antipar    $pars(antipar)\
   -gauge      {}\
   -db_dev     $pars(db)\
   -db_val     $pars(db_val)\

@@ -6,6 +6,7 @@ package require Device 1.2
 package require BLT
 package require xBlt 3
 package require SigLoad
+package require Exp
 
 # fork_pulse device
 if {[llength $argv]} {
@@ -25,26 +26,28 @@ set pars(cyc) 10;     # pulse count
 
 # oscilloscope parameters
 set pars(time) 5;     # record time
-set pars(tpre) 0.01;  # pretrigger time
-set pars(dt) 1e-5;    # record sampling rate
-set pars(sc)  0.5;    # oscilloscope range
+set pars(tpre) 5.0;   # pretrigger percent
+set pars(rate) 1e5;   # record sampling rate
+set pars(sc)   1;     # oscilloscope range
 
 # auto adjust parameters
 set pars(fadj) 1;     # adjust frequency
 set pars(fmin) 32000; # min value
 set pars(fmax) 33000; # max value
 set pars(tadj) 1;     # adjust time
-set pars(tmin) 0.1;   # min value
+set pars(tmin) 0.01;  # min value
 set pars(tmax) 200;   # max value
 set pars(tx)   5;     # time factor
-set pars(radj) 1;     # adjust range
+set pars(radj) 0;     # adjust range
+set pars(sadj) 1;     # adjust sampling rate
 
 # After setting parameters use on_pars_apply to
 # apply settings!
 
 # measurement parameters
-set del  1.0;   # delay between measurements,s
+set del  10.0;   # delay between measurements,s
 set meas 0;     # repeat measurements
+
 set st   "Opening devices..."; # status line
 set maxlen 1024; # number of points visible on the plot
 set sigfile   "/tmp/${dev}_sig.dat"
@@ -60,12 +63,6 @@ set time 0;  # system time
 set amp 0;   # amplitude
 set rtau 0;  # 1/relaxation time
 set fre 0;   # frequency
-
-# data for time plot
-blt::vector create tvec
-blt::vector create avec
-blt::vector create wvec
-blt::vector create fvec
 
 # data for raw signal plot and fitted curves
 blt::vector create sig_x
@@ -119,10 +116,38 @@ proc mk_empty {w} {
   grid $w -sticky nw
 }
 
+##################################################
+# open device if needed and update range list
+proc dev_open {} {
+  global dev need_setup
+  if {![itcl::is object $dev]} {
+    Device $dev
+    set range_values [lindex [$dev cmd get_osc_sc] 0]
+    .tabs.pars.op.sc configure -values $range_values
+    set need_setup 1
+  }
+}
 
+# close device if needed
+proc dev_close {} {
+  global dev
+  if {[itcl::is object $dev]} {
+    itcl::delete object $dev
+  }
+}
 
 ##################################################
 ## pulse function
+
+## version with error handling:
+proc do_pulse_e {} {
+  if {[catch {do_pulse}]} {
+    set_state error
+    return
+  }
+}
+
+set bgerror {set_state error}
 
 proc do_pulse {} {
   global dev del meas st
@@ -131,11 +156,10 @@ proc do_pulse {} {
   global need_setup
   global sigfile
 
-  if {[catch {dev_open}]} {
-    set_state error
-    return
-  }
+  # open devices if needed
+  dev_open
 
+  # setup
   if {$need_setup} {
     set st "Setting parameters..."
     $dev cmd setup $apars(fre) $apars(cyc) $apars(amp) $apars(sc)
@@ -145,26 +169,21 @@ proc do_pulse {} {
   set st "Measuring..."
 
   set t0 [clock milliseconds]
-  set ret [lindex [$dev cmd pulse $apars(tpre) $apars(time) $apars(dt) $sigfile] 0]
+  if ($apars(tpre)<0)   { set apars(tpre) 0 }
+  if ($apars(tpre)>100) { set apars(tpre) 100 }
+  set t1 [expr {0.01*$apars(tpre)*$apars(time)}]
+  set t2 [expr {$apars(time)-$t1}]
+  set dt [expr {1.0/$apars(rate)}]
+  set ret [lindex [$dev cmd pulse $t1 $t2 $dt $sigfile] 0]
 
   ## pars results
   set time [lindex $ret 0]
   set fre  [format %.6f [lindex $ret 1]]
-  set rtau [format %.6f [lindex $ret 2]]
+  set rtau [format %.8f [lindex $ret 2]]
   set amp  [format %.6f [expr {1000*[lindex $ret 3]}]]
 
-  global maxlen
-  tvec append $time
-  fvec append $fre
-  wvec append $rtau
-  avec append $amp
-  # remove old values:
-  if {[tvec length] > [expr $maxlen+100]} {
-    tvec delete 0:99
-    fvec delete 0:99
-    wvec delete 0:99
-    avec delete 0:99
-  }
+  ## push data to the time plot
+  pl add_data $time [lrange $ret 1 3]
 
   ## load signal
   set ncols [sig_load sig $sigfile]
@@ -215,6 +234,19 @@ proc do_pulse {} {
       }
     }
   }
+  ## adjust sampling rate if needed
+  if {$apars(sadj)} {
+    set min_rate [expr {2*$apars(fmax)}]
+    set max_rate 20e6;
+    set num 1e6
+    set r [expr {$num/$apars(time)}]
+    if {$r > $max_rate} {set r $max_rate}
+    if {$r < $min_rate} {set r $min_rate}
+    set r [format {%.2e} $r]
+    set apars(rate) $r
+    set  pars(rate) $r
+  }
+
 
   ## set up the next measurement if needed
   set t1 [clock milliseconds]
@@ -229,27 +261,10 @@ proc do_pulse {} {
   }
 
   set st "Waiting for the next measurement..."
-  after [expr $dt] do_pulse
+  after [expr $dt] do_pulse_e
 }
 
-# open device if needed and update range list
-proc dev_open {} {
-  global dev
-  if {![itcl::is object $dev]} {
-    Device $dev
-    set range_values [lindex [$dev cmd get_osc_sc] 0]
-    .tabs.pars.op.sc configure -values $range_values
-  }
-}
-
-# close device if needed
-proc dev_close {} {
-  global dev
-  if {[itcl::is object $dev]} {
-    itcl::delete object $dev
-  }
-}
-
+##################################################
 proc set_state {s} {
   global st meas
   set run_btn .meas.m.run
@@ -263,14 +278,18 @@ proc set_state {s} {
   }
   if {$s == "ready"} { # ready for measurements
     set meas 0
-    $run_btn configure -state normal -text "Run" -command "set_state busy; do_pulse"
     set st "Ready"
+    $run_btn configure -state normal -text "Run" -command "set_state busy; do_pulse_e"
     return
   }
   if {$s == "error"} { # error happened but ready for measurements
     set meas 0
-    $run_btn configure -state normal -text "Run" -command "set_state busy; do_pulse"
-    set st "Can't open devices"
+    set e $::errorInfo
+    set n [string first "\n" $e]
+    if {n>0} { set e [string range $e 0 [expr $n-1]]}
+    set st "Error: $e"
+    dev_close
+    $run_btn configure -state normal -text "Run" -command "set_state busy; do_pulse_e"
     return
   }
   if {$s == "busy"} { # measurement started
@@ -367,8 +386,9 @@ proc mk_fft_frame {root} {
   xblt::measure $pwid
   xblt::readout $pwid -variable v_readout -active 1
   xblt::zoomstack $pwid -axes {x y} -recttype xy
-  $pwid element create fft     -xdata fft_x  -ydata fft_y -symbol "" -color blue
+  $pwid element create fft -xdata fft_x  -ydata fft_y -symbol "" -color blue
   $pwid axis configure y -title {Spectral density, nV/sqrt(Hz)} -logscale 1
+  $pwid axis configure x -title {Frequency, Hz} -logscale 1
 }
 
 ##################################################
@@ -379,51 +399,16 @@ proc mk_tplot_frame {root} {
   set graph $root.p
   set swid $root.sb
 
-  blt::graph $graph -leftmargin 100
-  pack $graph -side top -expand yes -fill both
-  $graph legend configure -activebackground white
-
-  scrollbar $swid -orient horizontal
-  pack $swid -fill x
-
-  button $root.clear_btn -text "Clear" -command "on_tplot_clear $graph"
-  pack $root.clear_btn -side right
-
-  # configure standard xBLT things:
-  xblt::plotmenu   $graph -showbutton 1 -buttonlabel Menu -menuoncanvas 0
-  xblt::legmenu    $graph
-  xblt::hielems    $graph
-  xblt::crosshairs $graph -variable v_crosshairs
-  xblt::measure    $graph
-  xblt::readout    $graph -variable v_readout -active 1;
-  xblt::zoomstack  $graph -scrollbutton 2 -axes x -recttype x
-  xblt::elemop     $graph
-  xblt::scroll     $graph $swid -timefmt 1
-
-  $graph axis create fre  -title Frequency -titlecolor black
-  $graph axis create amp  -title Amplitude -titlecolor black
-  $graph axis create rtau -title Width     -titlecolor black
-
-  $graph element create fre -xdata tvec -ydata fvec -mapy fre\
-    -symbol circle -pixels 1.5 -linewidth 1 -color blue
-  $graph element create rtau -xdata tvec -ydata wvec -mapy rtau\
-    -symbol circle -pixels 1.5 -linewidth 1 -color green
-  $graph element create amp  -xdata tvec -ydata avec -mapy amp\
-    -symbol circle -pixels 1.5 -linewidth 1 -color red
-
-  $graph element bind fre  <Enter> [list $graph yaxis use fre]
-  $graph element bind rtau <Enter> [list $graph yaxis use rtau]
-  $graph element bind amp  <Enter> [list $graph yaxis use amp]
-
-#  tvec notify callback "$graph axis configure x -stepsize 0 -subdivisions 0"
+  TimePlot pl $graph\
+    -ncols 3\
+    -maxt 3600\
+    -names {amp width freq}\
+    -plots_x {time freq}\
+    -plots_y {{}   width}\
+    -use_comm 0
+  pack $graph -fill both -expand 1
 }
 
-proc on_tplot_clear {graph} {
-  tvec delete 0:end
-  fvec delete 0:end
-  wvec delete 0:end
-  avec delete 0:end
-}
 
 ##################################################
 ## parameters frame
@@ -440,6 +425,9 @@ proc on_pars_apply {} {
 
 proc mk_pars_frame {root} {
   frame $root
+
+  #######################
+  ## generator parameters
   set w $root.pp
   labelframe $w -text {generator parameters}\
                 -font {-weight bold} -padx 5 -pady 5
@@ -454,13 +442,15 @@ proc mk_pars_frame {root} {
   grid $w -sticky ew -padx 5 -row 1 -column 1 -sticky ns
 
 
+  #######################
+  ## osc parameters
   set w $root.op
   labelframe $w -text {oscilloscope parameters}\
                 -font {-weight bold} -padx 5 -pady 5
   foreach {v title} {
-        tpre "Pretrigger time, s"
         time "Record time, s"
-        dt   "Sampling rate, s"
+        tpre "Pretrigger, %"
+        rate "Sampling rate, Hz"
         } {
     mk_entry $w.${v} pars($v) $title
   }
@@ -469,6 +459,8 @@ proc mk_pars_frame {root} {
   grid $w -sticky ew -padx 5 -row 2 -column 1 -sticky ns
 
 
+  #######################
+  ## auto
   set w $root.ap
   labelframe $w -text {auto adjustments}\
                 -font {-weight bold} -padx 5 -pady 5
@@ -488,6 +480,7 @@ proc mk_pars_frame {root} {
         } {
     mk_entry $w.${v} pars($v) $title
   }
+  mk_check $w.sadj pars(sadj) "Adjust sampling rate"
   mk_check $w.radj pars(radj) "Adjust oscilloscope range"
   mk_empty $w.e
   grid $w -sticky ew -padx 5  -row 1 -column 2 -rowspan 2 -sticky ns

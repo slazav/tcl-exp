@@ -1,0 +1,429 @@
+#!/usr/bin/wish
+
+## Interface for NMR generator and lock-in setting
+
+package require DeviceRole
+package require xBlt
+package require itcl
+
+### parameters
+
+set par_list [list \
+  gen_dev   {gen0}   {2-ch generator}\
+  gauge_dev {lockin0:XY} {Lock-in device name}\
+  db_dev         db_exp      {db device}\
+  db_nmr_lockin  drydemag/nmr_lockin {database for nmr lockin parameters (range, tconst)}\
+  db_nmr_gen     drydemag/nmr_gen    {database for nmr generator parameters (exc_amp, exc_ph, comp_amp, comp_ph)}\
+  db_nmr_cal     drydemag/nmr_cal    {database for nmr calibration (exc_gain, exc_turn, comp_gain, comp_turn)}\
+]
+
+foreach {name def title} $par_list { set pars($name) $def }
+
+set state 0
+
+##########################################################
+# lock-in interface
+itcl::class LockinInt {
+
+  variable dev_name {};
+  variable widget {};
+
+  variable range  1
+  variable tconst 1
+  variable dev    {}
+  variable value  {}
+  variable ww 250; # value bar width
+  variable hh 10;  # value bar height
+
+  constructor {dev_name_ widget_} {
+    set dev_name $dev_name_
+    set widget   $widget_
+    labelframe $widget -text "Lock-in settings" -font {-weight bold -size 10}
+
+    # Sensitivity combobox
+    label $widget.range_l -text "Sensitivity, V:"
+    ttk::combobox $widget.range -width 9 -textvariable [itcl::scope range]
+    bind $widget.range <<ComboboxSelected>> "$this apply"
+    grid $widget.range_l $widget.range -padx 5 -pady 2 -sticky e
+
+    # Time constant combobox
+    label $widget.tconst_l -text "Time constant, s:"
+    ttk::combobox $widget.tconst -width 9 -textvariable [itcl::scope tconst]
+    bind $widget.tconst <<ComboboxSelected>> "$this apply"
+    grid $widget.tconst_l $widget.tconst -padx 5 -pady 2 -sticky e
+
+    # Measured values
+    set v $widget.val
+    canvas $v -width $ww -height $hh
+    $v create rectangle 1 1 $ww $hh -fill white -outline grey
+    $v create line [expr $ww/2] 1 [expr $ww/2] $hh
+    grid $v -padx 5 -pady 2 -sticky e -columnspan 2
+
+#    # Apply/Update buttons
+#    button $widget.abtn -text "Apply"  -command "$this apply" -state disabled
+    button $widget.ubtn -text "Update" -command "$this update" -state disabled
+    grid x $widget.ubtn -padx 3 -pady 3
+
+    set bg #E0E0F0
+    foreach ch [winfo children $widget] { $ch configure -background $bg }
+    $widget configure -background $bg
+  }
+
+  # write settings to lock-in device
+  method apply {} {
+    if {$dev == {}} return
+    $dev set_range  $range
+    $dev set_tconst $tconst
+    $::pars(db_dev) cmd put $::pars(db_nmr_lockin) now $range $tconst
+    update_val
+  }
+
+  # read settings from lock-in device
+  method update {} {
+    if {$dev == {}} return
+    $widget.tconst configure -values [$dev list_tconsts]
+    $widget.range  configure -values [$dev list_ranges]
+    set range    [$dev get_range]
+    set tconst   [$dev get_tconst]
+    update_val
+  }
+
+  # measure values, update picture
+  method update_val {} {
+    if {$dev == {}} return
+    set value    [$dev get]
+    set x [lindex $value 0]
+    set y [lindex $value 1]
+    set v $widget.val
+    set x1 [expr int((1.0+$x/$range)*0.5*$ww)]
+    set y1 [expr int((1.0+$y/$range)*0.5*$ww)]
+    set z [expr $ww/2]
+    $v delete data
+    $v create rectangle $z 1 $x1 [expr $hh/2] -fill red -tags data
+    $v create rectangle $z [expr $hh/2] $y1 $hh -fill green -tags data
+    return $value
+  }
+
+  # same but with waiting
+  method update_val_w {} {
+    after [expr int($tconst*1000)] $this update_val
+  }
+
+  # silent measurement with autorange
+  method get_auto {} {
+    if {$dev == {}} return
+    return [$dev get_auto]
+  }
+
+  # silent measurement without autorange
+  method get {} {
+    if {$dev == {}} return
+    return [$dev get]
+  }
+
+  # get/set range
+  method get_range {} {
+    if {$dev == {}} return
+    return [$dev get_range]
+  }
+  method set_range {r} {
+    if {$dev == {}} return
+    return [$dev set_range $r]
+  }
+
+  # open devices
+  method on {} {
+    if {$dev == {}} { set dev [DeviceRole $dev_name gauge] }
+    update
+    foreach w [list $widget.ubtn] {
+      $w configure -state normal }
+  }
+
+  # release opened devices
+  method off {} {
+    if {$dev != {}} { itcl::delete object $dev }
+    set dev {}
+    foreach w [list $widget.ubtn] {
+      $w configure -state disabled }
+  }
+
+}
+
+
+##########################################################
+# generator interface
+itcl::class GenInt {
+
+  variable dev {};
+  variable widget {};
+  variable btnlist {}
+
+  public variable fre  {}
+  public variable amp1 {}
+  public variable amp2 {}
+  public variable ph1 {}
+  public variable ph2 {}
+
+  public variable egain 0
+  public variable cgain 0
+  public variable eturn 0
+  public variable cturn 0
+  public variable lockin_int {}
+
+  variable r2d [expr {180/3.1415926}]
+
+  constructor {dev_ widget_} {
+    set dev $dev_
+    set widget $widget_
+    labelframe $widget -text "Generator settings" -font {-weight bold -size 10}
+
+    # Frequency/amplitude/phase entries
+    foreach n {fre amp1 ph1}\
+            t {"Frequency, Hz:" "Excitation, Vpp:" "Phase, deg:"} {
+      label $widget.${n}_l -text $t
+      entry $widget.${n} -width 12 -textvariable [itcl::scope ${n}] -state normal
+      grid $widget.${n}_l $widget.${n} -padx 5 -pady 2 -sticky e
+    }
+
+    # Apply/Update buttons
+    button $widget.abtn -text "Apply"  -command "$this apply_exc" -state disabled
+    button $widget.ubtn -text "Update" -command "$this update" -state disabled
+    grid $widget.abtn $widget.ubtn -padx 3 -pady 3
+
+    # Compensation/Comp.phase spinboxes
+    label $widget.amp2_l -text "Compensation, Vpp:"
+    spinbox $widget.amp2 -from 0.000 -to 9.999 -increment 0.01 -width 8\
+             -format %1.3f -textvariable [itcl::scope amp2] -command "$this apply_comp"
+    grid $widget.amp2_l $widget.amp2 -padx 5 -pady 2 -sticky e
+
+    label $widget.ph2_l -text "Comp.phase, deg:"
+    spinbox $widget.ph2 -from -360 -to 360 -increment 1 -width 8\
+             -format %7.3f -textvariable [itcl::scope ph2] -command "$this apply_comp"
+    grid $widget.ph2_l $widget.ph2 -padx 5 -pady 2 -sticky e
+
+    # Excitation/Compensation gains and phases
+    foreach n {egain eturn cgain cturn}\
+            t {"Excitation gain:" "Excitation turn:"\
+               "Compensation gain:" "Compensation turn:"} {
+      label $widget.${n}_l -text $t
+      label $widget.${n} -width 12 -textvariable [itcl::scope ${n}] -state normal
+      grid $widget.${n}_l $widget.${n} -padx 5 -pady 2 -sticky e
+    }
+
+
+    # Calibrate/Adjust buttons
+    button $widget.cal_btn -text "Calibrate gains"\
+           -command "$this calibrate" -state disabled
+    button $widget.adj_btn -text "Adjust"\
+           -command "$this adjust_comp" -state disabled
+    grid $widget.cal_btn $widget.adj_btn -padx 5 -pady 2 -sticky e
+
+    set bg #F0E0E0
+    foreach ch [winfo children $widget] { $ch configure -background $bg }
+    $widget configure -background $bg
+
+    set btnlist [list $widget.cal_btn $widget.adj_btn $widget.abtn $widget.ubtn]
+  }
+
+  # write settings to generator device
+  method apply_exc {} {
+    if {[info command $dev] == {}} return
+    # get old values of excitation amplitude and phase:
+    set oamp1 [$dev cmd "SOUR1:VOLT?"]
+    set oph1  [$dev cmd "SOUR1:PHAS?"]
+    # change compensation amplitude and phase
+    set amp2 [format "%.4f" [expr {$amp2 * $amp1/$oamp1}]]
+    set ph1  [format "%.4f" [fix_phase $ph1]]
+    set ph2  [format "%.4f" [fix_phase [expr {$ph2+$ph1-$oph1}]]]
+    # change values in the generator
+    $dev cmd "SOUR1:FREQ $fre"
+    $dev cmd "SOUR1:VOLT $amp1"
+    $dev cmd "SOUR2:VOLT $amp2"
+    $dev cmd "SOUR1:PHAS $ph1"
+    $dev cmd "SOUR2:PHAS $ph2"
+    if {$lockin_int!={}} {$lockin_int update_val_w}
+    $::pars(db_dev) cmd put $::pars(db_nmr_gen) now $fre $amp1 $ph1 $amp2 $ph2
+  }
+
+  method apply_comp {} {
+    if {[info command $dev] == {}} return
+    set ph2  [format "%.4f" [fix_phase $ph2]]
+    $dev cmd "SOUR2:VOLT $amp2"
+    $dev cmd "SOUR2:PHAS $ph2"
+    if {$lockin_int!={}} {$lockin_int update_val_w}
+    $::pars(db_dev) cmd put $::pars(db_nmr_gen) now $fre $amp1 $ph1 $amp2 $ph2
+  }
+
+  # read settings from generator device
+  method update {} {
+    if {[info command $dev] == {}} return
+    set fre   [format "%.4f" [$dev cmd "SOUR1:FREQ?"]]
+    set amp1  [format "%.4f" [$dev cmd "SOUR1:VOLT?"]]
+    set amp2  [format "%.4f" [$dev cmd "SOUR2:VOLT?"]]
+    set ph1   [format "%.4f" [$dev cmd "SOUR1:PHAS?"]]
+    set ph2   [format "%.4f" [$dev cmd "SOUR2:PHAS?"]]
+  }
+
+  method measure {} {
+    if {[info command $dev] == {}} return
+    return [list\
+           [$dev cmd "SOUR1:FREQ?"]\
+           [$dev cmd "SOUR1:VOLT?"]\
+           [$dev cmd "SOUR2:VOLT?"]\
+           [$dev cmd "SOUR1:PHAS?"]\
+           [$dev cmd "SOUR2:PHAS?"]]
+  }
+
+  method switch_channels {v1 v2} {
+    $dev cmd OUTP1 [expr "$v1?ON:OFF"]
+    $dev cmd OUTP2 [expr "$v2?ON:OFF"]
+  }
+
+  method on {} {
+    if {[info command $dev] == {}}  { Device $dev }
+    $dev cmd SOUR1:VOLT:UNIT VPP
+    $dev cmd SOUR2:VOLT:UNIT VPP
+    $dev cmd UNIT:ANGL DEG
+    $dev cmd SOUR1:FUNC SIN
+    $dev cmd SOUR2:FUNC SIN
+    $dev cmd OUTP1:LOAD INF
+    $dev cmd OUTP2:LOAD INF
+    $dev cmd FREQ:COUP ON
+    $dev cmd OUTP:SYNC:SOUR 1
+
+    update
+    foreach w $btnlist {$w configure -state normal }
+  }
+
+  method off {} {
+    if {[info command $dev] != {}} { itcl::delete object $dev }
+    foreach w $btnlist { $w configure -state disabled }
+  }
+
+  method fix_phase {ph} { return [expr $ph-int($ph/360.0)*360] }
+
+  # calibrate compensation/excitation gains
+  method calibrate {} {
+    if {$lockin_int == {}} return
+    # save original range
+    set range [$lockin_int get_range]
+    # read actual generator values
+    update
+
+    # disable buttons
+    foreach w $btnlist { $w configure -state disabled }
+
+    # calibrate excitation:
+    switch_channels 1 0
+    set v [$lockin_int get_auto]
+    if {[llength $v]==0} {return}
+    set x [lindex $v 0]
+    set y [lindex $v 1]
+    set r1 [expr {hypot($x,$y)}]
+    set p1 [expr {atan2($y,$x)*$r2d}]
+
+
+    # calibrate compensation:
+    switch_channels 0 1
+    set v [$lockin_int get_auto]
+    if {[llength $v]==0} {return}
+    set x [lindex $v 0]
+    set y [lindex $v 1]
+    set r2 [expr {hypot($x,$y)}]
+    set p2 [expr {atan2($y,$x)*$r2d}]
+
+    # measure parameters
+    update
+    set egain [format "%.4e" [expr {$r1/$amp1}]]
+    set cgain [format "%.4e" [expr {$r2/$amp2}]]
+    set eturn [format "%.4f" [fix_phase [expr "$p1 - $ph1"]]]
+    set cturn [format "%.4f" [fix_phase [expr "$p2 - $ph2"]]]
+    $::pars(db_dev) cmd put $::pars(db_nmr_cal) now $egain $eturn $cgain $cturn
+
+    # restore settings
+    switch_channels 1 1
+
+    # compensate
+    set amp2 [format "%.4f" [expr {$amp1 * $egain / $cgain}]]
+    set ph2  [format "%.4f" [expr {(180 + $ph1 + $eturn) - $cturn}]]
+    # apply_comp
+
+    #restore lock_in range
+    $lockin_int set_range $range
+    $lockin_int update
+    after 500 $this adjust_comp
+
+    # enable buttons
+    foreach w $btnlist { $w configure -state normal }
+
+  }
+
+  # adjust compensation using old calibration
+  # no change in lock-in and excitation settings
+  method adjust_comp {} {
+    if {$lockin_int == {}} return
+    if {$cgain == 0} {calibrate}
+
+    # measure value
+    set v [$lockin_int get]
+    if {[llength $v]==0} {return}
+    set x [lindex $v 0]
+    set y [lindex $v 1]
+    set r [expr {hypot($x,$y)}]
+    set p [expr {atan2($y,$x)*$r2d}]
+
+    set damp2 [expr {-$r / $cgain}]
+    set dph2  [expr {$p - $cturn}]
+
+    set x [expr {$amp2*cos($ph2/$r2d) + $damp2*cos($dph2/$r2d)}]
+    set y [expr {$amp2*sin($ph2/$r2d) + $damp2*sin($dph2/$r2d)}]
+
+    set amp2 [format "%.4f" [expr {hypot($x,$y)}]]
+    set ph2  [format "%.4f" [expr {atan2($y,$x)*$r2d}]]
+    apply_comp
+  }
+
+}
+
+##########################################################
+
+
+proc set_state {state} {
+  set ::state $state
+  if {$state} on else off
+}
+
+proc on {} {
+  gen_int on
+  lockin_int on
+}
+
+proc off {} {
+  lockin_int off
+  gen_int off
+}
+
+##########################################################
+
+Device $pars(db_dev)
+
+## make interface
+LockinInt lockin_int $pars(gauge_dev) .l
+pack .l -padx 5 -fill x -expand 1
+
+GenInt gen_int $pars(gen_dev) .g
+gen_int configure -lockin_int lockin_int
+pack .g -padx 5 -fill x -expand 1
+
+
+checkbutton .oo -text "on/off" -variable ::state -command {set_state $::state}
+pack .oo -side right
+
+
+proc loop {} {
+  lockin_int update_val
+  $::pars(db_dev) cmd sync
+  after 1000 loop
+}
+
+loop
