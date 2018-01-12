@@ -1,7 +1,7 @@
 #!/usr/bin/wish
 
 ## Test timeplot
-source ../exp_tcl/timeplot.tcl
+source timeplot.tcl
 
 TimePlot pl .pl\
   -ncols 3\
