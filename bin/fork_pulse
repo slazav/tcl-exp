@@ -133,6 +133,7 @@ itcl::class ForkPulseDriver {
   method set_freq_limits {min max} {
     set fmin $min
     set fmax $max
+    return
   }
 
   method pulse {tpre time dt sigfile} {
