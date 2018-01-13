@@ -1,7 +1,7 @@
 # timeplot library
 
 package require Device 1.3
-package require xBlt
+package require xBlt 3.1
 package require itcl
 
 
