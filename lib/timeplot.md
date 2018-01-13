@@ -23,5 +23,5 @@ Timeplot options:
                     By default plots_x and plots_y are "{time}" and "{{}}", it means "All vs. Time" plot.
 * `-Z -zstyles`  -- List of plot zoom styles ("x" or "xy"). In "xy" mode all data have same y axis and zoomed together by a mouse.
                     In "x" mode x axis can be zoomed by a mouse, all plots can be shifted and scaled separately in y direction.
-                    Default is xy for all plots.
+                    Default is x for first time plot and xy for other plots.
 * `-C -use_comm` -- Use comments (default 0).

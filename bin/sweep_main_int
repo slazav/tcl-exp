@@ -14,12 +14,12 @@ set par_list [list \
   ps_dev2     ps0:2L {2nd power supply device}\
   gauge_dev   lockin0:XY {measure device}\
   ovp           5   {overvoltage protection, V}\
-  ramp_tstep  0.2   {ramping time step}\
-  idle_tstep  0.2   {idle time step}\
+  ramp_tstep  0.5   {ramping time step}\
+  idle_tstep  0.5   {idle time step}\
   maxI          2   {max current, A}\
   minI          0   {off destination, A}\
-  max_rate      0.1 {max rate, A/s}\
-  def_rate     0.01 {default rate, A/s}\
+  max_rate      0.01 {max rate, A/s}\
+  def_rate     0.001 {default rate, A/s}\
   db       db_exp               {db device}\
   db_val   drydemag/sweep_main    {database for sweeper values}\
   db_ann   drydemag/sweep_main_a  {database for sweeper annotations}\
@@ -184,6 +184,7 @@ TimePlot p .tabs.tplot\
    -names {I Amp Ph X Y }\
    -plots_x {time I X }\
    -plots_y {{} {} {Y}}\
+   -zstyles {x x xy}\
    -hides {0 1 1 0 0}\
    -use_comm 1
 

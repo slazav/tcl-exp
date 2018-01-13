@@ -43,7 +43,7 @@ itcl::class TimePlot {
     {-T -maxt}     maxt     0\
     {-X -plots_x}  plots_x  {time}\
     {-Y -plots_y}  plots_y  {{}}\
-    {-Z -zstyles}  zstyles  {}\
+    {-Z -zstyles}  zstyles  {x}\
     {-C -use_comm}  use_comm 0\
     ]
     xblt::parse_options "timeplot" $args $options
