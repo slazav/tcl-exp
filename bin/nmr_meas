@@ -5,6 +5,7 @@
 package require DeviceRole
 package require xBlt
 package require itcl
+package require Exp
 
 ### parameters
 
@@ -59,14 +60,33 @@ itcl::class LockinInt {
     $v create line [expr $ww/2] 1 [expr $ww/2] $hh
     grid $v -padx 5 -pady 2 -sticky e -columnspan 2
 
-#    # Apply/Update buttons
-#    button $widget.abtn -text "Apply"  -command "$this apply" -state disabled
-    button $widget.ubtn -text "Update" -command "$this update" -state disabled
+    button $widget.ubtn -text "Update" -command "$this update"
     grid x $widget.ubtn -padx 3 -pady 3
 
-    set bg #E0E0F0
+    set_bg #E0E0F0
+    disable
+  }
+
+  # enable/disable elements
+  method disable {} { foreach ch [winfo children $widget] { $ch configure -state disabled } }
+  method enable {}  { foreach ch [winfo children $widget] { $ch configure -state normal } }
+
+  method set_bg {bg} {
     foreach ch [winfo children $widget] { $ch configure -background $bg }
-    $widget configure -background $bg
+    $widget configure -background $bg }
+
+  # open devices
+  method on {} {
+    if {$dev == {}} { set dev [DeviceRole $dev_name gauge] }
+    update
+    enable
+  }
+
+  # release opened devices
+  method off {} {
+    if {$dev != {}} { itcl::delete object $dev }
+    set dev {}
+    disable
   }
 
   # write settings to lock-in device
@@ -131,21 +151,6 @@ itcl::class LockinInt {
     return [$dev set_range $r]
   }
 
-  # open devices
-  method on {} {
-    if {$dev == {}} { set dev [DeviceRole $dev_name gauge] }
-    update
-    foreach w [list $widget.ubtn] {
-      $w configure -state normal }
-  }
-
-  # release opened devices
-  method off {} {
-    if {$dev != {}} { itcl::delete object $dev }
-    set dev {}
-    foreach w [list $widget.ubtn] {
-      $w configure -state disabled }
-  }
 
 }
 
@@ -156,19 +161,26 @@ itcl::class GenInt {
 
   variable dev {};
   variable widget {};
-  variable btnlist {}
 
   public variable fre  {}
   public variable amp1 {}
   public variable amp2 {}
   public variable ph1 {}
   public variable ph2 {}
+  public variable estate 0
+  public variable cstate 0
 
   public variable egain 0
   public variable cgain 0
   public variable eturn 0
   public variable cturn 0
   public variable lockin_int {}
+
+  # set frequency interface
+  public variable f1 0.5e6
+  public variable f2 1.2e6
+  public variable nf 100
+
 
   variable r2d [expr {180/3.1415926}]
 
@@ -181,14 +193,14 @@ itcl::class GenInt {
     foreach n {fre amp1 ph1}\
             t {"Frequency, Hz:" "Excitation, Vpp:" "Phase, deg:"} {
       label $widget.${n}_l -text $t
-      entry $widget.${n} -width 12 -textvariable [itcl::scope ${n}] -state normal
+      entry $widget.${n} -width 12 -textvariable [itcl::scope ${n}] 
       grid $widget.${n}_l $widget.${n} -padx 5 -pady 2 -sticky e
     }
 
-    # Apply/Update buttons
-    button $widget.abtn -text "Apply"  -command "$this apply_exc" -state disabled
-    button $widget.ubtn -text "Update" -command "$this update" -state disabled
-    grid $widget.abtn $widget.ubtn -padx 3 -pady 3
+    checkbutton $widget.estate -text "Excitation ON"\
+       -variable [itcl::scope estate] -command "$this switch_exc"
+    grid $widget.estate -padx 5 -pady 2 -sticky w -columnspan 2
+
 
     # Compensation/Comp.phase spinboxes
     label $widget.amp2_l -text "Compensation, Vpp:"
@@ -201,28 +213,63 @@ itcl::class GenInt {
              -format %7.3f -textvariable [itcl::scope ph2] -command "$this apply_comp"
     grid $widget.ph2_l $widget.ph2 -padx 5 -pady 2 -sticky e
 
+    checkbutton $widget.cstate -text "Compensation ON"\
+       -variable [itcl::scope cstate] -command "$this switch_comp"
+    grid $widget.cstate -padx 5 -pady 2 -sticky w -columnspan 2
+
+
+    # Apply/Update buttons
+    button $widget.abtn -text "Apply"  -command "$this apply_exc"
+    button $widget.ubtn -text "Update" -command "$this update"
+    grid $widget.abtn $widget.ubtn -padx 3 -pady 3
+
+
     # Excitation/Compensation gains and phases
     foreach n {egain eturn cgain cturn}\
             t {"Excitation gain:" "Excitation turn:"\
                "Compensation gain:" "Compensation turn:"} {
       label $widget.${n}_l -text $t
-      label $widget.${n} -width 12 -textvariable [itcl::scope ${n}] -state normal
+      label $widget.${n} -width 12 -textvariable [itcl::scope ${n}] 
       grid $widget.${n}_l $widget.${n} -padx 5 -pady 2 -sticky e
     }
 
-
     # Calibrate/Adjust buttons
     button $widget.cal_btn -text "Calibrate gains"\
-           -command "$this calibrate" -state disabled
+           -command "$this calibrate"
     button $widget.adj_btn -text "Adjust"\
-           -command "$this adjust_comp" -state disabled
+           -command "$this adjust_comp"
     grid $widget.cal_btn $widget.adj_btn -padx 5 -pady 2 -sticky e
 
-    set bg #F0E0E0
-    foreach ch [winfo children $widget] { $ch configure -background $bg }
-    $widget configure -background $bg
+    set_bg #F0E0E0
+    disable
+  }
 
-    set btnlist [list $widget.cal_btn $widget.adj_btn $widget.abtn $widget.ubtn]
+  # enable/disable elements
+  method disable {} { foreach ch [winfo children $widget] { $ch configure -state disabled } }
+  method enable {}  { foreach ch [winfo children $widget] { $ch configure -state normal } }
+
+  method set_bg {bg} {
+    foreach ch [winfo children $widget] { $ch configure -background $bg }
+    $widget configure -background $bg }
+
+  method on {} {
+    if {[info command $dev] == {}}  { Device $dev }
+    $dev cmd SOUR1:VOLT:UNIT VPP
+    $dev cmd SOUR2:VOLT:UNIT VPP
+    $dev cmd UNIT:ANGL DEG
+    $dev cmd SOUR1:FUNC SIN
+    $dev cmd SOUR2:FUNC SIN
+    $dev cmd OUTP1:LOAD INF
+    $dev cmd OUTP2:LOAD INF
+    $dev cmd FREQ:COUP ON
+    $dev cmd OUTP:SYNC:SOUR 1
+    update
+    enable
+  }
+
+  method off {} {
+    if {[info command $dev] != {}} { itcl::delete object $dev }
+    disable
   }
 
   # write settings to generator device
@@ -262,6 +309,8 @@ itcl::class GenInt {
     set amp2  [format "%.4f" [$dev cmd "SOUR2:VOLT?"]]
     set ph1   [format "%.4f" [$dev cmd "SOUR1:PHAS?"]]
     set ph2   [format "%.4f" [$dev cmd "SOUR2:PHAS?"]]
+    set estate [$dev cmd "OUTP1?"]
+    set cstate [$dev cmd "OUTP2?"]
   }
 
   method measure {} {
@@ -274,33 +323,20 @@ itcl::class GenInt {
            [$dev cmd "SOUR2:PHAS?"]]
   }
 
-  method switch_channels {v1 v2} {
-    $dev cmd OUTP1 [expr "$v1?ON:OFF"]
-    $dev cmd OUTP2 [expr "$v2?ON:OFF"]
+  method switch_exc { {v {}} } {
+    if {[info command $dev] == {}} return
+    if {$v != {}} {set estate $v}
+    $dev cmd OUTP1 [expr "$estate?ON:OFF"]
+  }
+  method switch_comp { {v {}} } {
+    if {[info command $dev] == {}} return
+    if {$v != {}} {set cstate $v}
+    $dev cmd OUTP2 [expr "$cstate?ON:OFF"]
   }
 
-  method on {} {
-    if {[info command $dev] == {}}  { Device $dev }
-    $dev cmd SOUR1:VOLT:UNIT VPP
-    $dev cmd SOUR2:VOLT:UNIT VPP
-    $dev cmd UNIT:ANGL DEG
-    $dev cmd SOUR1:FUNC SIN
-    $dev cmd SOUR2:FUNC SIN
-    $dev cmd OUTP1:LOAD INF
-    $dev cmd OUTP2:LOAD INF
-    $dev cmd FREQ:COUP ON
-    $dev cmd OUTP:SYNC:SOUR 1
-
-    update
-    foreach w $btnlist {$w configure -state normal }
-  }
-
-  method off {} {
-    if {[info command $dev] != {}} { itcl::delete object $dev }
-    foreach w $btnlist { $w configure -state disabled }
-  }
 
   method fix_phase {ph} { return [expr $ph-int($ph/360.0)*360] }
+
 
   # calibrate compensation/excitation gains
   method calibrate {} {
@@ -309,12 +345,12 @@ itcl::class GenInt {
     set range [$lockin_int get_range]
     # read actual generator values
     update
-
-    # disable buttons
-    foreach w $btnlist { $w configure -state disabled }
+    disable
 
     # calibrate excitation:
-    switch_channels 1 0
+    switch_exc  1
+    switch_comp 0
+    # do measurement twice to wait for lock-in
     set v [$lockin_int get_auto]
     if {[llength $v]==0} {return}
     set x [lindex $v 0]
@@ -324,7 +360,8 @@ itcl::class GenInt {
 
 
     # calibrate compensation:
-    switch_channels 0 1
+    switch_exc  0
+    switch_comp 1
     set v [$lockin_int get_auto]
     if {[llength $v]==0} {return}
     set x [lindex $v 0]
@@ -341,7 +378,8 @@ itcl::class GenInt {
     $::pars(db_dev) cmd put $::pars(db_nmr_cal) now $egain $eturn $cgain $cturn
 
     # restore settings
-    switch_channels 1 1
+    switch_exc  1
+    switch_comp 1
 
     # compensate
     set amp2 [format "%.4f" [expr {$amp1 * $egain / $cgain}]]
@@ -354,8 +392,7 @@ itcl::class GenInt {
     after 500 $this adjust_comp
 
     # enable buttons
-    foreach w $btnlist { $w configure -state normal }
-
+    enable
   }
 
   # adjust compensation using old calibration
@@ -386,6 +423,64 @@ itcl::class GenInt {
 }
 
 ##########################################################
+# SetFreq interface
+itcl::class FreqInt {
+
+  variable widget {};
+  variable btnlist {}
+
+  public variable fmin 0.5e6
+  public variable fmax 1.2e6
+  public variable npt  100
+
+  public variable gen_int {}
+  public variable lockin_int {}
+
+
+  constructor {widget_} {
+    set widget $widget_
+    set btnlist {}
+    labelframe $widget -text "Set Frequency" -font {-weight bold -size 10}
+
+    # Frequency/amplitude/phase entries
+    foreach n {fmin fmax npt}\
+            t {"Min freq, Hz:" "Max freq, Hz:" "Num.of points:"} {
+      label $widget.${n}_l -text $t
+      entry $widget.${n} -width 12 -textvariable [itcl::scope ${n}]
+      grid $widget.${n}_l $widget.${n} -padx 5 -pady 2 -sticky e
+    }
+
+    # Apply/Update buttons
+    button $widget.rbtn -text "Run"  -command "$this run"
+    button $widget.sbtn -text "Stop" -command "$this stop"
+    grid $widget.rbtn $widget.sbtn -padx 3 -pady 3
+    lappend btnlist $widget.rbtn $widget.sbtn
+
+    TimePlot setfre_plot $widget.setfre_pl\
+      -ncols 2\
+      -names {Freq Amp}\
+      -plots_x {Freq}\
+      -plots_y {Amp}
+    grid $widget.setfre_pl -columnspan 2
+
+#    disable
+  }
+
+  # enable/disable elements
+  method disable {} { foreach ch [winfo children $widget] { $ch configure -state disabled } }
+  method enable {}  { foreach ch [winfo children $widget] { $ch configure -state normal } }
+
+  method set_bg {bg} {
+    foreach ch [winfo children $widget] { $ch configure -background $bg }
+    $widget configure -background $bg }
+
+  method on {} {}
+  method off {} {}
+
+}
+
+
+##########################################################
 
 
 proc set_state {state} {
@@ -396,11 +491,13 @@ proc set_state {state} {
 proc on {} {
   gen_int on
   lockin_int on
+  fre_int on
 }
 
 proc off {} {
   lockin_int off
   gen_int off
+  fre_int off
 }
 
 ##########################################################
@@ -409,15 +506,20 @@ Device $pars(db_dev)
 
 ## make interface
 LockinInt lockin_int $pars(gauge_dev) .l
-pack .l -padx 5 -fill x -expand 1
+grid .l -padx 5 -sticky new -column 1 -row 1
 
 GenInt gen_int $pars(gen_dev) .g
 gen_int configure -lockin_int lockin_int
-pack .g -padx 5 -fill x -expand 1
+grid .g -padx 5 -sticky new -column 1 -row 2
+
+FreqInt fre_int .f
+fre_int configure -lockin_int lockin_int
+fre_int configure -gen_int gen_int
+grid .f -padx 5 -sticky new -column 2 -row 1 -rowspan 2
 
 
 checkbutton .oo -text "on/off" -variable ::state -command {set_state $::state}
-pack .oo -side right
+grid .oo -sticky w -row 3 -columnspan 2
 
 
 proc loop {} {
