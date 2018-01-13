@@ -3,26 +3,42 @@
 ## Test timeplot
 source timeplot.tcl
 
+# Configure time plot
 TimePlot pl .pl\
   -ncols 3\
   -maxt 10\
-  -names {D1 D2 D3}\
-  -plots_x {time D1 D2 D3}\
-  -plots_y {{} {D2 D3} D3 {}}\
+  -names {X D1 D2}\
+  -titles {sweep random-1 random2}\
+  -plots_x {time X D1 D2}\
+  -plots_y {{} {D1 D2} D2 {}}\
+  -zstyles {x x xy}\
   -use_comm 1
-
 pack .pl -expand yes -fill both
 
+
+# parameters for x sweep
+set x 0;
+set dx 1;
+set xmin 0;
+set xmax 31;
+
+# produce new data and push it to the plot
 proc add {} {
   set t [expr [clock milliseconds]/1000.0]
+
+  global x xmin xmax dx
+  set x [expr {$x+$dx}]
+  if {$x <= $xmin} {set dx 1}
+  if {$x >= $xmax} {set dx -1}
+
   set d1 [expr rand()]
   set d2 [expr rand()]
-  set d3 [expr rand()]
-  pl add_data $t [list $d1 $d2 $d3]
+
+  pl add_data $t [list $x $d1 $d2]
   after 200 add
 }
 
-
+# produce new comments and push it to the plot
 proc add_comm {} {
   set t [expr [clock milliseconds]/1000.0]
   pl add_comment $t "$t"

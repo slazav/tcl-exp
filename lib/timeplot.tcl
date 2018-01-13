@@ -19,6 +19,7 @@ itcl::class TimePlot {
   variable maxt
   variable plots_x
   variable plots_y
+  variable zstyles
   variable use_comm
 
   variable plot_type
@@ -42,6 +43,7 @@ itcl::class TimePlot {
     {-T -maxt}     maxt     0\
     {-X -plots_x}  plots_x  {time}\
     {-Y -plots_y}  plots_y  {{}}\
+    {-Z -zstyles}  zstyles  {}\
     {-C -use_comm}  use_comm 0\
     ]
     xblt::parse_options "timeplot" $args $options
@@ -55,7 +57,7 @@ itcl::class TimePlot {
 
     # create automatic column titles if needed
     for {set i [llength $titles]} {$i < $ncols} {incr i} {
-      lappend titles "data-$i" }
+      lappend titles [lindex $names $i] }
 
     # create automatic column colors if needed
     set defcolors {red green blue cyan magenta yellow\
@@ -75,6 +77,10 @@ itcl::class TimePlot {
     # non-log scale for all columns by default
     for {set i [llength $logs]} {$i < $ncols} {incr i} {
       lappend logs 0 }
+
+    # xy zoom style for all columns by default
+    for {set i [llength $zstyles]} {$i < $ncols} {incr i} {
+      lappend zstyles xy }
 
     # configure interface
     frame $plot
@@ -118,15 +124,13 @@ itcl::class TimePlot {
 
     $graph legend configure -activebackground white
 
-    # set up xBLT things
+    # set up xBLT things valid for all plot types
     xblt::plotmenu   $graph -showbutton 1 -buttonlabel Menu -buttonfont {Helvetica 12} -menuoncanvas 0
     xblt::legmenu    $graph
     xblt::hielems    $graph
     xblt::crosshairs $graph -variable v_crosshairs
     xblt::measure    $graph
     xblt::readout    $graph -variable v_readout -active 1;
-    xblt::zoomstack  $graph -scrollbutton 2 -axes x -recttype x
-    xblt::elemop     $graph
     xblt::scroll     $graph $scroll -timefmt 1
 
     if {$use_comm == 1} {xblt::xcomments $graph -interactive 0}
@@ -140,10 +144,10 @@ itcl::class TimePlot {
       set c [lindex $colors $i]
       set l [lindex $logs $i]
 
+      # for each element we create x$n axis and $n axis
       $graph axis create x$n -title $t -titlecolor black -logscale $l
       $graph axis create $n -title $t -titlecolor black -logscale $l
       $graph element create $n -symbol circle -pixels 1.5 -color $c -mapy $n
-      $graph element bind $n <Enter> [list $graph yaxis use [list $n]]
     }
 
     setup_plot
@@ -174,6 +178,19 @@ itcl::class TimePlot {
     set xaxis [expr {$x == "time"? "x":"x$x"}]
     $graph xaxis use $xaxis
 
+    # zoom style
+    # xy - zoom both axes
+    # x - zoom only x axis, drag plots in y independently
+    set zstyle  [lindex $zstyles $i];
+    if {$zstyle == {xy}} {
+      xblt::zoomstack  $graph -scrollbutton 2 -axes "$xaxis y" -recttype xy
+    }\
+    else {
+      xblt::zoomstack  $graph -scrollbutton 2 -axes $xaxis -recttype x
+      xblt::elemop     $graph
+    }
+
+    # comments are shown only on time plot
     if {$use_comm} {
       if {$x == "time"} {xblt::xcomments::show_all $graph}\
       else { xblt::xcomments::hide_all $graph }
@@ -196,11 +213,27 @@ itcl::class TimePlot {
       # configure xdata and show element
       set xdata [expr {$x == "time"? "$this:T":"$this:D$ix"}]
 
+      # for xy zoom style all elements should be mapped to axis y
+      set yaxis [expr {$zstyle == {xy}? "y":"$y"}]
       $graph element configure $y -hide 0 -label $y\
-              -xdata $xdata -ydata "$this:D$iy" -mapx $xaxis
+              -xdata $xdata -ydata "$this:D$iy" -mapx $xaxis -mapy $yaxis
+
+      # in non-xy mode axis should change when entering the element
+      if {$zstyle == {xy}} {
+        $graph element bind $n <Enter> {}
+      }\
+      else {
+        $graph element bind $n <Enter> [list $graph yaxis use [list $y]]
+      }
+
       # hide element if needed
       if {$h} {xblt::hielems::toggle_hide $graph $y}
     }
+
+    # what is y axis?
+    # in x zoom style use 1st element's axis (when it can be switched by user)
+    if {$zstyle == {xy}} { $graph yaxis use y }\
+    else {$graph yaxis use [lindex $yy 0] }
   }
 
   ##########################################################
