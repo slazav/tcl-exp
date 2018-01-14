@@ -1,0 +1,227 @@
+#!/usr/bin/wish
+
+## Interface for HS
+
+package require Device 1.2
+package require xBlt 3
+
+source sweeper.tcl
+source timeplot.tcl
+
+### parameters
+
+set par_list [list \
+  name     {Main magnet} {program title}\
+  ps_dev      TEST {1st power supply device}\
+  ps_dev2     {} {2nd power supply device}\
+  gauge_dev   {} {measure device}\
+  ovp           5   {overvoltage protection, V}\
+  ramp_tstep  2   {ramping time step}\
+  idle_tstep  5   {idle time step}\
+  maxI          2   {max current, A}\
+  minI          0   {off destination, A}\
+  max_rate      0.1 {max rate, A/s}\
+  def_rate     0.01 {default rate, A/s}\
+  db       {}               {db device}\
+  db_val   drydemag/sweep_main    {database for sweeper values}\
+  db_ann   drydemag/sweep_main_a  {database for sweeper annotations}\
+  db_cryo  drydemag/comments      {database for high-level comments}\
+]
+
+
+foreach {name def title} $par_list { set pars($name) $def }
+
+
+##########################################################
+## control functions (one can use this from external scripts)
+
+set current 0; ## current value
+set resistance 0; ## resistance value
+set X 0; ## current value
+set Y 0; ## resistance value
+set A 0; ## resistance value
+set P 0; ## resistance value
+
+set state 0;   ## does sweeper work
+set rate $pars(def_rate);
+set dest1 0;
+set dest2 0;
+
+proc get_current {} {
+  return $::current
+}
+
+proc sweep {dir wait} {
+  if {$::state == 0} {return}
+  sweeper set_limits $::dest1 $::dest2
+  sweeper go $::rate $dir $wait
+}
+proc stop {} {
+  if {$::state == 0} {return}
+  sweeper stop
+}
+proc go_back {} {
+  if {$::state == 0} {return}
+  sweeper go_back
+}
+proc do_reset {} {
+  if {$::state == 0} {return}
+  sweeper reset
+}
+
+proc disable {widget} { foreach ch [winfo children $widget] { $ch configure -state disabled } }
+proc enable {widget}  { foreach ch [winfo children $widget] { $ch configure -state normal } }
+
+
+proc do_onoff {state} {
+  if {$state == 0} {
+    sweeper turn_off
+    disable .f.m
+    disable .f.g1
+    disable .f.g2
+  }\
+  else {
+    sweeper turn_on
+    enable .f.m
+    enable .f.g1
+    enable .f.g2
+  }
+  set ::state $state
+}
+
+##########################################################
+## function for Start/Stop/ToZero/Clear/Reset buttons
+
+proc on_new_com {t com} {
+  p add_comment $t $com
+  return
+}
+
+## update values command
+proc on_new_val {t cm cs vm {m 0}} {
+  global pars
+  set ::resistance [expr { $cm>0? $vm/$cm:0} ]
+  set ::current $cm
+  p add_data $t [list $::current]
+  .f.m.vI configure -text [format "%.5f" $::current]
+  .f.m.vR configure -text [format "%.3f" $::resistance]
+  return
+}
+
+
+
+##########################################################
+## make interface
+
+proc make_coil_control {root coil} {
+  labelframe $root -padx 5 -pady 5
+
+  frame $root.m;  # measure frame
+  label $root.m.vI -font {-size 14 -weight bold}
+  label $root.m.uI -text " A, " -font {-size 12}
+  label $root.m.vR -font {-size 14 -weight bold}
+  label $root.m.uR -text " Ohm " -font {-size 12}
+  grid $root.m.vI $root.m.uI\
+       $root.m.vR $root.m.uR -sticky w
+  pack $root.m -fill x
+
+  frame $root.g1;  # go frame
+  label $root.g1.ldest1 -text "destination 1: " -padx 2 -pady 2
+  entry $root.g1.dest1  -width 10 -textvariable ::dest1
+  label $root.g1.udest1 -text "(A), "
+  label $root.g1.ldest2 -text "destination 2: " -padx 2 -pady 2
+  entry $root.g1.dest2  -width 10 -textvariable ::dest2
+  label $root.g1.udest2 -text "(A), "
+  label $root.g1.lrate -text "rate: " -padx 2 -pady 2
+  entry $root.g1.rate -width 6 -textvariable ::rate
+  label $root.g1.urate -text "(A/s) "
+  grid $root.g1.ldest1 $root.g1.dest1 $root.g1.udest1\
+       $root.g1.ldest2 $root.g1.dest2 $root.g1.udest2\
+       $root.g1.lrate $root.g1.rate $root.g1.urate\
+       -sticky w
+  pack $root.g1 -fill x
+
+  frame $root.g2;  # go frame
+  button $root.g2.gu   -text "GoUp"   -pady 3 -bg #bdc1d4 -command {sweep +1 1} -state disabled
+  button $root.g2.gd   -text "GoDown" -pady 3 -bg #bdc1d4 -command {sweep -1 1} -state disabled
+  button $root.g2.bk   -text "GoBack" -pady 3 -bg #bdc1d4 -command go_back      -state disabled
+  button $root.g2.st   -text "Stop"   -pady 3 -bg #bdc1d4 -command   stop       -state disabled
+  button $root.g2.su   -text "SweepUp"   -pady 3 -bg #bdc1d4 -command {sweep +1 0} -state disabled
+  button $root.g2.sd   -text "SweepDown" -pady 3 -bg #bdc1d4 -command {sweep -1 0} -state disabled
+  grid $root.g2.gu $root.g2.gd $root.g2.bk $root.g2.st $root.g2.su $root.g2.sd -sticky w
+  pack $root.g2 -fill x
+
+  frame $root.b;  # button frame
+  checkbutton $root.b.oo -text "on/off" -variable ::state -command {do_onoff $::state}
+  grid $root.b.oo -sticky w
+  pack $root.b -fill x
+
+  disable $root.m
+  disable $root.g1
+  disable $root.g2
+}
+
+
+######################
+# program title
+frame .n
+label .n.name   -text "$pars(name)" -font {-size 20}
+pack .n.name -side left
+pack .n -anchor w
+
+######################
+# buttons
+make_coil_control .f grad
+pack .f -anchor w -fill x -expand 0
+
+
+blt::tabset .tabs -side top
+
+######################
+# make graph
+TimePlot p .tabs.tplot\
+   -ncols 5\
+   -maxt 600\
+   -colors {red magenta darkcyan green blue}\
+   -titles {I}\
+   -names {I}\
+   -plots_x {time I}\
+   -plots_y {{} {}}\
+   -hides {0 1}\
+   -use_comm 1
+
+######################
+# parameter page
+frame .tabs.pars
+foreach {name def title} $par_list {
+  label .tabs.pars.l:$name -text "$title:"
+  label .tabs.pars.$name -text "$def" -font bold
+  grid .tabs.pars.l:$name .tabs.pars.$name -sticky w
+}
+
+.tabs insert end plot -window .tabs.tplot\
+   -anchor n -text "Time plot" -fill both
+.tabs insert end pars -window .tabs.pars\
+   -anchor n -text "Parameters" -fill both
+pack .tabs -fill both -expand 1
+
+
+
+##########################################################
+
+update
+
+## build sweeper object
+SweepController sweeper\
+  -ps_dev1    $pars(ps_dev)\
+  -ps_dev2    $pars(ps_dev2)\
+  -gauge      $pars(gauge_dev)\
+  -db_dev     $pars(db)\
+  -db_val     $pars(db_val)\
+  -db_ann     $pars(db_ann)\
+  -max_volt   $pars(ovp)\
+  -max_rate   $pars(max_rate)\
+  -ramp_tstep $pars(ramp_tstep)\
+  -idle_tstep $pars(idle_tstep)\
+  -on_new_val on_new_val\
+  -on_new_com on_new_com

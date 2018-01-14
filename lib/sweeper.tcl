@@ -32,10 +32,13 @@ package require xBlt
 #  get_mval {}  -- get gauge data
 #  reset {}     -- reset devices
 
-#  sweep {dest rate} -- sweep to a destination
-#  sweep_between {dest1 dest2 rate} -- sweep between dest1 and dest2
-#  sweep_stop {} -- stop sweep
-#  sweep_back {} -- go back
+#  set_limits     -- set sweep limits
+#  get_limits     -- get sweep limits
+#  go <rate> <dir> <wait>
+#                 -- start sweeping with <rate> in direction <dir>,
+#                    if <wait> then wait after sweep
+#  go_back        -- change sweep direction
+#  stop           -- stop ramping current and wait
 
 #############################################################
 
@@ -52,12 +55,6 @@ itcl::class SweepController {
   variable vm2 0;     # measured voltage - 2nd chan
   variable st {};     # device state
   variable mval {};   # measured value
-  variable dt    0;   # actual time from last current setting
-  variable rate  0;
-  variable dest  0;
-  variable dest2 0;
-  variable msg "";  # message to be logged into database on the next step
-  variable changed 0; # set to 1 if current was changed
   variable tstep;   # current time step
 
   # see options:
@@ -84,7 +81,16 @@ itcl::class SweepController {
   variable max_i  0;
   variable max_i2 0;
 
+  # Main loop control parameters
+  variable rate   0; # rate
+  variable minlim 0; # sweep limits
+  variable maxlim 0;
+  variable dir    0; # sweep direction "+1/0/-1"
+  variable t_set  0; # time of last current setting
+  variable wait_at_dest 0; # should we stop at destination
   variable state 0; # off/on
+  variable msg "";  # message to be logged into database on the next step
+  variable changed 0; # set to 1 if current was changed
 
   ######################################
   # constructor, set parameters
@@ -108,6 +114,7 @@ itcl::class SweepController {
     xblt::parse_options "sweeper" $args $options
   }
   destructor { turn_off }
+
 
   ######################################
   # open devices an start main loop
@@ -136,6 +143,9 @@ itcl::class SweepController {
       }
     }
 
+    # initial current limits
+    set_limits [expr {$min_i+$min_i2}] [expr {$max_i+$max_i2}]
+
     # open gauge device if needed
     if {$g_dev != {}} {
       set gdev [DeviceRole $g_dev gauge]
@@ -152,10 +162,10 @@ itcl::class SweepController {
 
   ######################################
   method turn_off {} {
-    after cancel $rh
     set state 0
-    after idle $this loop
+    loop_restart
   }
+
 
   ######################################
   ### internal DB functions
@@ -184,28 +194,40 @@ itcl::class SweepController {
   }
 
   ######################################
+  # restart loop if it runs
+  method loop_restart {} {
+    after cancel $rh
+    set rh [after idle $this loop]
+  }
+
+  ######################################
   # Main loop
 
   method loop {} {
 
     after cancel $rh
+    set t0 [clock millisecond]
 
     # remove device and stop the loop
     if {$state == 0} {
-      $dev1 unlock
-      itcl::delete object $dev1
+      if {$dev1 != {}} { $dev1 unlock }
+      if {$dev2 != {}} { $dev2 unlock }
+
+      if {$dev1 != {}} {
+        itcl::delete object $dev1
+        set dev1 {}
+      }
 
       if {$dev2 != {}} {
-        $dev2 unlock
         itcl::delete object $dev2
+        set dev2 {}
       }
       if {$db_dev != {} } { itcl::delete object $db_dev }
       if {$g_dev != {} } { itcl::delete object $g_dev }
       return
     }
 
-    if {$rate==0} {set tstep $idle_tstep}\
-    else          {set tstep $ramp_tstep}
+    if {$dir != 0} { step }
 
     # measure all values
     set cm1 [ $dev1 get_curr ]
@@ -248,42 +270,54 @@ itcl::class SweepController {
         put_comment "current jump to [expr $cs1+$cs2]"
     }
 
-    if {$rate > 0} { step }
-    set rh [after [expr int($tstep*1000)] "$this loop"]
+    if {$dir==0} {set tstep $idle_tstep}\
+    else         {set tstep $ramp_tstep}
+
+    set t1 [clock millisecond]
+    set dt [expr {int($tstep*1000-($t1-$t0))}]
+    if {$dt<0} {set dt 0}
+    set rh [after $dt "$this loop"]
   }
 
 
-  # active step (rate>0)
+  # active step (dir!=0)
   method step {} {
     # limit rate and destinations
-    if {$dest > $max_i + $max_i2} {set dest [expr {$max_i+$max_i2}]}
-    if {$dest < $min_i + $min_i2} {set dest [expr {$min_i+$min_i2}]}
-    if {$dest2 > $max_i + $max_i2} {set dest2 [expr {$max_i+$max_i2}]}
-    if {$dest2 < $min_i + $min_i2} {set dest2 [expr {$min_i+$min_i2}]}
+    if {$maxlim > $max_i + $max_i2} {set maxlim [expr {$max_i+$max_i2}]}
+    if {$minlim < $min_i + $min_i2} {set minlim [expr {$min_i+$min_i2}]}
     if {$rate > $max_rate} {set rate $max_rate}
 
-    # find sweep direction
-    if {[expr $cs1+$cs2] <= $dest} {set dir 1} else {set dir -1}
+    # are we outside the limits?
+    if {$cs1+$cs2 > $maxlim && $dir>0} {
+       set dir -1
+       set msg "sweep to [expr {$dir>0? $maxlim:$minlim}] A"
+    }
+    if {$cs1+$cs2 < $minlim && $dir<0} {
+      set dir +1
+      set msg "sweep to [expr {$dir>0? $maxlim:$minlim}] A"
+    }
 
     # set current step we need
-    set dt [expr $dt + $tstep]
-    set di [expr {1.0*$dir*$rate*$dt}]
+    set t_cur [clock millisecond]
+    set dt [expr {$t_cur-$t_set}]
+    set di [expr {$t_set==0? 0 : 1.0*$dir*$rate*$dt/1000.0}]
+    if {$t_set==0} {set t_set $t_cur}
+    # limit the current step
+    if {abs($di) > $max_rate*$ramp_tstep} {set di [expr "$max_rate*$ramp_tstep"]}
 
-    # Now set where do we want to go on this step (in $c)
     # Are we near the destination?
-    if { [expr {abs([expr $cs1+$cs2]-$dest)}] < [expr {abs($di)}] } {
-      set c $dest
-      # do we want to swap sweep direction?
-      if {$dest==$dest2} {
-        set rate 0
-        set msg "sweep finished at $dest A"
+    if { ($dir>0 && abs([expr $cs1+$cs2]-$maxlim)<abs($di)) ||\
+         ($dir<0 && abs([expr $cs1+$cs2]-$minlim)<abs($di))} {
+      set c [expr $dir>0? $maxlim:$minlim]
+
+      # do we want to do back?
+      if {$wait_at_dest} {
+        set dir 0
+        set msg "sweep finished at $c A"
       }\
       else {
-        set c $dest
-        # swap dest and dest2
-        set dest  $dest2
-        set dest2 $c
-        set msg "sweep to $dest A at $rate A/s"
+        set dir [expr -$dir]
+        set msg "sweep to [expr {$dir>0? $maxlim:$minlim}] A"
       }
     }\
     else {
@@ -314,12 +348,12 @@ itcl::class SweepController {
     if {$v < $min_i2} {set v $min_i2}
     if {$v > $max_i2} {set v $max_i2}
     # is step is too small?
-    if { abs($v-$cs2) > $min_i_step2 || $rate==0 } {
+    if { abs($v-$cs2) > $min_i_step2 || $dir==0 } {
       if {$antipar} { $dev2 set_curr [expr -$v] }\
       else {$dev2 set_curr $v}
       set cs2 $v
       set changed 1
-      set dt 0
+      set t_set [clock millisecond]
     }
   }
 
@@ -329,11 +363,11 @@ itcl::class SweepController {
     if {$v < $min_i} {set v $min_i}
     if {$v > $max_i} {set v $max_i}
     # is step is too small?
-    if { abs($v-$cs1) > $min_i_step || $rate==0 } {
+    if { abs($v-$cs1) > $min_i_step || $dir==0 } {
       $dev1 set_curr $v
       set cs1 $v
       set changed 1
-      set dt 0
+      set t_set [clock millisecond]
     }
   }
 
@@ -359,8 +393,6 @@ itcl::class SweepController {
   ######################################
   # reset device and stop sweep
   method reset {} {
-    after cancel $rh
-
     $dev1 set_ovp $max_volt
     $dev1 cc_reset
     if {$dev2 != {}} {
@@ -378,46 +410,57 @@ itcl::class SweepController {
     set rate 0
 
     set msg "reset"
-    set rh [after idle $this loop]
+    set t_set 0
+    loop_restart
   }
 
   ######################################
-  # start sweep to some value
-  method sweep {dest_ rate_} {
-    sweep_between $dest_ $dest_ $rate_
-  }
-
-  ######################################
-  # sweep between two values
-  method sweep_between {dest_ dest2_ rate_} {
-    if {$rate != $rate_ || $dest!=$dest_ || $dest2!=$dest2_} {
-      after cancel $rh
-      set rate [expr abs($rate_)]
-      set dest $dest_
-      set dest2 $dest2_
-      set msg "sweep to $dest A at $rate A/s"
-      set rh [after idle $this loop]
+  # set limits
+  method set_limits {v1 v2} {
+    if {$v1 >= $v2} {
+      set minlim $v2
+      set maxlim $v1
+    } else {
+      set minlim $v1
+      set maxlim $v2
     }
+  }
+  ######################################
+  # get limits
+  method get_limits {} { return $minlim $maxlim }
+
+  ######################################
+  # go to upper limit and then back
+  method  go {rate_ {dir_ 1} {wait_at_dest_ 0}} {
+    if {$dir==$dir_ && $wait_at_dest==$wait_at_dest_ && $rate==$rate_} {return}
+    set dir [expr {$dir_>=0? 1:-1}]
+    set wait_at_dest $wait_at_dest_
+    set rate [expr abs($rate_)]
+    set msg "sweep to [expr {$dir>0? $maxlim:$minlim}] A"
+    set t_set 0
+    loop_restart
     return
   }
-
   ######################################
-  # stop sweep
-  method sweep_stop {} {
-    if {$rate != 0} {
-      after cancel $rh
-      set rate 0
-      set msg "sweep stoped"
-      set rh [after idle $this loop]
-    }
+  # go back
+  method  go_back {} {
+    if {$dir==0} {return}
+    set dir [expr -$dir]
+    set msg "sweep to [expr {$dir>0? $maxlim:$minlim}] A"
+    set t_set 0
+    loop_restart
     return
   }
 
   ######################################
   # go back
-  method sweep_back {} {
-    if {$rate != 0 && $dest != $dest2} {
-      sweep_between $dest2 $dest $rate }
+  method stop {} {
+    if {$dir==0} {return}
+    set dir 0
+    set msg "stop"
+    set t_set 0
+    loop_restart
+    return
   }
 
 }
