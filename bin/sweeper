@@ -1,0 +1,286 @@
+#!/usr/bin/wish
+
+## Interface for current sweeper
+
+package require Device 1.2
+package require xBlt 3
+package require Exp
+
+######################################################
+### Read parameters from configuration file
+
+set default_pars {
+  name        {Default sweeper} {program title}\
+  ps_dev      TEST  {1st power supply device}\
+  ps_dev2     {}    {2nd power supply device}\
+  antipar      0    {anti-parallel connection}\
+  gauge_dev   {}    {measure device}\
+  ovp           5   {overvoltage protection, V}\
+  ramp_tstep  0.2   {ramping time step}\
+  idle_tstep  0.5   {idle time step}\
+  maxI          2   {max current, A}\
+  minI          0   {min current, A}\
+  max_rate     0.01 {max rate, A/s}\
+  def_rate    0.001 {default rate, A/s}\
+  db           {}   {db device}\
+  db_val       {}   {database for sweeper values}\
+  db_ann       {}   {database for sweeper comments}\
+  db_comm      {}   {database for high-level comments}\
+  interface_type {grad}   {interface control type: nmr, grad, hs}\
+  plot_ncols   2    {number of columns in the plot}\
+  plot_maxt    600  {max time span in the plot}\
+  plot_maxn    0    {max number of points in the plot}\
+  plot_names   {I R}   {column names}\
+  plot_titles  {I R}   {column titles}\
+  plot_colors  {}      {column colors}\
+  plot_hides   {}      {column hides}\
+  plot_logs    {}      {column log scales}\
+  plot_fmts    {}      {column format settings}\
+  plot_comm    1       {use comment in the plot}\
+  plots_x   {time I}   {x data for plots}\
+  plots_y   {{} {}}    {y data for plots}\
+}
+
+if {[llength $argv]>0 } {
+  read_conf [lindex $argv 0] pars $default_pars
+}\
+else {
+  foreach {name def title} $default_pars { set pars($name) $def }
+}
+
+######################################################
+### Create current sweeper
+
+SweepController sweeper\
+  -ps_dev1    $pars(ps_dev)\
+  -ps_dev2    $pars(ps_dev2)\
+  -antipar    $pars(antipar)\
+  -gauge      $pars(gauge_dev)\
+  -db_dev     $pars(db)\
+  -db_val     $pars(db_val)\
+  -db_ann     $pars(db_ann)\
+  -max_volt   $pars(ovp)\
+  -max_rate   $pars(max_rate)\
+  -ramp_tstep $pars(ramp_tstep)\
+  -idle_tstep $pars(idle_tstep)\
+  -on_new_val on_new_val\
+  -on_new_com on_new_com
+
+##########################################################
+## interface for external use
+
+set current 0;    ## current value shown in the interface
+set resistance 0; ## resistance value
+set dev_status {};      ## does sweeper work?
+
+set state 0;      ## does sweeper work?
+set rate  $pars(def_rate)
+set dest1 $pars(minI)
+set dest2 $pars(maxI)
+
+
+proc get_current {} {
+  return $::current
+}
+
+# set sweep limits
+proc set_limits {v1 v2} {
+  set ::dest1 $v1
+  set ::dest2 $v2
+  sweeper set_limits $::dest1 $::dest2
+}
+proc set_ulimit {v} {
+  set ::dest2 $v2
+  sweeper set_limits $::dest1 $::dest2
+}
+proc set_llimit {v} {
+  set ::dest1 $v2
+  sweeper set_limits $::dest1 $::dest2
+}
+
+proc sweep {dir wait} {
+  if {$::state == 0} {return}
+  sweeper set_limits $::dest1 $::dest2
+  sweeper go $::rate $dir $wait
+}
+proc stop {} {
+  if {$::state == 0} {return}
+  sweeper stop
+}
+proc go_back {} {
+  if {$::state == 0} {return}
+  sweeper go_back
+}
+proc do_reset {} {
+  if {$::state == 0} {return}
+  sweeper reset
+}
+
+proc do_onoff {state} {
+  if {$state == 0} { sweeper turn_off }\
+  else { sweeper turn_on }
+  enable $state
+  set ::state $state
+}
+
+##########################################################
+## a few things for the interface
+set control_widgets {}; # list of widgets to be enabled/disabled
+
+proc enable {v} {
+  foreach w $::control_widgets {
+    foreach ch [winfo children $w] {
+      $ch configure -state [expr {$v?{normal}:{disabled}}]
+    }
+  }
+}
+
+set plot_widget {}
+
+##########################################################
+
+proc on_new_com {t com} {
+  time_plot add_comment $t $com
+  return
+}
+
+## update values command
+proc on_new_val {t cm cs vm {m 0}} {
+  global pars
+  set ::current    [format "%.5f" $cm]
+  set ::resistance [format "%.3f" [expr { $cm>0? $vm/$cm:0} ]]
+  set ::dev_status [sweeper get_stat]
+  time_plot add_data $t [list $cm $::resistance *$m]
+  return
+}
+
+##########################################################
+## make interface
+
+## "NMR" version
+proc make_control {root} {
+  labelframe $root -padx 5 -pady 5
+
+  frame $root.m;  # measure frame
+  label $root.m.vI -font {-size 14 -weight bold} -textvariable ::current
+  label $root.m.uI -text " A, " -font {-size 12}
+  label $root.m.vR -font {-size 14 -weight bold} -textvariable ::resistance
+  label $root.m.uR -text " Ohm " -font {-size 12}
+  label $root.m.st -font {-size 14 -weight bold} -fg darkgreen -textvariable ::dev_status
+  grid $root.m.vI $root.m.uI\
+       $root.m.vR $root.m.uR $root.m.st -sticky w
+  pack $root.m -fill x
+
+
+  if {$::pars(interface_type) == {nmr}} {
+    frame $root.g1;  # go frame
+    label $root.g1.ldest1 -text "destination 1: " -padx 2 -pady 2
+    entry $root.g1.dest1  -width 10 -textvariable ::dest1
+    label $root.g1.udest1 -text "(A), "
+    label $root.g1.ldest2 -text "destination 2: " -padx 2 -pady 2
+    entry $root.g1.dest2  -width 10 -textvariable ::dest2
+    label $root.g1.udest2 -text "(A), "
+    label $root.g1.lrate -text "rate: " -padx 2 -pady 2
+    entry $root.g1.rate -width 6 -textvariable ::rate
+    label $root.g1.urate -text "(A/s) "
+    grid $root.g1.ldest1 $root.g1.dest1 $root.g1.udest1\
+         $root.g1.ldest2 $root.g1.dest2 $root.g1.udest2\
+         $root.g1.lrate $root.g1.rate $root.g1.urate\
+       -sticky w
+    pack $root.g1 -fill x
+
+    frame $root.g2;  # go frame
+    button $root.g2.gu   -text "Up"   -padx 10 -pady 3 -command {sweep +1 0}
+    button $root.g2.gd   -text "Down" -padx 10 -pady 3 -command {sweep -1 0}
+    button $root.g2.bk   -text "Turn" -padx 10 -pady 3 -command go_back
+    button $root.g2.st   -text "Stop" -padx 10 -pady 3 -command stop
+    grid $root.g2.gu $root.g2.gd $root.g2.bk $root.g2.st -sticky we -padx 3
+    pack $root.g2 -fill x -expand yes
+
+    set ::control_widgets [list $root.m $root.g1 $root.g2]
+  }
+
+  if {$::pars(interface_type) == {grad}} {
+    frame $root.g1;  # go frame
+    label $root.g1.ldest2 -text "destination: " -padx 2 -pady 2
+    entry $root.g1.dest2  -width 10 -textvariable ::dest2
+    label $root.g1.udest2 -text "(A), "
+    label $root.g1.lrate -text "rate: " -padx 2 -pady 2
+    entry $root.g1.rate -width 6 -textvariable ::rate
+    label $root.g1.urate -text "(A/s) "
+    button $root.g1.gu   -text "Go"   -pady 3 -command {sweep +1 1}
+    button $root.g1.gd   -text "To Zero" -pady 3 -command {sweep -1 1}
+    button $root.g1.st   -text "Stop" -pady 3 -command stop
+    grid $root.g1.ldest2 $root.g1.dest2 $root.g1.udest2\
+         $root.g1.lrate $root.g1.rate $root.g1.urate\
+         $root.g1.gu $root.g1.st $root.g1.gd\
+       -sticky w -padx 3
+    pack $root.g1 -fill x
+    set ::control_widgets [list $root.m $root.g1]
+  }
+
+  if {$::pars(interface_type) == {hs}} {
+    frame $root.g2;  # go frame
+    button $root.g2.gu   -text "Up"   -padx 10 -pady 3 -command {sweep +1 1}
+    button $root.g2.gd   -text "Down" -padx 10 -pady 3 -command {sweep -1 1}
+    grid $root.g2.gu $root.g2.gd -sticky we -padx 3
+    pack $root.g2 -fill x -expand yes
+    set ::control_widgets [list $root.m $root.g2]
+  }
+  enable 0
+
+  frame $root.b;  # button frame
+  checkbutton $root.b.oo -text "on/off" -variable ::state -command {do_onoff $::state}
+  grid $root.b.oo -sticky w
+  pack $root.b -fill x
+
+}
+
+######################
+# program title
+frame .n
+label .n.name   -text "$pars(name)" -font {-size 20}
+pack .n.name -side left -padx 10
+pack .n -anchor w
+
+######################
+# buttons
+make_control .f
+pack .f -anchor w -fill x -expand 0
+
+blt::tabset .tabs -side top
+
+######################
+# make graph
+TimePlot time_plot .tabs.tplot\
+   -ncols $pars(plot_ncols)\
+   -maxt $pars(plot_maxt)\
+   -colors $pars(plot_colors)\
+   -titles $pars(plot_titles)\
+   -names  $pars(plot_names)\
+   -hides    $pars(plot_hides)\
+   -logs     $pars(plot_logs)\
+   -fmts     $pars(plot_fmts)\
+   -plots_x  $pars(plots_x)\
+   -plots_y  $pars(plots_y)\
+   -use_comm $pars(plot_comm)
+
+######################
+# parameter page
+frame .tabs.pars
+foreach {name def title} $default_pars {
+  label .tabs.pars.l:$name -text "$title:"
+  label .tabs.pars.$name -text "$pars($name)"
+  grid .tabs.pars.l:$name .tabs.pars.$name -sticky w
+}
+
+.tabs insert end plot -window .tabs.tplot\
+   -anchor n -text "Time plot" -fill both
+.tabs insert end pars -window .tabs.pars\
+   -anchor n -text "Parameters" -fill both
+pack .tabs -fill both -expand 1
+
+##########################################################
+
+set_limits $dest1 $dest2
+
