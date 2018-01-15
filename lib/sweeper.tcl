@@ -204,7 +204,6 @@ itcl::class SweepController {
   # Main loop
 
   method loop {} {
-
     after cancel $rh
     set t0 [clock millisecond]
 
@@ -303,7 +302,10 @@ itcl::class SweepController {
     set di [expr {$t_set==0? 0 : 1.0*$dir*$rate*$dt/1000.0}]
     if {$t_set==0} {set t_set $t_cur}
     # limit the current step
-    if {abs($di) > $max_rate*$ramp_tstep} {set di [expr "$max_rate*$ramp_tstep"]}
+    if {abs($di) > $max_rate*$ramp_tstep} {
+      set di [expr "$max_rate*$ramp_tstep*$dir"]
+    }
+
 
     # Are we near the destination?
     if { ($dir>0 && abs([expr $cs1+$cs2]-$maxlim)<abs($di)) ||\
