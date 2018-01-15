@@ -10,4 +10,4 @@ read_conf test_read_conf.txt pars {
 
 puts "v1: $pars(v1)"
 puts "v2: $pars(v2)"
-puts "v3: $pars(v2)"
+puts "v3: $pars(v3)"

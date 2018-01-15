@@ -20,9 +20,11 @@ proc read_conf {fname arr defs} {
     # skip empty lines and comments
     if {[regexp {^\s*$} $line]} continue
     if {[regexp {^\s*#} $line]} continue
-    if {![regexp {^\s*(\S+)\s+(.*)} $line a k v]} continue
 
-    if {[uplevel array names ${arr} -exact $k] == {}} {
+    set k [lindex $line 0]
+    set v [lindex $line 1]
+
+    if {[uplevel array names $arr -exact $k] == {}} {
       error "Unknown parameter '$k' in configuration file: '$fname'" }
 
     uplevel set ${arr}($k) [list $v]
