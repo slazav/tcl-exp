@@ -189,7 +189,7 @@ proc do_pulse {} {
   set ncols [sig_load sig $sigfile]
 
   global sig_x
-  set min $sig_x(min)
+  set min 0
   set max $sig_x(max)
   sig_xm seq $min $max [expr {($max-$min)/500}]
   sig_ym1 expr {0.5*1e-3*$amp*exp(-sig_xm*$rtau)}
@@ -205,48 +205,48 @@ proc do_pulse {} {
   }
   fft_y expr {sqrt(fft_y)*1e9}
 
-
-  ## adjust frequency if needed
-  if {$apars(fadj)} {
-    set apars(fre) [format %.0f $fre]
-    if {$apars(fre) < $apars(fmin)} {set apars(fre) $apars(fmin)}
-    if {$apars(fre) > $apars(fmax)} {set apars(fre) $apars(fmax)}
-    set pars(fre) $apars(fre)
-    set need_setup 1
-  }
-  ## adjust record time if needed
-  if {$apars(tadj)} {
-    set apars(time) [format %.3f [expr {$apars(tx)/$rtau}]]
-    if {$apars(time) < $apars(tmin)} {set apars(time) $apars(tmin)}
-    if {$apars(time) > $apars(tmax)} {set apars(time) $apars(tmax)}
-    set pars(time) $apars(time)
-    set need_setup 1
-  }
-  ## adjust oscilloscope range if needed
-  if {$apars(radj)} {
-    global range_values
-    foreach r $range_values {
-      if {1e-3*$amp < 2*0.8*$r} {
-        set apars(sc) $r
-        set  pars(sc) $r
-        set need_setup 1
-        break
+  if {$fre>0} {
+    ## adjust frequency if needed
+    if {$apars(fadj)} {
+      set apars(fre) [format %.0f $fre]
+      if {$apars(fre) < $apars(fmin)} {set apars(fre) $apars(fmin)}
+      if {$apars(fre) > $apars(fmax)} {set apars(fre) $apars(fmax)}
+      set pars(fre) $apars(fre)
+      set need_setup 1
+    }
+    ## adjust record time if needed
+    if {$apars(tadj)} {
+      set apars(time) [format %.3f [expr {$apars(tx)/$rtau}]]
+      if {$apars(time) < $apars(tmin)} {set apars(time) $apars(tmin)}
+      if {$apars(time) > $apars(tmax)} {set apars(time) $apars(tmax)}
+      set pars(time) $apars(time)
+      set need_setup 1
+    }
+    ## adjust oscilloscope range if needed
+    if {$apars(radj)} {
+      global range_values
+      foreach r $range_values {
+        if {1e-3*$amp < 2*0.8*$r} {
+          set apars(sc) $r
+          set  pars(sc) $r
+          set need_setup 1
+          break
+        }
       }
     }
+    ## adjust sampling rate if needed
+    if {$apars(sadj)} {
+      set min_rate [expr {2*$apars(fmax)}]
+      set max_rate 20e6;
+      set num 1e6
+      set r [expr {$num/$apars(time)}]
+      if {$r > $max_rate} {set r $max_rate}
+      if {$r < $min_rate} {set r $min_rate}
+      set r [format {%.2e} $r]
+      set apars(rate) $r
+      set  pars(rate) $r
+    }
   }
-  ## adjust sampling rate if needed
-  if {$apars(sadj)} {
-    set min_rate [expr {2*$apars(fmax)}]
-    set max_rate 20e6;
-    set num 1e6
-    set r [expr {$num/$apars(time)}]
-    if {$r > $max_rate} {set r $max_rate}
-    if {$r < $min_rate} {set r $min_rate}
-    set r [format {%.2e} $r]
-    set apars(rate) $r
-    set  pars(rate) $r
-  }
-
 
   ## set up the next measurement if needed
   set t1 [clock milliseconds]
