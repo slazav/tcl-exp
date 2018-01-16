@@ -144,7 +144,11 @@ itcl::class ForkPulseDriver {
     $gen_dev write *TRG
     $osc_dev cmd wait
 
-    set out [exec sig_filter -F $fmin -G $fmax -T 0 -f fit $sigfile ]
+    if {[catch {
+       set out [exec sig_filter -F $fmin -G $fmax -T 0.00003 -f fit $sigfile ]
+    }]} {
+      return {0 0 0 0 0}
+    }
 
     if {$db_dev != {} && $db_val !={} } {
       $db_dev cmd put $db_val {*}$out
