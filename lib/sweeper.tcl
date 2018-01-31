@@ -144,8 +144,6 @@ itcl::class SweepController {
       }
     }
 
-puts stderr "O"
-
     # initial current limits
     set_limits [expr {$min_i+$min_i2}] [expr {$max_i+$max_i2}]
 
@@ -298,11 +296,11 @@ puts stderr "O"
     # are we outside the limits?
     if {$cs1+$cs2 > $maxlim && $dir>0} {
        set dir -1
-       set msg "sweep to [expr {$dir>0? $maxlim:$minlim}] A"
+       set msg "sweep to [get_dest] A"
     }
     if {$cs1+$cs2 < $minlim && $dir<0} {
       set dir +1
-      set msg "sweep to [expr {$dir>0? $maxlim:$minlim}] A"
+      set msg "sweep to [get_dest] A"
     }
 
     # set current step we need
@@ -322,13 +320,13 @@ puts stderr "O"
       set c [expr $dir>0? $maxlim:$minlim]
 
       # do we want to do back?
-      if {$wait_at_dest} {
+      if {$wait_at_dest || $maxlim == $minlim} {
         set dir 0
         set msg "sweep finished at $c A"
       }\
       else {
         set dir [expr -$dir]
-        set msg "sweep to [expr {$dir>0? $maxlim:$minlim}] A"
+        set msg "sweep to [get_dest] A"
       }
     }\
     else {
@@ -339,9 +337,9 @@ puts stderr "O"
     # power supply connection. First is used for accurate sweep with low-range
     # second device. We should always sweep ch2 first if it is possible.
     # In the anti-parallel connection we want to sweep first the device which
-    # has opposite sign then the the destination.
+    # has opposite sign then the destination.
 
-    if {$antipar && $dest<0} {
+    if {$antipar && [get_dest]<0} {
       sweep_ch1 $c
       sweep_ch2 $c
     }\
@@ -400,6 +398,8 @@ puts stderr "O"
   # get measured value
   method get_mval {} { return $mval }
 
+  method get_dest {} { return [expr {$dir>0? $maxlim:$minlim}] }
+
 
   ######################################
   # reset device and stop sweep
@@ -416,8 +416,6 @@ puts stderr "O"
       if {$antipar} {set cs2 [expr -$cs2]}
     }\
     else {set cs2 0}
-
-    set dest [expr $cs1+$cs2]
     set rate 0
 
     set msg "reset"
@@ -444,10 +442,12 @@ puts stderr "O"
   # go to upper limit and then back
   method  go {rate_ {dir_ 1} {wait_at_dest_ 0}} {
     if {$dir==$dir_ && $wait_at_dest==$wait_at_dest_ && $rate==$rate_} {return}
+    if {$dir>0 && [get_scurr]<$minlim} {return}
+    if {$dir<0 && [get_scurr]>$maxlim} {return}
     set dir [expr {$dir_>=0? 1:-1}]
     set wait_at_dest $wait_at_dest_
     set rate [expr abs($rate_)]
-    set msg "sweep to [expr {$dir>0? $maxlim:$minlim}] A"
+    set msg "sweep to [get_dest] A"
     set t_set 0
     loop_restart
     return
@@ -456,8 +456,10 @@ puts stderr "O"
   # go back
   method  go_back {} {
     if {$dir==0} {return}
+    if {$dir>0 && [get_scurr]<$minlim} {return}
+    if {$dir<0 && [get_scurr]>$maxlim} {return}
     set dir [expr -$dir]
-    set msg "sweep to [expr {$dir>0? $maxlim:$minlim}] A"
+    set msg "sweep to [get_dest] A"
     set t_set 0
     loop_restart
     return
