@@ -82,28 +82,26 @@ set rate  $pars(def_rate)
 set dest1 $pars(minI)
 set dest2 $pars(maxI)
 
-proc get_current {} {
-  return $::current
-}
+proc get_current {} { return $::current }
 
 # set sweep limits
 proc set_limits {v1 v2} {
-  set ::dest1 $v1
-  set ::dest2 $v2
-  sweeper set_limits $::dest1 $::dest2
+  global pars
+  if {$v1 < $pars(minI)} {set v1 $pars(minI)}
+  if {$v1 > $pars(maxI)} {set v1 $pars(maxI)}
+  if {$v2 < $pars(minI)} {set v2 $pars(minI)}
+  if {$v2 > $pars(maxI)} {set v2 $pars(maxI)}
+  sweeper set_limits $v1 $v2
+  set l [sweeper get_limits]
+  set ::dest1 [lindex $l 0]
+  set ::dest2 [lindex $l 1]
 }
-proc set_ulimit {v} {
-  set ::dest2 $v2
-  sweeper set_limits $::dest1 $::dest2
-}
-proc set_llimit {v} {
-  set ::dest1 $v2
-  sweeper set_limits $::dest1 $::dest2
-}
+proc set_ulimit {v} { set_limits $::dest1 $v }
+proc set_llimit {v} { set_limits $v $::dest2 }
 
 proc sweep {dir wait} {
   if {$::state == 0} {return}
-  sweeper set_limits $::dest1 $::dest2
+  set_limits $::dest1 $::dest2
   sweeper go $::rate $dir $wait
 
 }
@@ -202,11 +200,17 @@ proc make_control {root} {
     pack $root.g1 -fill x
 
     frame $root.g2;  # go frame
-    button $root.g2.gu   -text "Up"   -padx 10 -pady 3 -command {sweep +1 0}
-    button $root.g2.gd   -text "Down" -padx 10 -pady 3 -command {sweep -1 0}
-    button $root.g2.bk   -text "Turn" -padx 10 -pady 3 -command go_back
-    button $root.g2.st   -text "Stop" -padx 10 -pady 3 -command stop
-    grid $root.g2.gu $root.g2.gd $root.g2.bk $root.g2.st -sticky we -padx 3
+    button $root.g2.b1   -text "Go down" -padx 10 -pady 3 -command {sweep -1 0}
+    button $root.g2.b2   -text "Go up"   -padx 10 -pady 3 -command {sweep +1 0}
+    button $root.g2.b3   -text "Go back" -padx 10 -pady 3 -command go_back
+    button $root.g2.b4   -text "Stop" -padx 10 -pady 3 -command stop
+    grid $root.g2.b1 $root.g2.b2 $root.g2.b3 $root.g2.b4 -sticky we -padx 3
+
+    button $root.g2.b5   -text "To lower limit"   -pady 3 -command {sweep -1 1}
+    button $root.g2.b6   -text "To upper limit"   -pady 3 -command {sweep +1 1}
+    button $root.g2.b7   -text "To Zero" -pady 3 -command {set_llimit 0; sweep -1 1}
+    grid $root.g2.b5 $root.g2.b6 $root.g2.b7 -sticky we -padx 3
+
     pack $root.g2 -fill x -expand yes
 
     set ::control_widgets [list $root.m $root.g1 $root.g2]

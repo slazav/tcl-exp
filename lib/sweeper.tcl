@@ -426,6 +426,8 @@ itcl::class SweepController {
   ######################################
   # set limits
   method set_limits {v1 v2} {
+    if {![string is double -strict $v1]} {return}
+    if {![string is double -strict $v2]} {return}
     if {$v1 >= $v2} {
       set minlim $v2
       set maxlim $v1
@@ -436,7 +438,7 @@ itcl::class SweepController {
   }
   ######################################
   # get limits
-  method get_limits {} { return $minlim $maxlim }
+  method get_limits {} { return "$minlim $maxlim" }
 
   ######################################
   # go to upper limit and then back
