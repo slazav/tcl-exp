@@ -91,6 +91,7 @@ itcl::class SweepController {
   variable state 0; # off/on
   variable msg "";  # message to be logged into database on the next step
   variable changed 0; # set to 1 if current was changed
+  variable in_the_loop 0;
 
   ######################################
   # constructor, set parameters
@@ -124,16 +125,16 @@ itcl::class SweepController {
     # open first PS device get its parameters
     if {$ps_dev1  == {} } { error "ps_dev1 is empty" }
     set dev1 [DeviceRole $ps_dev1 power_supply]
-    $dev1 lock
+#    $dev1 lock
     set min_i_step [$dev1 cget -min_i_step]
     set max_i [$dev1 cget -max_i]
     set min_i [$dev1 cget -min_i]
 
     # open secons PS device if needed
     if {$ps_dev2 != {}} {
-      if {$ps_dev1 == $ps_dev2} {error "same devices for both channels"}
+      if {$ps_dev1 == $ps_dev2} {error "same device for both channels"}
       set dev2 [DeviceRole $ps_dev2 power_supply]
-      $dev2 lock
+#      $dev2 lock
       set min_i_step2 [$dev2 cget -min_i_step]
       set max_i2 [$dev2 cget -max_i]
       set min_i2 [$dev2 cget -min_i]
@@ -142,6 +143,8 @@ itcl::class SweepController {
         set min_i2 [expr {-[$dev2 cget -max_i]}]
       }
     }
+
+puts stderr "O"
 
     # initial current limits
     set_limits [expr {$min_i+$min_i2}] [expr {$max_i+$max_i2}]
@@ -203,26 +206,31 @@ itcl::class SweepController {
   ######################################
   # Main loop
 
+  method is_obj {o} { return [expr {$o!={} && [itcl::find objects $o]!={}}] }
+
   method loop {} {
+    if {$in_the_loop} {return}
+    set in_the_loop 1
     after cancel $rh
     set t0 [clock millisecond]
 
     # remove device and stop the loop
     if {$state == 0} {
-      if {$dev1 != {}} { $dev1 unlock }
-      if {$dev2 != {}} { $dev2 unlock }
+      if {[is_obj $dev1]} { $dev1 unlock }
+      if {[is_obj $dev2]} { $dev2 unlock }
 
-      if {$dev1 != {}} {
+      if {[is_obj $dev1]} {
         itcl::delete object $dev1
         set dev1 {}
       }
 
-      if {$dev2 != {}} {
+      if {[is_obj $dev2]} {
         itcl::delete object $dev2
         set dev2 {}
       }
-      if {$db_dev != {} } { itcl::delete object $db_dev }
-      if {$g_dev != {} } { itcl::delete object $g_dev }
+      if {[is_obj $db_dev]} { itcl::delete object $db_dev }
+      if {[is_obj $g_dev]}  { itcl::delete object $g_dev }
+      set in_the_loop 0
       return
     }
 
@@ -275,6 +283,7 @@ itcl::class SweepController {
     set t1 [clock millisecond]
     set dt [expr {int($tstep*1000-($t1-$t0))}]
     if {$dt<0} {set dt 0}
+    set in_the_loop 0
     set rh [after $dt "$this loop"]
   }
 

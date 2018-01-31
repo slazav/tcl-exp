@@ -22,6 +22,7 @@ set default_pars {
   minI          0   {min current, A}\
   max_rate     0.01 {max rate, A/s}\
   def_rate    0.001 {default rate, A/s}\
+  skip         0    {do not write a point if current was not set}
   db           {}   {db device}\
   db_val       {}   {database for sweeper values}\
   db_ann       {}   {database for sweeper comments}\
@@ -30,15 +31,16 @@ set default_pars {
   plot_ncols   2    {number of columns in the plot}\
   plot_maxt    600  {max time span in the plot}\
   plot_maxn    0    {max number of points in the plot}\
-  plot_names   {I R}   {column names}\
-  plot_titles  {I R}   {column titles}\
+  plot_names   {Imeas Iset V R}   {column names}\
+  plot_titles  {}      {column titles}\
   plot_colors  {}      {column colors}\
   plot_hides   {}      {column hides}\
   plot_logs    {}      {column log scales}\
   plot_fmts    {}      {column format settings}\
   plot_comm    1       {use comment in the plot}\
-  plots_x   {time I}   {x data for plots}\
-  plots_y   {{} {}}    {y data for plots}\
+  plots_x   {time Iset} {x data for plots}\
+  plots_y   {{} {}}     {y data for plots}\
+  plots_zst    {}       {zoom styles for plots}\
 }
 
 if {[llength $argv]>0 } {
@@ -47,6 +49,8 @@ if {[llength $argv]>0 } {
 else {
   foreach {name def title} $default_pars { set pars($name) $def }
 }
+
+info script "sweeper: $pars(name)"
 
 ######################################################
 ### Create current sweeper
@@ -78,7 +82,6 @@ set rate  $pars(def_rate)
 set dest1 $pars(minI)
 set dest2 $pars(maxI)
 
-
 proc get_current {} {
   return $::current
 }
@@ -102,6 +105,7 @@ proc sweep {dir wait} {
   if {$::state == 0} {return}
   sweeper set_limits $::dest1 $::dest2
   sweeper go $::rate $dir $wait
+
 }
 proc stop {} {
   if {$::state == 0} {return}
@@ -141,6 +145,14 @@ set plot_widget {}
 
 proc on_new_com {t com} {
   time_plot add_comment $t $com
+  # put a high-level comment after finishing sweep:
+  if {[regexp {finished} $com] } {
+    if {$::pars(db)!={} && $::pars(db_comm)!={}} {
+      Device $::pars(db)
+      $pars(db) cmd put $::pars(db_comm) now "$::pars(name) -> $::current A"
+      itcl::delete object $::pars(db)
+    }
+  }
   return
 }
 
@@ -150,7 +162,7 @@ proc on_new_val {t cm cs vm {m 0}} {
   set ::current    [format "%.5f" $cm]
   set ::resistance [format "%.3f" [expr { $cm>0? $vm/$cm:0} ]]
   set ::dev_status [sweeper get_stat]
-  time_plot add_data $t [list $cm $::resistance *$m]
+  time_plot add_data $t [list $cm $cs $vm $::resistance {*}$m]
   return
 }
 
@@ -248,11 +260,9 @@ pack .n -anchor w
 make_control .f
 pack .f -anchor w -fill x -expand 0
 
-blt::tabset .tabs -side top
-
 ######################
 # make graph
-TimePlot time_plot .tabs.tplot\
+TimePlot time_plot .tplot\
    -ncols $pars(plot_ncols)\
    -maxt $pars(plot_maxt)\
    -colors $pars(plot_colors)\
@@ -263,22 +273,10 @@ TimePlot time_plot .tabs.tplot\
    -fmts     $pars(plot_fmts)\
    -plots_x  $pars(plots_x)\
    -plots_y  $pars(plots_y)\
+   -zstyles  $pars(plots_zst)\
    -use_comm $pars(plot_comm)
 
-######################
-# parameter page
-frame .tabs.pars
-foreach {name def title} $default_pars {
-  label .tabs.pars.l:$name -text "$title:"
-  label .tabs.pars.$name -text "$pars($name)"
-  grid .tabs.pars.l:$name .tabs.pars.$name -sticky w
-}
-
-.tabs insert end plot -window .tabs.tplot\
-   -anchor n -text "Time plot" -fill both
-.tabs insert end pars -window .tabs.pars\
-   -anchor n -text "Parameters" -fill both
-pack .tabs -fill both -expand 1
+pack .tplot -fill both -expand 1
 
 ##########################################################
 
