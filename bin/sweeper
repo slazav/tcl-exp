@@ -50,7 +50,8 @@ else {
   foreach {name def title} $default_pars { set pars($name) $def }
 }
 
-info script "sweeper: $pars(name)"
+wm title . "sweeper: $pars(name)"
+tk appname "sweeper: $pars(name)"
 
 ######################################################
 ### Create current sweeper
@@ -73,16 +74,14 @@ SweepController sweeper\
 ##########################################################
 ## interface for external use
 
-set current 0;    ## current value shown in the interface
-set resistance 0; ## resistance value
-set dev_status {};      ## does sweeper work?
+set current 0;      ## current value shown in the interface
+set resistance 0;   ## resistance value
+set dev_status {};  ## device status string (CC, OV etc)
 
 set state 0;      ## does sweeper work?
 set rate  $pars(def_rate)
 set dest1 $pars(minI)
 set dest2 $pars(maxI)
-
-proc get_current {} { return $::current }
 
 # set sweep limits
 proc set_limits {v1 v2} {

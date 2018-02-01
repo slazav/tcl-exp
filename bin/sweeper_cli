@@ -1,0 +1,110 @@
+#!/usr/bin/wish
+
+######################################################################
+# Parse and check command line parameters
+
+proc usage {} {
+  puts {
+    sweeper_cli -- command line interface for controlling a sweeper command
+
+    Usage: sweeper_cli <name> <command>
+
+    <name> name of the sweeper which is set in its configuration file
+    <command>:
+      status: Check status of the sweeper programs (-1: not running, 0: off, 1:on)
+              All other commands will fail if status != 1
+      get_current  -- get measured current value
+      get_limits   -- get current limits
+      get_rate     -- get rate value
+      set_limits <v1> <v2>    -- set current limits
+      set_rate   <r>          -- set rate
+      sweep_start [<dir>] [<stop>] -- go in the direction <dir> and stop there if <stop>
+      sweep_stop  -- stop sweeping
+      go_up       -- go to the upper limit and stop there (same as sweep_start  1 1)
+      go_down     -- go to the lower limit and stop there (same as sweep_start -1 1)
+}
+  exit 1
+}
+
+set name [lindex $argv 0]
+set cmd  [lindex $argv 1]
+
+if {$name == {}} usage
+if {$cmd  == {}} usage
+
+######################################################################
+# Connect to a program and ask for its state
+
+set app "sweeper: $name"
+
+if {[catch {set stat [send $app set state]}]} { set stat -1 }
+
+if {$cmd == "status"} {
+  puts "$stat"
+  exit 0
+}
+
+if {$stat != 1} {
+  puts stderr "$app is not active"
+  exit 1
+}
+
+if {$cmd == "get_current"} {
+  puts [send $app set current]
+  exit 0
+}
+
+if {$cmd == "get_limits"} {
+  puts "[send $app set dest1] [send $app set dest2]"
+  exit 0
+}
+
+if {$cmd == "get_rate"} {
+  puts [send $app set rate]
+  exit 0
+}
+
+
+if {$cmd == "set_rate"} {
+  set rate [lindex $argv 2]
+  if {$rate == {}} { error "rate setting is expected"}
+  send $app set rate $rate
+  exit 0
+}
+
+if {$cmd == "set_limits"} {
+  set v1 [lindex $argv 2]
+  set v2 [lindex $argv 3]
+  if {$v1 == {} || $v2 == {}} { error "limits are expected"}
+  send $app set_limits $v1 $v2
+  exit 0
+}
+
+if {$cmd == "sweep_start"} {
+  set dir [lindex $argv 2]
+  set stop [lindex $argv 3]
+  if {$dir  == {}} {set dir 1}
+  if {$stop == {}} {set stop 0}
+  send $app sweep $dir $stop
+  exit 0
+}
+
+if {$cmd == "sweep_stop"} {
+  send $app stop
+  exit 0
+}
+
+if {$cmd == "go_up"} {
+  send $app sweep 1 1
+  exit 0
+}
+
+if {$cmd == "go_down"} {
+  send $app sweep -1 1
+  exit 0
+}
+
+
+######################################################################
+wm withdraw .
+after idle exit 0
