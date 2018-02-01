@@ -426,8 +426,8 @@ itcl::class SweepController {
   ######################################
   # set limits
   method set_limits {v1 v2} {
-    if {![string is double -strict $v1]} {return}
-    if {![string is double -strict $v2]} {return}
+    if {[catch {expr {abs($v1)}}]} {error "non-numeric limit: $v1"}
+    if {[catch {expr {abs($v2)}}]} {error "non-numeric limit: $v2"}
     if {$v1 >= $v2} {
       set minlim $v2
       set maxlim $v1
@@ -443,12 +443,22 @@ itcl::class SweepController {
   ######################################
   # go to upper limit and then back
   method  go {rate_ {dir_ 1} {wait_at_dest_ 0}} {
+    # if we are outside limits, then no need to change direction
+    if {$dir>0 && [get_scurr]<$minlim} {set dir_ $dir}
+    if {$dir<0 && [get_scurr]>$maxlim} {set dir_ $dir}
+
+    # if some parameter is non-numeric, return error
+    if {[catch {expr {abs($rate_)}}]} {error "non-numeric rate: $rate_"}
+    if {![string is integer $dir_]} {error "non-integer dir (should be 1 or -1): $dir_"}
+    if {![string is integer $wait_at_dest_]} {error "non-integer wait flag (should be 0 or 1): $wait_at_dest_"}
+
+    # if no parameter is changing, do nothing
     if {$dir==$dir_ && $wait_at_dest==$wait_at_dest_ && $rate==$rate_} {return}
-    if {$dir>0 && [get_scurr]<$minlim} {return}
-    if {$dir<0 && [get_scurr]>$maxlim} {return}
-    set dir [expr {$dir_>=0? 1:-1}]
+
+    # change parameters and restart the loop
     set wait_at_dest $wait_at_dest_
     set rate [expr abs($rate_)]
+    set dir [expr {$dir_>=0? 1:-1}]
     set msg "sweep to [get_dest] A"
     set t_set 0
     loop_restart
@@ -458,6 +468,7 @@ itcl::class SweepController {
   # go back
   method  go_back {} {
     if {$dir==0} {return}
+    # if we are outside limits, then no need to change direction
     if {$dir>0 && [get_scurr]<$minlim} {return}
     if {$dir<0 && [get_scurr]>$maxlim} {return}
     set dir [expr -$dir]
