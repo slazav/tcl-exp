@@ -10,37 +10,37 @@ package require Exp
 ### Read parameters from configuration file
 
 set default_pars {
-  name        {Default sweeper} {program title}\
-  ps_dev      TEST  {1st power supply device}\
-  ps_dev2     {}    {2nd power supply device}\
-  antipar      0    {anti-parallel connection}\
-  gauge_dev   {}    {measure device}\
-  ovp           5   {overvoltage protection, V}\
-  ramp_tstep  0.2   {ramping time step}\
-  idle_tstep  0.5   {idle time step}\
-  maxI          2   {max current, A}\
-  minI          0   {min current, A}\
-  max_rate     0.01 {max rate, A/s}\
-  def_rate    0.001 {default rate, A/s}\
+  name        {Default sweeper} {program title}
+  ps_dev      TEST  {1st power supply device}
+  ps_dev2     {}    {2nd power supply device}
+  antipar      0    {anti-parallel connection}
+  gauge_dev   {}    {measure device}
+  ovp           5   {overvoltage protection, V}
+  ramp_tstep  0.2   {ramping time step}
+  idle_tstep  0.5   {idle time step}
+  maxI          2   {max current, A}
+  minI          0   {min current, A}
+  max_rate     0.01 {max rate, A/s}
+  def_rate    0.001 {default rate, A/s}
   skip         0    {do not write a point if current was not set}
-  db           {}   {db device}\
-  db_val       {}   {database for sweeper values}\
-  db_ann       {}   {database for sweeper comments}\
-  db_comm      {}   {database for high-level comments}\
-  interface_type {grad}   {interface control type: nmr, grad, hs}\
-  plot_ncols   2    {number of columns in the plot}\
-  plot_maxt    600  {max time span in the plot}\
-  plot_maxn    0    {max number of points in the plot}\
-  plot_names   {Imeas Iset V R}   {column names}\
-  plot_titles  {}      {column titles}\
-  plot_colors  {}      {column colors}\
-  plot_hides   {}      {column hides}\
-  plot_logs    {}      {column log scales}\
-  plot_fmts    {}      {column format settings}\
-  plot_comm    1       {use comment in the plot}\
-  plots_x   {time Iset} {x data for plots}\
-  plots_y   {{} {}}     {y data for plots}\
-  plots_zst    {}       {zoom styles for plots}\
+  db           {}   {db device}
+  db_val       {}   {database for sweeper values}
+  db_ann       {}   {database for sweeper comments}
+  db_comm      {}   {database for high-level comments}
+  interface_type {grad}   {interface control type: nmr, grad, hs}
+  plot_ncols   2    {number of columns in the plot}
+  plot_maxt    600  {max time span in the plot}
+  plot_maxn    0    {max number of points in the plot}
+  plot_names   {Imeas Iset V R}   {column names}
+  plot_titles  {}      {column titles}
+  plot_colors  {}      {column colors}
+  plot_hides   {}      {column hides}
+  plot_logs    {}      {column log scales}
+  plot_fmts    {}      {column format settings}
+  plot_comm    1       {use comment in the plot}
+  plots_x   {time Iset} {x data for plots}
+  plots_y   {{} {}}     {y data for plots}
+  plots_zst    {}       {zoom styles for plots}
 }
 
 if {[llength $argv]>0 } {
@@ -146,7 +146,7 @@ proc on_new_com {t com} {
   if {[regexp {finished} $com] } {
     if {$::pars(db)!={} && $::pars(db_comm)!={}} {
       Device $::pars(db)
-      $pars(db) cmd put $::pars(db_comm) now "$::pars(name) -> $::current A"
+      $::pars(db) cmd put $::pars(db_comm) now "$::pars(name) -> $::current A"
       itcl::delete object $::pars(db)
     }
   }
