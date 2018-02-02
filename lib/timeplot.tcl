@@ -220,10 +220,10 @@ itcl::class TimePlot {
 
       # in non-xy mode axis should change when entering the element
       if {$zstyle == {xy}} {
-        $graph element bind $n <Enter> {}
+        $graph element bind $y <Enter> {}
       }\
       else {
-        $graph element bind $n <Enter> [list $graph yaxis use [list $y]]
+        $graph element bind $y <Enter> [list $graph yaxis use [list $y]]
       }
 
       # hide element if needed
