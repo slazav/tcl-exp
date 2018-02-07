@@ -40,7 +40,6 @@ set default_pars {
   db_dev     {} {database device (can be empty)}
   db_val     {} {database name for numerical values}
   db_par     {} {database name for measurement parameters}
-  db_ann     {} {database name for annatations}
 
   plot_maxn     0 {number of points visible on the plot}
   plot_maxt  3600 {time span of the time plot}
@@ -143,34 +142,34 @@ proc mk_empty {w} {
 ##################################################
 # open devices if needed and update range list
 proc dev_open {} {
-  global apars
+  global pars
 
   # open osc_dev
-  if {$apars(osc_dev) == {} } { error "osc_dev is empty" }
-  if {![itcl::is object $apars(osc_dev)]} {
-    Device $apars(osc_dev)
-    $apars(osc_dev) lock
-    if {! [regexp {^pico_rec} {*}[$apars(osc_dev) cmd *idn?]] } {
+  if {$pars(osc_dev) == {} } { error "osc_dev is empty" }
+  if {![itcl::is object $pars(osc_dev)]} {
+    Device $pars(osc_dev)
+    $pars(osc_dev) lock
+    if {! [regexp {^pico_rec} {*}[$pars(osc_dev) cmd *idn?]] } {
       error "unsupported osc device (pico_rec program is needed)"}
   }
 
   # open gen_dev
-  if {$apars(gen_dev) == {} } { error "gen_dev is empty" }
-  if {![itcl::is object $apars(gen_dev)]} {
-    Device $apars(gen_dev)
-    $apars(gen_dev) lock
-    if {! [regexp {^Agilent Technologies,33511B} [$apars(gen_dev) cmd *idn?]]} {
+  if {$pars(gen_dev) == {} } { error "gen_dev is empty" }
+  if {![itcl::is object $pars(gen_dev)]} {
+    Device $pars(gen_dev)
+    $pars(gen_dev) lock
+    if {! [regexp {^Agilent Technologies,33511B} [$pars(gen_dev) cmd *idn?]]} {
       error "unsupported gen device (agilent 33511b is needed)"}
   }
 
   # Open db_dev
-  if {$apars(db_dev) != {} && ![itcl::is object $apars(db_dev)]} {
-    Device $db_dev
-    if {! [regexp {^Graphene database} {*}[$db_dev cmd *idn?]]} {
+  if {$pars(db_dev) != {} && ![itcl::is object $pars(db_dev)]} {
+    Device $pars(db_dev)
+    if {! [regexp {^Graphene database} {*}[$pars(db_dev) cmd *idn?]]} {
      error "unsupported db device (graphene is needed)"}
   }
 
-  set range_values [lindex [$apars(osc_dev) cmd ranges A] 0]
+  set range_values [lindex [$pars(osc_dev) cmd ranges A] 0]
   .tabs.pars.op.sc configure -values $range_values
   set need_setup 1
 }
@@ -178,18 +177,18 @@ proc dev_open {} {
 ##################################################
 # close device if needed
 proc dev_close {} {
-  global apars
+  global pars
 
-  if {[itcl::is object $apars(gen_dev)]} {
-    $apars(gen_dev) unlock
-    itcl::delete object $apars(gen_dev)
+  if {[itcl::is object $pars(gen_dev)]} {
+    $pars(gen_dev) unlock
+    itcl::delete object $pars(gen_dev)
   }
-  if {[itcl::is object $apars(osc_dev)]} {
-    $apars(osc_dev) unlock
-    itcl::delete object $apars(osc_dev)
+  if {[itcl::is object $pars(osc_dev)]} {
+    $pars(osc_dev) unlock
+    itcl::delete object $pars(osc_dev)
   }
-  if {$apars(db_dev) != {} && [itcl::is object $apars(db_dev)]} {
-    itcl::delete object $apars(db_dev)
+  if {$pars(db_dev) != {} && [itcl::is object $pars(db_dev)]} {
+    itcl::delete object $pars(db_dev)
   }
 }
 
@@ -220,29 +219,29 @@ proc do_pulse {} {
 
     ## Generator setup:
     ## Burst mode with BUS trigger.
-    $apars(gen_dev) write BURST:STATE on
-    $apars(gen_dev) write FUNC SIN
-    $apars(gen_dev) write BURST:MODE trig
-    $apars(gen_dev) write BURST:NCYC $apars(cyc)
-    $apars(gen_dev) write TRIG:SOURCE BUS
-    $apars(gen_dev) write FREQ $apars(fre)
-    $apars(gen_dev) write VOLT $apars(amp)
-    $apars(gen_dev) write OUTP ON
+    $pars(gen_dev) write BURST:STATE on
+    $pars(gen_dev) write FUNC SIN
+    $pars(gen_dev) write BURST:MODE trig
+    $pars(gen_dev) write BURST:NCYC $apars(cyc)
+    $pars(gen_dev) write TRIG:SOURCE BUS
+    $pars(gen_dev) write FREQ $apars(fre)
+    $pars(gen_dev) write VOLT $apars(amp)
+    $pars(gen_dev) write OUTP ON
 
     ## Oscilloscope setup:
     ## A - signal, B - trigger
-    $apars(osc_dev) cmd chan_set A 1 AC $apars(sc)
-    $apars(osc_dev) cmd chan_set B 1 DC 10
-    $apars(osc_dev) cmd trig_set B 0.1 FALLING 0
+    $pars(osc_dev) cmd chan_set A 1 AC $apars(sc)
+    $pars(osc_dev) cmd chan_set B 1 DC 10
+    $pars(osc_dev) cmd trig_set B 0.1 FALLING 0
 
-    if {$apars(db_dev) != {} && $apars(db_par) !={} } {
-      set prev [lindex [$apars(db_dev) cmd get $apars(db_par)] 0]
-      if { ([lindex $prev 1] != $apars(freq)) ||\
-           ([lindex $prev 2] != $apars(cnt))  ||\
-           ([lindex $prev 3] != $apars(volt)) ||\
+    if {$pars(db_dev) != {} && $pars(db_par) !={} } {
+      set prev [lindex [$pars(db_dev) cmd get $pars(db_par)] 0]
+      if { ([lindex $prev 1] != $apars(fre)) ||\
+           ([lindex $prev 2] != $apars(cyc))  ||\
+           ([lindex $prev 3] != $apars(amp)) ||\
            ([lindex $prev 4] != $apars(sc)) } {
-        $apars(db_dev) cmd put $apars(db_par) now $apars(fre) $apars(cyc) $apars(amp) $apars(sc)
-        $apars(db_dev) cmd sync
+        $pars(db_dev) cmd put $pars(db_par) now $apars(fre) $apars(cyc) $apars(amp) $apars(sc)
+        $pars(db_dev) cmd sync
       }
     }
     set need_setup 0
@@ -256,18 +255,18 @@ proc do_pulse {} {
   set t2 [expr {$apars(time)-$t1}]
   set dt [expr {1.0/$apars(rate)}]
 
-  set N  [expr {int(1.0*$t1/$dt)}]; # sample count
-  set NP [expr {int(1.0*$t2/$dt)}]; # pretigger sample count
+  set NP [expr {int(1.0*$t1/$dt)}]; # pretigger sample count
+  set N  [expr {int(1.0*$t2/$dt)}]; # sample count
 
-  $apars(osc_dev) cmd block A $NP $N $dt $apars(sigfile)
-  $apars(gen_dev) write *TRG
-  $apars(osc_dev) cmd wait
+  $pars(osc_dev) cmd block A $NP $N $dt $pars(sigfile)
+  $pars(gen_dev) write *TRG
+  $pars(osc_dev) cmd wait
 
-  set ret [exec sig_filter -F $apars(fmin) -G $apars(fmax) -T 0.00003 -f fit $apars(sigfile) ]
+  set ret [exec sig_filter -F $apars(fmin) -G $apars(fmax) -T 0.00003 -f fit $pars(sigfile) ]
 
-  if {$apars(db_dev) != {} && $apars(db_val) !={} } {
-    $apars(db_dev) cmd put $apars(db_val) {*}$ret
-    $apars(db_dev) cmd sync
+  if {$pars(db_dev) != {} && $pars(db_val) !={} } {
+    $pars(db_dev) cmd put $pars(db_val) {*}$ret
+    $pars(db_dev) cmd sync
   }
 
   ## pars results
@@ -280,7 +279,7 @@ proc do_pulse {} {
   pl add_data $time [lrange $ret 1 3]
 
   ## load signal
-  set ncols [sig_load sig $apars(sigfile)]
+  set ncols [sig_load sig $pars(sigfile)]
 
   global sig_x
   set min 0
@@ -290,7 +289,7 @@ proc do_pulse {} {
   sig_ym2 expr -sig_ym1
 
   ## load FFT
-  set ret [exec sig_filter -f fft_pow_lavr -N 10000 $apars(sigfile)]
+  set ret [exec sig_filter -f fft_pow_lavr -N 10000 $pars(sigfile)]
   fft_x set {}
   fft_y set {}
   foreach l [split $ret "\n"] {
@@ -344,7 +343,7 @@ proc do_pulse {} {
 
   ## set up the next measurement if needed
   set t1 [clock milliseconds]
-  set dt [expr int(1000*$apars(del)-$t1+$t0)]
+  set dt [expr int(1000*$pars(del)-$t1+$t0)]
   if {$dt<0} {set dt 0}
 
   # stop measurements
@@ -360,7 +359,7 @@ proc do_pulse {} {
 
 ##################################################
 proc set_state {s} {
-  global st apars
+  global st pars
   set run_btn .meas.m.run
   set stop_btn .stop
 
