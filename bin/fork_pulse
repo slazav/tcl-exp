@@ -158,8 +158,10 @@ proc dev_open {} {
   if {![itcl::is object $pars(gen_dev)]} {
     Device $pars(gen_dev)
     $pars(gen_dev) lock
-    if {! [regexp {^Agilent Technologies,33511B} [$pars(gen_dev) cmd *idn?]]} {
-      error "unsupported gen device (agilent 33511b is needed)"}
+    set id [$pars(gen_dev) cmd *idn?]
+    if {![regexp {,33511B,} $id] && ![regexp {,33509B,} $id]} {
+      error "unsupported gen device (agilent 33509B or 33511B is needed)"}
+    $pars(gen_dev) cmd "OUTP:SYNC ON"
   }
 
   # Open db_dev
@@ -496,7 +498,7 @@ proc mk_tplot_frame {root} {
     -ncols 3\
     -maxn $pars(plot_maxn)\
     -maxt $pars(plot_maxt)\
-    -names {amp width freq}\
+    -names {freq width amp}\
     -plots_x {time freq}\
     -plots_y {{}   width}\
     -use_comm 0
