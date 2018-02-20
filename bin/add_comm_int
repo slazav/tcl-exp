@@ -80,6 +80,9 @@ proc on_res {} {
   .lb activate 0
   .lb selection set 0
   on_sel .lb
+
+  # sync db
+  $dev cmd sync
 }
 
 proc on_add {} {
