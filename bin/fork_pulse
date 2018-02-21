@@ -19,6 +19,7 @@ set default_pars {
 
   time 5     {record time}
   tpre 5.0   {pretrigger percent}
+  fstart 3e-6 {fit starting time, s}
   rate 1e5   {record sampling rate}
   sc   1     {oscilloscope range}
 
@@ -215,6 +216,8 @@ proc do_pulse {} {
   # open devices if needed
   dev_open
 
+
+
   # setup
   if {$need_setup} {
     set st "Setting parameters..."
@@ -264,7 +267,7 @@ proc do_pulse {} {
   $pars(gen_dev) write *TRG
   $pars(osc_dev) cmd wait
 
-  set ret [exec sig_filter -F $apars(fmin) -G $apars(fmax) -T 0.00003 -f fit $pars(sigfile) ]
+  set ret [exec sig_filter -F $apars(fmin) -G $apars(fmax) -T $apars(fstart) -f fit $pars(sigfile) ]
 
   if {$pars(db_dev) != {} && $pars(db_val) !={} } {
     $pars(db_dev) cmd put $pars(db_val) {*}$ret
@@ -311,7 +314,7 @@ proc do_pulse {} {
     }
     ## adjust record time if needed
     if {$apars(tadj)} {
-      set apars(time) [format %.3f [expr {$apars(tx)/$rtau}]]
+      set apars(time) [format %.3e [expr {$apars(tx)/$rtau}]]
       if {$apars(time) < $apars(tmin)} {set apars(time) $apars(tmin)}
       if {$apars(time) > $apars(tmax)} {set apars(time) $apars(tmax)}
       set pars(time) $apars(time)
@@ -537,6 +540,7 @@ proc mk_pars_frame {root} {
   foreach {v title} {
         time "Record time, s"
         tpre "Pretrigger, %"
+        fstart "Fit starting time, s"
         rate "Sampling rate, Hz"
         } {
     mk_entry $w.${v} pars($v) $title
