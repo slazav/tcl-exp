@@ -1,0 +1,35 @@
+# configuration for heat switch
+
+name     {Gradient coil}        # program title
+ps_dev      TEST                # 1st power supply device
+ps_dev2     {}                  # 2nd power supply device
+antipar     0                   # anti-parallel connection
+gauge_dev   {}                  # measure device
+ovp           5                 # overvoltage protection, V
+ramp_tstep    1                 # ramping time step
+idle_tstep    600               # idle time step
+maxI          0.65              # max current, A
+minI          0                 # min current, A
+max_rate      0.02              # max rate, A/s
+def_rate      0.01              # default rate, A/s
+skip          0                 # do not write points if current was not set
+
+# db       db_exp                 # db device
+# db_val   drydemag/sweep_hs      # database for sweeper values
+# db_ann   drydemag/sweep_hs_a    # database for sweeper annotations
+# db_comm  drydemag/comments      # database for high-level comments
+
+interface_type  grad    # interface control type: nmr, grad, hs
+plot_ncols    4        # number of columns in the plot
+plot_maxt     600      # max time span in the plot
+plot_maxn     0        # max number of points in the plot
+plot_names    {Imeas Iset V R}  # column names
+plot_titles   {}                # column titles
+plot_colors   {red magenta darkcyan brown}  # column colors
+plot_hides    {0 1 1 0}         # column hides
+plot_logs     {}       # column log scales
+plot_fmts     {}       # column format settings
+plot_comm     1        # use comment in the plot
+plots_x    {time}      # x data for plots
+plots_y    {{}}        # y data for plots
+plots_zst  {x}         # zoom styles for plots
