@@ -97,6 +97,7 @@ proc set_limits {v1 v2} {
 }
 proc set_ulimit {v} { set_limits $::dest1 $v }
 proc set_llimit {v} { set_limits $v $::dest2 }
+proc get_dir {} { return [sweeper get_dir] }
 
 proc sweep {dir wait} {
   if {$::state == 0} {return}

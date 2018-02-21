@@ -398,8 +398,11 @@ itcl::class SweepController {
   # get measured value
   method get_mval {} { return $mval }
 
+  # get destination
   method get_dest {} { return [expr {$dir>0? $maxlim:$minlim}] }
 
+  # get direction (-1,0,1)
+  method get_dir {} { return $dir }
 
   ######################################
   # reset device and stop sweep

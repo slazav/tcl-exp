@@ -16,6 +16,7 @@ proc usage {} {
       get_current  -- get measured current value
       get_limits   -- get current limits
       get_rate     -- get rate value
+      get_dir      -- get sweep direction (-1,0,1)
       set_limits <v1> <v2>    -- set current limits
       set_rate   <r>          -- set rate
       sweep_start [<dir>] [<stop>] -- go in the direction <dir> and stop there if <stop>
@@ -64,6 +65,10 @@ if {$cmd == "get_rate"} {
   exit 0
 }
 
+if {$cmd == "get_dir"} {
+  puts [send $app get_dir]
+  exit 0
+}
 
 if {$cmd == "set_rate"} {
   set rate [lindex $argv 2]
@@ -103,6 +108,8 @@ if {$cmd == "go_down"} {
   send $app sweep -1 1
   exit 0
 }
+
+puts "Unknown commend: $cmd"
 
 
 ######################################################################
