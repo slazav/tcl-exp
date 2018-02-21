@@ -20,7 +20,7 @@ db_comm  {}                     # database for high-level comments
 
 interface_type  nmr    # interface control type: nmr, grad, hs
 plot_ncols    6        # number of columns in the plot
-plot_maxt     600      # max time span in the plot
+plot_maxt     3600     # max time span in the plot
 plot_maxn     0        # max number of points in the plot
 plot_names    {Iset Imeas V R X Y}  # column names
 plot_titles   {}        # column titles
