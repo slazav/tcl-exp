@@ -132,6 +132,8 @@ itcl::class TimePlot {
     xblt::measure    $graph
     xblt::readout    $graph -variable v_readout -active 1;
     xblt::scroll     $graph $scroll -timefmt 1
+    xblt::zoomstack  $graph -scrollbutton 2 -axes x -recttype x
+    xblt::elemop     $graph
 
     if {$use_comm == 1} {xblt::xcomments $graph -interactive 0}
 
@@ -183,10 +185,10 @@ itcl::class TimePlot {
     # x - zoom only x axis, drag plots in y independently
     set zstyle  [lindex $zstyles $i];
     if {$zstyle == {xy}} {
-      xblt::zoomstack  $graph -scrollbutton 2 -axes "$xaxis y" -recttype xy
+      xblt::zoomstack  $graph -usemenu 0 -scrollbutton 2 -axes "$xaxis y" -recttype xy
     }\
     else {
-      xblt::zoomstack  $graph -scrollbutton 2 -axes $xaxis -recttype x
+      xblt::zoomstack  $graph -usemenu 0 -scrollbutton 2 -axes $xaxis -recttype x
       xblt::elemop     $graph
     }
 
