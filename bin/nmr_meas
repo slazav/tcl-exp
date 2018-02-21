@@ -7,11 +7,13 @@ package require xBlt
 package require itcl
 package require Exp
 
+set Device::sync 1
+
 ### parameters
 
 set par_list [list \
-  gen_dev   {gen0}   {2-ch generator}\
-  gauge_dev {lockin0:XY} {Lock-in device name}\
+  gen_dev   {dgen2}   {2-ch generator}\
+  gauge_dev {lockin1:XY} {Lock-in device name}\
   db_dev         db_exp      {db device}\
   db_nmr_lockin  drydemag/nmr_lockin {database for nmr lockin parameters (range, tconst)}\
   db_nmr_gen     drydemag/nmr_gen    {database for nmr generator parameters (exc_amp, exc_ph, comp_amp, comp_ph)}\
