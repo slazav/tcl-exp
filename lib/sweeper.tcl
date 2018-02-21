@@ -336,10 +336,10 @@ itcl::class SweepController {
     # Sweep method is different for parallel and for anti-parallel
     # power supply connection. First is used for accurate sweep with low-range
     # second device. We should always sweep ch2 first if it is possible.
-    # In the anti-parallel connection we want to sweep first the device which
-    # has opposite sign then the destination.
+    # In the anti-parallel connection we want to sweep first the 
+    # device-2 when we go up and device-1 when we go down
 
-    if {$antipar && [get_dest]<0} {
+    if {$antipar && $dir<0} {
       sweep_ch1 $c
       sweep_ch2 $c
     }\
