@@ -230,7 +230,7 @@ proc make_control {root} {
     entry $root.g1.rate -width 6 -textvariable ::rate
     label $root.g1.urate -text "(A/s) "
     button $root.g1.gu   -text "Go"   -pady 3 -command {sweep_to2}
-    button $root.g1.gd   -text "To Zero" -pady 3 -command {set_ulimit 0; sweep_to2}
+    button $root.g1.gd   -text "To Zero" -pady 3 -command {set_limits 0 0; sweep_to2}
     button $root.g1.st   -text "Stop" -pady 3 -command stop
     grid $root.g1.ldest2 $root.g1.dest2 $root.g1.udest2\
          $root.g1.lrate $root.g1.rate $root.g1.urate\
