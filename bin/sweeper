@@ -168,7 +168,7 @@ proc on_new_val {t cm cs vm {m 0}} {
   set ::current    [format "%.5f" $cm]
   set ::resistance [format "%.3f" [expr { $cm>0? $vm/$cm:0} ]]
   set ::dev_status [sweeper get_stat]
-  time_plot add_data $t [list $cm $cs $vm $::resistance {*}$m]
+  time_plot add_data [list $t $cm $cs $vm $::resistance {*}$m]
   return
 }
 

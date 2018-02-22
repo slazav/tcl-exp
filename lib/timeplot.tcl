@@ -249,16 +249,16 @@ itcl::class TimePlot {
 
   ##########################################################
   # add data to plot
-  method add_data {t data} {
+  method add_data {data} {
 
     # add zeros to data if needed
-    for {set i [llength $data]} {$i < $ncols} {incr i} {
+    for {set i [llength $data]} {$i < [expr $ncols+1]} {incr i} {
       lappend data 0 }
 
     # add data to BLT vectors
-    "$this:T" append $t
+    "$this:T" append [lindex $data 0]
     for {set i 0} {$i < $ncols} {incr i} {
-      "$this:D$i" append [lindex $data $i] }
+      "$this:D$i" append [lindex $data [expr $i+1]] }
 
     # remove old values:
     if {$maxn > 0 } {

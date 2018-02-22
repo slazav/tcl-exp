@@ -34,7 +34,7 @@ proc add {} {
   set d1 [expr rand()]
   set d2 [expr rand()]
 
-  pl add_data $t [list $x $d1 $d2]
+  pl add_data [list $t $x $d1 $d2]
   after 200 add
 }
 

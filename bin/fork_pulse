@@ -281,7 +281,7 @@ proc do_pulse {} {
   set amp  [format %.6f [expr {1000*[lindex $ret 3]}]]
 
   ## push data to the time plot
-  pl add_data $time [lrange $ret 1 3]
+  pl add_data $ret
 
   ## load signal
   set ncols [sig_load sig $pars(sigfile)]

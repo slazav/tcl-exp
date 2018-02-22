@@ -1,7 +1,7 @@
 Create a timeplot:
 
 * `TimePlot <name> <window name> <options>` -- create a timeplot
-* `<name> add_data <time> <data list>` -- add data
+* `<name> add_data <data list>` -- add data
 * `<name> add_comment <time> <text>` -- add comment
 
 Timeplot options:
