@@ -56,12 +56,12 @@ if {$cmd == "get_current"} {
 }
 
 if {$cmd == "get_limits"} {
-  puts "[send $app set dest1] [send $app set dest2]"
+  puts "[send $app get_limits]"
   exit 0
 }
 
 if {$cmd == "get_rate"} {
-  puts [send $app set rate]
+  puts [send $app get_rate]
   exit 0
 }
 

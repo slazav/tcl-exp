@@ -30,6 +30,8 @@ package require xBlt
 #  get_colt {}  -- get measured voltage (from the last loop step)
 #  get_stat {}  -- get device status
 #  get_mval {}  -- get gauge data
+#  get_dir  {}  -- get direction (-1,0,1)
+#  get_rate {}  -- get rate
 #  reset {}     -- reset devices
 
 #  set_limits     -- set sweep limits
@@ -399,10 +401,16 @@ itcl::class SweepController {
   method get_mval {} { return $mval }
 
   # get destination
-  method get_dest {} { return [expr {$dir>0? $maxlim:$minlim}] }
+  method get_dest {} {
+    if {$dir==0} {return [get_scurr]}
+    return [expr {$dir>0? $maxlim:$minlim}]
+  }
 
   # get direction (-1,0,1)
   method get_dir {} { return $dir }
+
+  # get rate
+  method get_rate {} { return $rate }
 
   ######################################
   # reset device and stop sweep
