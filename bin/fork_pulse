@@ -143,7 +143,7 @@ proc mk_empty {w} {
 ##################################################
 # open devices if needed and update range list
 proc dev_open {} {
-  global pars
+  global pars need_setup
 
   # open osc_dev
   if {$pars(osc_dev) == {} } { error "osc_dev is empty" }
