@@ -155,7 +155,7 @@ itcl::class SweepController {
     }
 
     # Open database if needed
-    if {$db_dev != {} } { Device $db_dev }
+    if {$db_dev != {} && [itcl::find objects $db_dev]=={}} { Device $db_dev }
 
     # reset the device and starm main loop
     set tstep $idle_tstep
@@ -298,11 +298,11 @@ itcl::class SweepController {
     # are we outside the limits?
     if {$cs1+$cs2 > $maxlim && $dir>0} {
        set dir -1
-       set msg "sweep to [get_dest] A"
+       set msg "sweep [expr {$dir>0?{up}:{down}}] with rate $rate A/s"
     }
     if {$cs1+$cs2 < $minlim && $dir<0} {
       set dir +1
-      set msg "sweep to [get_dest] A"
+      set msg "sweep [expr {$dir>0?{up}:{down}}] with rate $rate A/s"
     }
 
     # set current step we need
@@ -463,14 +463,22 @@ itcl::class SweepController {
     if {![string is integer $dir_]} {error "non-integer dir (should be 1 or -1): $dir_"}
     if {![string is integer $wait_at_dest_]} {error "non-integer wait flag (should be 0 or 1): $wait_at_dest_"}
 
+    # rate should be positive, dir should be -1 or +1
+    set rate_ [expr abs($rate_)]
+    set dir_ [expr {$dir_>=0? 1:-1}]
+
     # if no parameter is changing, do nothing
     if {$dir==$dir_ && $wait_at_dest==$wait_at_dest_ && $rate==$rate_} {return}
 
+    # if rate or direction is changing, put a message
+    if {$rate != $rate_ || $dir!=$dir_} {
+      set msg "sweep [expr {$dir_>0?{up}:{down}}] with rate $rate_ A/s"
+    }
+
     # change parameters and restart the loop
     set wait_at_dest $wait_at_dest_
-    set rate [expr abs($rate_)]
-    set dir [expr {$dir_>=0? 1:-1}]
-    set msg "sweep to [get_dest] A"
+    set rate $rate_
+    set dir $dir_
     set t_set 0
     loop_restart
     return
