@@ -15,7 +15,7 @@ set default_pars {
   min_volt   {}  {max voltage}
   resistance  0  {resistance}
   v_units    {V} {V, mV}
-  p_units    {W} {W, mW, uW, pW}
+  p_units    {W} {W, mW, uW, nW, pW}
 
   mon_int     0 {monitoring time step, s}
   volt_dev   {} {dc_source device}
@@ -42,7 +42,8 @@ if {$pars(v_units)=={mV}} { set v_k 1e-3 }
 if {$pars(v_units)=={uV}} { set v_k 1e-6 }
 if {$pars(p_units)=={mW}} { set p_k 1e-3 }
 if {$pars(p_units)=={uW}} { set p_k 1e-6 }
-if {$pars(p_units)=={pW}} { set p_k 1e-9 }
+if {$pars(p_units)=={nW}} { set p_k 1e-9 }
+if {$pars(p_units)=={pW}} { set p_k 1e-12 }
 
 wm title . "heater: $pars(name)"
 tk appname "heater: $pars(name)"
@@ -131,7 +132,7 @@ proc make_control {root} {
   frame $root.g1;  # go frame
   label $root.g1.ldest -text "destination: " -padx 2 -pady 2
   entry $root.g1.dest  -width 10 -textvariable ::dest
-  label $root.g1.udest -text " $::pars(v_units), "
+  label $root.g1.udest -text " $::pars(v_units) "
   button $root.g1.go   -text "Go"   -pady 3 -command {set_volt $::dest}
 
   grid $root.g1.ldest $root.g1.dest $root.g1.udest $root.g1.go -sticky w -padx 3

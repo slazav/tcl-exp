@@ -1,7 +1,8 @@
 name {NS}
 volt_dev    pst3
-v_units     V
+resistance 1056
+v_units     mV
+p_units     nW
 max_volt    1
-
 db_dev      db_exp
 db_val      drydemag/heater_ns
