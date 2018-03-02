@@ -1,0 +1,7 @@
+name {Cold Amp}
+volt_dev    pst4
+v_units     V
+max_volt    5
+
+db_dev      db_exp
+db_val      drydemag/volt_coldamp

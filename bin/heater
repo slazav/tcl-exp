@@ -1,0 +1,162 @@
+#!/usr/bin/wish
+
+## Interface for heaters
+
+package require DeviceRole
+package require Exp
+
+######################################################
+### Read parameters from configuration file
+
+set default_pars {
+  name       {Default} {program title}
+
+  max_volt   {}  {max voltage}
+  min_volt   {}  {max voltage}
+  resistance  0  {resistance}
+  v_units    {V} {V, mV}
+  p_units    {W} {W, mW, uW, pW}
+
+  mon_int     0 {monitoring time step, s}
+  volt_dev   {} {dc_source device}
+  db_dev     {} {database device (can be empty)}
+  db_val     {} {database name for numerical values}
+}
+
+if {[llength $argv]>0 } {
+  read_conf [lindex $argv 0] pars $default_pars
+}\
+else {
+  foreach {name def title} $default_pars { set pars($name) $def }
+}
+
+# global parameters
+set dest    0
+set voltage 0
+set power   0
+set dev {}
+
+set v_k 1
+set p_k 1
+if {$pars(v_units)=={mV}} { set v_k 1e-3 }
+if {$pars(v_units)=={uV}} { set v_k 1e-6 }
+if {$pars(p_units)=={mW}} { set p_k 1e-3 }
+if {$pars(p_units)=={uW}} { set p_k 1e-6 }
+if {$pars(p_units)=={pW}} { set p_k 1e-9 }
+
+wm title . "heater: $pars(name)"
+tk appname "heater: $pars(name)"
+
+##########################################################
+## a few things for the interface
+set control_widgets {}; # list of widgets to be enabled/disabled
+
+proc enable {v} {
+  foreach w $::control_widgets {
+    foreach ch [winfo children $w] {
+      $ch configure -state [expr {$v?{normal}:{disabled}}]
+    }
+  }
+}
+
+set dev {}
+proc do_onoff {state} {
+  global dev
+  if {$state == 0} {
+    if {$dev!={}} {
+      itcl::delete object $dev
+      set dev {}
+    }
+  }\
+  else {
+    if {$::pars(volt_dev)!={}} {
+      set dev [DeviceRole $::pars(volt_dev) dc_source]
+      measure
+    }
+  }
+  enable $state
+  set ::state $state
+}
+
+proc measure {} {
+  global dev pars voltage power v_k p_k
+
+  if {$dev=={}} return
+  set v [$dev get_volt]
+  set voltage [format %.3f [expr {$v/$v_k}]]
+  if {$pars(resistance)>0} {
+    set power [format %.3f [expr {$v**2/$pars(resistance)/$p_k}]] }
+
+  # put values into db
+  if {$pars(db_dev)!={} && $pars(db_val)!={}} {
+    Device $pars(db_dev)
+    $pars(db_dev) cmd put $pars(db_val) now_s $v
+    itcl::delete object $pars(db_dev)
+  }
+
+  if {$pars(mon_int)>0} { after [expr {int($pars{mon_int}*1000)}] measure }
+}
+
+proc set_volt {v} {
+  global dev dest v_k pars
+
+  if {$dev=={}} return
+  if {$pars(max_volt) != {} && $v*$v_k > $pars(max_volt)} {set v [$pars(max_volt)/$v_k]}
+  if {$pars(min_volt) != {} && $v*$v_k < $pars(min_volt)} {set v [$pars(min_volt)/$v_k]}
+  $dev set_volt [expr {$dest*$v_k}]
+  after 100 measure
+}
+
+##########################################################
+## make interface
+
+proc make_control {root} {
+  labelframe $root -padx 5 -pady 5
+
+  frame $root.m;  # measure frame
+  label $root.m.vV -font {-size 14 -weight bold} -textvariable ::voltage
+  label $root.m.uV -text " $::pars(v_units) " -font {-size 12}
+
+  if {$::pars(resistance)>0} {
+    label $root.m.vW -font {-size 14 -weight bold} -textvariable ::power
+    label $root.m.uW -text " $::pars(p_units) " -font {-size 12}
+    grid $root.m.vV $root.m.uV\
+       $root.m.vW $root.m.uW -sticky w
+  } else {
+    grid $root.m.vV $root.m.uV -sticky w
+  }
+
+  pack $root.m -fill x
+
+  frame $root.g1;  # go frame
+  label $root.g1.ldest -text "destination: " -padx 2 -pady 2
+  entry $root.g1.dest  -width 10 -textvariable ::dest
+  label $root.g1.udest -text " $::pars(v_units), "
+  button $root.g1.go   -text "Go"   -pady 3 -command {set_volt $::dest}
+
+  grid $root.g1.ldest $root.g1.dest $root.g1.udest $root.g1.go -sticky w -padx 3
+  pack $root.g1 -fill x
+  set ::control_widgets [list $root.m $root.g1]
+  enable 0
+
+  frame $root.b;  # button frame
+  checkbutton $root.b.oo -text "on/off" -variable ::state -command {do_onoff $::state}
+  grid $root.b.oo -sticky w
+  pack $root.b -fill x
+}
+
+# program title
+frame .n
+label .n.name   -text "$pars(name)" -font {-size 20}
+pack .n.name -side left -padx 10
+pack .n -anchor w
+
+# controls
+make_control .f
+pack .f -anchor w -fill x -expand 0
+
+##########################################################
+
+
+
+
