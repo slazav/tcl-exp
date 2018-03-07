@@ -1,8 +1,10 @@
 name {NS}
 volt_dev    pst3
 resistance 1056
+gain       0.0111
 v_units     mV
 p_units     nW
 max_volt    1
 db_dev      db_exp
 db_val      drydemag/heater_ns
+mon_int     600

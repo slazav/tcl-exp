@@ -6,3 +6,4 @@ p_units     W
 
 db_dev      db_exp
 db_val      drydemag/heater_4K
+mon_int     600
