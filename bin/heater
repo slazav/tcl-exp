@@ -99,15 +99,15 @@ proc measure {} {
     itcl::delete object $pars(db_dev)
   }
 
-  if {$pars(mon_int)>0} { after [expr {int($pars{mon_int}*1000)}] measure }
+  if {$pars(mon_int)>0} { after [expr {int($pars(mon_int)*1000.0)}] measure }
 }
 
 proc set_volt {v} {
   global dev dest v_k pars
 
   if {$dev=={}} return
-  if {$pars(max_volt) != {} && $v*$v_k > $pars(max_volt)} {set v [$pars(max_volt)/$v_k]}
-  if {$pars(min_volt) != {} && $v*$v_k < $pars(min_volt)} {set v [$pars(min_volt)/$v_k]}
+  if {$pars(max_volt) != {} && $v*$v_k > $pars(max_volt)} {set v [expr $pars(max_volt)/$v_k]}
+  if {$pars(min_volt) != {} && $v*$v_k < $pars(min_volt)} {set v [expr $pars(min_volt)/$v_k]}
   $dev set_volt [expr {$dest*$v_k}]
   after 100 measure
 }
