@@ -1,6 +1,6 @@
-# configuration for heat switch
+# configuration for quadratic coil
 
-name     {Quadratic coil}            # program title
+name     {Quad coil}            # program title
 ps_dev      pst7                # 1st power supply device
 ps_dev2     pst8                # 2nd power supply device
 antipar     1                   # anti-parallel connection

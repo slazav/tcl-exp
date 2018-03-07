@@ -1,4 +1,4 @@
-# configuration for heat switch
+# configuration for gradient coil
 
 name     {Grad coil}            # program title
 ps_dev      pst5                # 1st power supply device
