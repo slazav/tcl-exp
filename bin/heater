@@ -13,7 +13,8 @@ set default_pars {
 
   max_volt   {}  {max voltage}
   min_volt   {}  {max voltage}
-  resistance  0  {resistance}
+  resistance  0  {resistance for power calculations}
+  gain        1  {voltage gain for power calculations}
   v_units    {V} {V, mV}
   p_units    {W} {W, mW, uW, nW, pW}
 
@@ -84,14 +85,17 @@ proc measure {} {
 
   if {$dev=={}} return
   set v [$dev get_volt]
+  set p 0
   set voltage [format %.3f [expr {$v/$v_k}]]
   if {$pars(resistance)>0} {
-    set power [format %.3f [expr {$v**2/$pars(resistance)/$p_k}]] }
+    set p [expr {($v*$pars(gain))**2/$pars(resistance)}]
+    set power [format %.3f [expr {$p/$p_k}]]
+  }
 
   # put values into db
   if {$pars(db_dev)!={} && $pars(db_val)!={}} {
     Device $pars(db_dev)
-    $pars(db_dev) cmd put $pars(db_val) now_s $v
+    $pars(db_dev) cmd put $pars(db_val) now_s $v $p
     itcl::delete object $pars(db_dev)
   }
 
