@@ -592,9 +592,10 @@ itcl::class FreqInt {
     # in case if stop button pressed during measurement
     if {$run_i>$run_npt} {return}
     set amp [expr {hypot([lindex $res 0],[lindex $res 1])}]
+    set t [[clock milliseconds]/1000.0]
     set x [expr [lindex $res 0]]
     set y [expr [lindex $res 1]]
-    setfre_plot add_data [list [clock seconds] $f $x $y $amp]
+    setfre_plot add_data [list $t $f $x $y $amp]
     incr run_i
     set run_handler [after idle $this step]
   }
@@ -623,7 +624,7 @@ itcl::class FreqInt {
     set yv [setfre_plot get_dvec 2]
     if {$::pars(db_dev)!={} && $::pars(db_nmr_res)!={}} {
       for {set i 0} {$i < [$tv length]} {incr i} {
-        $::pars(db_dev) cmd put $::pars(db_nmr_res) now\
+        $::pars(db_dev) cmd put $::pars(db_nmr_res)\
            [$tv index $i] [$fv index $i] [$xv index $i] [$yv index $i]
       }
       $::pars(db_dev) cmd sync
