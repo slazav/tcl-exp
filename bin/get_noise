@@ -42,7 +42,7 @@ xblt::parse_options "get_noise" $argv $options
 
 ## build filter parameters:
 set fpars "-N $nout"
-if {$log == {}} {set fpars "$fpars -f fft_pow_lavr"}\
+if {$log == 1}  {set fpars "$fpars -f fft_pow_lavr"}\
 else            {set fpars "$fpars -f fft_pow_avr"}
 if {$fmin != {}} {set fpars "$fpars -F $fmin"}
 if {$fmax != {}} {set fpars "$fpars -G $fmax"}
