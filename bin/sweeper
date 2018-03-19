@@ -18,10 +18,13 @@ set default_pars {
   ovp           5   {overvoltage protection, V}
   ramp_tstep  0.2   {ramping time step}
   idle_tstep  0.5   {idle time step}
-  maxI          2   {max current, A}
-  minI          0   {min current, A}
-  max_rate     0.01 {max rate, A/s}
-  def_rate    0.001 {default rate, A/s}
+  c_units      A    {current units: A, mA, uA}
+  r_units      A/s  {rate units, A/s, mA/s, uA/s, A/min, mA/min, uA/min, A/h, mA/h, uA/h}
+  maxI          2   {max current, c_units}
+  minI          0   {min current, c_units}
+  max_rate     0.01 {max rate, r_units}
+  def_rate    0.001 {default rate, r_units}
+  gain         1.0  {gain, ratio of solenoid and device currents (if some divider is used)}
   skip         0    {do not write a point if current was not set}
   db           {}   {db device}
   db_val       {}   {database for sweeper values}
@@ -50,6 +53,27 @@ else {
   foreach {name def title} $default_pars { set pars($name) $def }
 }
 
+# Set current multiplier
+set c_k {}
+if {$pars(c_units)=={A}}      { set c_k 1 }
+if {$pars(c_units)=={mA}}     { set c_k 1e-3 }
+if {$pars(c_units)=={uI}}     { set c_k 1e-6 }
+if {$c_k == {}} {error "unknown current units: $pars(c_units)"}
+
+# Set rate multiplier
+set r_k {}
+if {$pars(r_units)=={A/s}}    { set r_k 1 }
+if {$pars(r_units)=={mA/s}}   { set r_k 1e-3 }
+if {$pars(r_units)=={uA/s}}   { set r_k 1e-6 }
+if {$pars(r_units)=={A/min}}  { set r_k [expr 1.0/60]}
+if {$pars(r_units)=={mA/min}} { set r_k [expr 1e-3/60]}
+if {$pars(r_units)=={uA/min}} { set r_k [expr 1e-6/60]}
+if {$pars(r_units)=={A/h}}  { set r_k [expr 1.0/3600]}
+if {$pars(r_units)=={mA/h}} { set r_k [expr 1e-3/3600]}
+if {$pars(r_units)=={uA/h}} { set r_k [expr 1e-6/3600]}
+if {$r_k == {}} {error "unknown rate units: $pars(r_units)"}
+
+
 wm title . "sweeper: $pars(name)"
 tk appname "sweeper: $pars(name)"
 
@@ -65,7 +89,8 @@ SweepController sweeper\
   -db_val     $pars(db_val)\
   -db_ann     $pars(db_ann)\
   -max_volt   $pars(ovp)\
-  -max_rate   $pars(max_rate)\
+  -max_rate   [expr $pars(max_rate)*$r_k]\
+  -gain       $pars(gain)\
   -ramp_tstep $pars(ramp_tstep)\
   -idle_tstep $pars(idle_tstep)\
   -on_new_val on_new_val\
@@ -75,7 +100,7 @@ SweepController sweeper\
 ## interface for external use
 
 set current 0;      ## current value shown in the interface
-set resistance 0;   ## resistance value
+set resistance 0;   ## resistance value in the interface
 set dev_status {};  ## device status string (CC, OV etc)
 
 set state 0;      ## does sweeper work?
@@ -83,34 +108,42 @@ set rate  $pars(def_rate)
 set dest1 $pars(minI)
 set dest2 $pars(maxI)
 
-# set sweep limits
+# set/get sweep limits (A/mA/uA)
 proc set_limits {v1 v2} {
-  global pars
+  global pars c_k
   if {$v1 < $pars(minI)} {set v1 $pars(minI)}
   if {$v1 > $pars(maxI)} {set v1 $pars(maxI)}
   if {$v2 < $pars(minI)} {set v2 $pars(minI)}
   if {$v2 > $pars(maxI)} {set v2 $pars(maxI)}
-  sweeper set_limits $v1 $v2
+  sweeper set_limits [expr $v1*$c_k] [expr $v2*$c_k]
   set l [sweeper get_limits]
-  set ::dest1 [lindex $l 0]
-  set ::dest2 [lindex $l 1]
+  set ::dest1 [expr [lindex $l 0]/$c_k]
+  set ::dest2 [expr [lindex $l 1]/$c_k]
 }
+proc get_limits {} {
+   set l [sweeper get_limits]
+   set v1 [expr [lindex $l 0]/$c_k]
+   set v2 [expr [lindex $l 1]/$c_k]
+   return [list $v1 $v2]
+}
+
 proc set_ulimit {v} { set_limits $::dest1 $v }
 proc set_llimit {v} { set_limits $v $::dest2 }
 proc get_dir  {}   { return [sweeper get_dir] }
-proc get_rate {}   { return [sweeper get_rate] }
-proc get_limits {} { return [sweeper get_limits] }
+proc get_rate {}   { return [expr [sweeper get_rate]/$::r_k] }
 
 proc sweep {dir wait} {
+  global r_k
   if {$::state == 0} {return}
   set_limits $::dest1 $::dest2
-  sweeper go $::rate $dir $wait
+  sweeper go [expr $r_k*$::rate] $dir $wait
 }
 
 proc sweep_to2 {} {
+  global r_k
   if {$::state == 0} {return}
   set_limits $::dest2 $::dest2
-  sweeper go $::rate 1 1
+  sweeper go [expr $r_k*$::rate] 1 1
 }
 
 proc stop {} {
@@ -164,11 +197,11 @@ proc on_new_com {t com} {
 
 ## update values command
 proc on_new_val {t cm cs vm {m 0}} {
-  global pars
-  set ::current    [format "%.5f" $cm]
+  global pars c_k
+  set ::current    [format "%.3f" [expr $cm/$c_k]]
   set ::resistance [format "%.3f" [expr { $cm>0? $vm/$cm:0} ]]
   set ::dev_status [sweeper get_stat]
-  time_plot add_data [list $t $cm $cs $vm $::resistance {*}$m]
+  time_plot add_data [list $t [expr $cm/$c_k] [expr $cm/$c_k] $vm $::resistance {*}$m]
   return
 }
 
@@ -181,7 +214,7 @@ proc make_control {root} {
 
   frame $root.m;  # measure frame
   label $root.m.vI -font {-size 14 -weight bold} -textvariable ::current
-  label $root.m.uI -text " A, " -font {-size 12}
+  label $root.m.uI -text " $::pars(c_units), " -font {-size 12}
   label $root.m.vR -font {-size 14 -weight bold} -textvariable ::resistance
   label $root.m.uR -text " Ohm " -font {-size 12}
   label $root.m.st -font {-size 14 -weight bold} -fg darkgreen -textvariable ::dev_status
@@ -194,13 +227,13 @@ proc make_control {root} {
     frame $root.g1;  # go frame
     label $root.g1.ldest1 -text "destination 1: " -padx 2 -pady 2
     entry $root.g1.dest1  -width 10 -textvariable ::dest1
-    label $root.g1.udest1 -text "(A), "
+    label $root.g1.udest1 -text "($::pars(c_units)), "
     label $root.g1.ldest2 -text "destination 2: " -padx 2 -pady 2
     entry $root.g1.dest2  -width 10 -textvariable ::dest2
-    label $root.g1.udest2 -text "(A), "
+    label $root.g1.udest2 -text "($::pars(c_units)), "
     label $root.g1.lrate -text "rate: " -padx 2 -pady 2
     entry $root.g1.rate -width 6 -textvariable ::rate
-    label $root.g1.urate -text "(A/s) "
+    label $root.g1.urate -text "($::pars(r_units)) "
     grid $root.g1.ldest1 $root.g1.dest1 $root.g1.udest1\
          $root.g1.ldest2 $root.g1.dest2 $root.g1.udest2\
          $root.g1.lrate $root.g1.rate $root.g1.urate\
@@ -228,10 +261,10 @@ proc make_control {root} {
     frame $root.g1;  # go frame
     label $root.g1.ldest2 -text "destination: " -padx 2 -pady 2
     entry $root.g1.dest2  -width 10 -textvariable ::dest2
-    label $root.g1.udest2 -text "(A), "
+    label $root.g1.udest2 -text "($::pars(c_units)), "
     label $root.g1.lrate -text "rate: " -padx 2 -pady 2
     entry $root.g1.rate -width 6 -textvariable ::rate
-    label $root.g1.urate -text "(A/s) "
+    label $root.g1.urate -text "($::pars(r_units)) "
     button $root.g1.gu   -text "Go"   -pady 3 -command {sweep_to2}
     button $root.g1.gd   -text "To Zero" -pady 3 -command {set_limits 0 0; sweep_to2}
     button $root.g1.st   -text "Stop" -pady 3 -command stop
@@ -265,6 +298,12 @@ proc make_control {root} {
 frame .n
 label .n.name   -text "$pars(name)" -font {-size 20}
 pack .n.name -side left -padx 10
+
+if {$pars(gain)!=1} {
+  label .n.gain   -text "(gain: $pars(gain))" -font {-size 20}
+  pack .n.gain -side left -padx 10
+}
+
 pack .n -anchor w
 
 ######################
