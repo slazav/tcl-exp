@@ -1,0 +1,61 @@
+#!/usr/bin/wish
+
+######################################################################
+# Parse and check command line parameters
+
+proc usage {} {
+  puts {
+    heater_cli -- command line interface for controlling a heater command
+
+    Usage: heater_cli <name> <command>
+
+    <name> name of the heater which is set in its configuration file
+    <command>:
+      status: Check status of the heater programs (-1: not running, 0: off, 1:on)
+              All other commands will fail if status != 1
+      get_volt  -- get voltage value
+      set_volt  -- set voltage value
+}
+  exit 1
+}
+
+set name [lindex $argv 0]
+set cmd  [lindex $argv 1]
+
+if {$name == {}} usage
+if {$cmd  == {}} usage
+
+######################################################################
+# Connect to a program and ask for its state
+
+set app "heater: $name"
+
+if {[catch {set stat [send $app set state]}]} { set stat -1 }
+
+if {$cmd == "status"} {
+  puts "$stat"
+  exit 0
+}
+
+if {$stat != 1} {
+  puts stderr "$app is not active"
+  exit 1
+}
+
+if {$cmd == "get_volt"} {
+  puts [send $app set voltage]
+  exit 0
+}
+
+if {$cmd == "set_volt"} {
+puts [lindex $argv 2]
+  send $app set_volt [lindex $argv 2]
+  exit 0
+}
+
+puts "Unknown commend: $cmd"
+
+
+######################################################################
+wm withdraw .
+after idle exit 0
