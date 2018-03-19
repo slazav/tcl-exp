@@ -8,10 +8,13 @@ gauge_dev   lockin1:XY          # measure device
 ovp           5                 # overvoltage protection, V
 ramp_tstep    0.5               # ramping time step
 idle_tstep    0.5               # idle time step
-maxI          1.25              # max current, A
-minI          0                 # min current, A
-max_rate      0.01              # max rate, A/s
-def_rate     0.001              # default rate, A/s
+
+c_units     mA                  # current units
+r_units     mA/s                # rate units
+maxI          1250              # max current, mA
+minI          0                 # min current, mA
+max_rate      10                # max rate, mA/s
+def_rate      1                 # default rate, mA/s
 skip         0                  # do not write points if current was not set
 db       db_exp                 # db device
 db_val   drydemag/sweep_main    # database for sweeper values
@@ -24,7 +27,7 @@ plot_maxt     3600     # max time span in the plot
 plot_maxn     0        # max number of points in the plot
 plot_names    {Imeas Iset V R X Y}  # column names
 plot_titles   {}        # column titles
-plot_colors   {red magenta darkgreen brown   darkcyan blue}       # column colors
+plot_colors   {red magenta darkcyan brown darkgreen blue}       # column colors
 plot_hides    {1 0 1 1 0 0}  # column hides
 plot_logs     {}       # column log scales
 plot_fmts     {}       # column format settings

@@ -2,7 +2,7 @@ name {NS}
 volt_dev    pst3
 resistance 1056
 gain       0.0111
-v_units     V
+v_units     mV
 p_units     nW
 max_volt    30
 db_dev      db_exp

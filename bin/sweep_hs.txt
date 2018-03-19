@@ -1,17 +1,21 @@
 # configuration for heat switch
 
 name     {Heat switch}          # program title
-ps_dev      ps1                 # 1st power supply device
+ps_dev      ps0:3               # 1st power supply device
 ps_dev2     {}                  # 2nd power supply device
 antipar      0                  # anti-parallel connection
 gauge_dev   {}                  # measure device
 ovp           5                 # overvoltage protection, V
 ramp_tstep    1                 # ramping time step
 idle_tstep    600               # idle time step
-maxI          0.65              # max current, A
-minI          0                 # min current, A
-max_rate      0.02              # max rate, A/s
-def_rate      0.01              # default rate, A/s
+
+c_units     mA                  # current units
+r_units     mA/s                # rate units
+maxI          650               # max current, mA
+minI          0                 # min current, mA
+max_rate      30                # max rate, mA/s
+def_rate      20                # default rate, mA/s
+
 skip          0                 # do not write points if current was not set
 db       db_exp                 # db device
 db_val   drydemag/sweep_hs      # database for sweeper values

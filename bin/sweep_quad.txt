@@ -8,10 +8,15 @@ gauge_dev   {}                  # measure device
 ovp           5                 # overvoltage protection, V
 ramp_tstep    0.5               # ramping time step
 idle_tstep    600               # idle time step
-maxI          1.50              # max current, A
-minI         -1.50              # min current, A
-max_rate      0.02              # max rate, A/s
-def_rate      0.01              # default rate, A/s
+
+c_units     mA                  # current units
+r_units     mA/s                # rate units
+maxI          1500              # max current, A
+minI         -1500              # min current, A
+max_rate      50                # max rate, A/s
+def_rate      5                 # default rate, A/s
+gain          0.078748          # current divider
+
 skip          0                 # do not write points if current was not set
 db       db_exp                 # db device
 db_val   drydemag/sweep_quad    # database for sweeper values
