@@ -55,10 +55,7 @@ set control_widgets {}; # list of widgets to be enabled/disabled
 
 proc enable {v} {
   foreach w $::control_widgets {
-    foreach ch [winfo children $w] {
-      $ch configure -state [expr {$v?{normal}:{disabled}}]
-    }
-  }
+    $w configure -state [expr {$v?{normal}:{disabled}}] }
 }
 
 set dev {}
@@ -80,15 +77,19 @@ proc do_onoff {state} {
   set ::state $state
 }
 
+
+set rh {}
+
 proc measure {} {
-  global dev pars voltage power v_k p_k
+  global dev pars voltage power v_k p_k rh
+  after cancel $rh
 
   if {$dev=={}} return
-  set v [$dev get_volt]
+  set v [expr {[$dev get_volt]*$pars(gain)}]
   set p 0
   set voltage [format %.3f [expr {$v/$v_k}]]
   if {$pars(resistance)>0} {
-    set p [expr {($v*$pars(gain))**2/$pars(resistance)}]
+    set p [expr {$v**2/$pars(resistance)}]
     set power [format %.3f [expr {$p/$p_k}]]
   }
 
@@ -99,16 +100,24 @@ proc measure {} {
     itcl::delete object $pars(db_dev)
   }
 
-  if {$pars(mon_int)>0} { after [expr {int($pars(mon_int)*1000.0)}] measure }
+  if {$pars(mon_int)>0} {
+    set dt [expr {int($pars(mon_int)*1000.0)}]
+    set rh [after $dt measure]
+  }
 }
 
 proc set_volt {v} {
   global dev dest v_k pars
 
+
   if {$dev=={}} return
-  if {$pars(max_volt) != {} && $v*$v_k > $pars(max_volt)} {set v [expr $pars(max_volt)/$v_k]}
-  if {$pars(min_volt) != {} && $v*$v_k < $pars(min_volt)} {set v [expr $pars(min_volt)/$v_k]}
-  $dev set_volt [expr {$dest*$v_k}]
+  set real_v [expr {$v*$v_k/$pars(gain)}]
+
+  if {$pars(max_volt) != {} && $real_v > $pars(max_volt)} {set real_v $pars(max_volt)}
+  if {$pars(min_volt) != {} && $real_v < $pars(min_volt)} {set real_v $pars(min_volt)}
+  set dest [expr {$real_v/$v_k*$pars(gain)}]
+
+  $dev set_volt [expr {$dest*$v_k/$pars(gain)}]
   after 100 measure
 }
 
@@ -116,15 +125,16 @@ proc set_volt {v} {
 ## make interface
 
 proc make_control {root} {
+  global pars
   labelframe $root -padx 5 -pady 5
 
   frame $root.m;  # measure frame
   label $root.m.vV -font {-size 14 -weight bold} -textvariable ::voltage
-  label $root.m.uV -text " $::pars(v_units) " -font {-size 12}
+  label $root.m.uV -text " $pars(v_units) " -font {-size 12}
 
-  if {$::pars(resistance)>0} {
+  if {$pars(resistance)>0} {
     label $root.m.vW -font {-size 14 -weight bold} -textvariable ::power
-    label $root.m.uW -text " $::pars(p_units) " -font {-size 12}
+    label $root.m.uW -text " $pars(p_units) " -font {-size 12}
     grid $root.m.vV $root.m.uV\
        $root.m.vW $root.m.uW -sticky w
   } else {
@@ -132,22 +142,31 @@ proc make_control {root} {
   }
 
   pack $root.m -fill x
+  set ::control_widgets [winfo children $root.m]
+
+
+  if {$pars(gain)!=1} {
+    label $root.gain -font {-size 10 -weight bold} -text "Gain: $pars(gain)"
+    pack $root.gain -anchor w
+    lappend ::control_widgets $root.gain
+  }
+
 
   frame $root.g1;  # go frame
   label $root.g1.ldest -text "destination: " -padx 2 -pady 2
   entry $root.g1.dest  -width 10 -textvariable ::dest
-  label $root.g1.udest -text " $::pars(v_units) "
+  label $root.g1.udest -text " $pars(v_units) "
   button $root.g1.go   -text "Go"   -pady 3 -command {set_volt $::dest}
 
   grid $root.g1.ldest $root.g1.dest $root.g1.udest $root.g1.go -sticky w -padx 3
   pack $root.g1 -fill x
-  set ::control_widgets [list $root.m $root.g1]
-  enable 0
+  lappend ::control_widgets {*}[winfo children $root.g1]
 
   frame $root.b;  # button frame
   checkbutton $root.b.oo -text "on/off" -variable ::state -command {do_onoff $::state}
   grid $root.b.oo -sticky w
   pack $root.b -fill x
+  enable 0
 }
 
 # program title
