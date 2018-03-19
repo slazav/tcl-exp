@@ -15,6 +15,7 @@ package require xBlt
 # -a -db_ann      -- database name for annatations
 # -v -max_volt    -- max voltage, V (default 1)
 # -m -max_rate    -- max rate, A/S (default 1)
+# -g -gain        -- gain, ratio of solenoid current and device current (default 1)
 # -r -ramp_tstep  -- ramping time step, s (default 1)
 # -i -idle_tstep  -- idle time step, s (default 10)
 # -s -skip        -- do not write points if current was not set (0)
@@ -69,6 +70,7 @@ itcl::class SweepController {
   variable db_ann
   variable max_volt
   variable max_rate
+  variable gain;
   variable ramp_tstep
   variable idle_tstep
   variable skip
@@ -108,6 +110,7 @@ itcl::class SweepController {
       {-a -db_ann}   db_ann   {}\
       {-v -max_volt} max_volt {1}\
       {-m -max_rate} max_rate {1}\
+      {-g -gain}     gain     {1.0}\
       {-r -ramp_tstep} ramp_tstep {1}\
       {-i -idle_tstep} idle_tstep {10}\
       {-s -skip}     skip     {0}\
@@ -128,18 +131,18 @@ itcl::class SweepController {
     if {$ps_dev1  == {} } { error "ps_dev1 is empty" }
     set dev1 [DeviceRole $ps_dev1 power_supply]
 #    $dev1 lock
-    set min_i_step [$dev1 cget -min_i_step]
-    set max_i [$dev1 cget -max_i]
-    set min_i [$dev1 cget -min_i]
+    set min_i_step [expr [$dev1 cget -min_i_step]*$gain]
+    set max_i [expr [$dev1 cget -max_i]*$gain]
+    set min_i [expr [$dev1 cget -min_i]*$gain]
 
     # open secons PS device if needed
     if {$ps_dev2 != {}} {
       if {$ps_dev1 == $ps_dev2} {error "same device for both channels"}
       set dev2 [DeviceRole $ps_dev2 power_supply]
 #      $dev2 lock
-      set min_i_step2 [$dev2 cget -min_i_step]
-      set max_i2 [$dev2 cget -max_i]
-      set min_i2 [$dev2 cget -min_i]
+      set min_i_step2 [expr [$dev2 cget -min_i_step]*$gain]
+      set max_i2 [expr [$dev2 cget -max_i]*$gain]
+      set min_i2 [expr [$dev2 cget -min_i]*$gain]
       if {$antipar} {
         set max_i2 [expr {-[$dev2 cget -min_i]}]
         set min_i2 [expr {-[$dev2 cget -max_i]}]
@@ -237,9 +240,9 @@ itcl::class SweepController {
     if {$dir != 0} { step }
 
     # measure all values
-    set cm1 [ $dev1 get_curr ]
+    set cm1 [expr {[$dev1 get_curr]*$gain}]
     if {$dev2 != {}} {
-      set cm2 [$dev2 get_curr]
+      set cm2 [expr {[$dev2 get_curr]*$gain}]
       if {$antipar} {set cm2 [expr -$cm2]}
     }\
     else {set cm2 0}
@@ -360,8 +363,8 @@ itcl::class SweepController {
     if {$v > $max_i2} {set v $max_i2}
     # is step is too small?
     if { abs($v-$cs2) > $min_i_step2 || $dir==0 } {
-      if {$antipar} { $dev2 set_curr [expr -$v] }\
-      else {$dev2 set_curr $v}
+      if {$antipar} { $dev2 set_curr [expr -$v/$gain] }\
+      else {$dev2 set_curr [expr $v/$gain]}
       set cs2 $v
       set changed 1
       set t_set [clock millisecond]
@@ -375,7 +378,7 @@ itcl::class SweepController {
     if {$v > $max_i} {set v $max_i}
     # is step is too small?
     if { abs($v-$cs1) > $min_i_step || $dir==0 } {
-      $dev1 set_curr $v
+      $dev1 set_curr [expr $v/$gain]
       set cs1 $v
       set changed 1
       set t_set [clock millisecond]
@@ -421,9 +424,9 @@ itcl::class SweepController {
       $dev2 set_ovp $max_volt
       $dev2 cc_reset
     }
-    set cs1 [ $dev1 get_curr ]
+    set cs1 [expr {[$dev1 get_curr]*$gain}]
     if {$dev2 != {}} {
-      set cs2 [$dev2 get_curr]
+      set cs2 [expr {[$dev2 get_curr]*$gain}]
       if {$antipar} {set cs2 [expr -$cs2]}
     }\
     else {set cs2 0}
