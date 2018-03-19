@@ -37,14 +37,21 @@ set voltage 0
 set power   0
 set dev {}
 
-set v_k 1
-set p_k 1
+# Set voltage-unit multiplier
+set v_k {}
+if {$pars(v_units)=={V}}  { set v_k 1.0 }
 if {$pars(v_units)=={mV}} { set v_k 1e-3 }
 if {$pars(v_units)=={uV}} { set v_k 1e-6 }
+if {$v_k == {}} {error "unknown voltage units: $pars(v_units)"}
+
+# Set power-unit multiplier
+set p_k {}
+if {$pars(p_units)=={W}}  { set p_k 1.0 }
 if {$pars(p_units)=={mW}} { set p_k 1e-3 }
 if {$pars(p_units)=={uW}} { set p_k 1e-6 }
 if {$pars(p_units)=={nW}} { set p_k 1e-9 }
 if {$pars(p_units)=={pW}} { set p_k 1e-12 }
+if {$p_k == {}} {error "unknown power units: $pars(p_units)"}
 
 wm title . "heater: $pars(name)"
 tk appname "heater: $pars(name)"
@@ -144,14 +151,6 @@ proc make_control {root} {
   pack $root.m -fill x
   set ::control_widgets [winfo children $root.m]
 
-
-  if {$pars(gain)!=1} {
-    label $root.gain -font {-size 10 -weight bold} -text "Gain: $pars(gain)"
-    pack $root.gain -anchor w
-    lappend ::control_widgets $root.gain
-  }
-
-
   frame $root.g1;  # go frame
   label $root.g1.ldest -text "destination: " -padx 2 -pady 2
   entry $root.g1.dest  -width 10 -textvariable ::dest
@@ -173,6 +172,17 @@ proc make_control {root} {
 frame .n
 label .n.name   -text "$pars(name)" -font {-size 20}
 pack .n.name -side left -padx 10
+
+if {$pars(resistance)!={} && $pars(resistance)!=0} {
+  label .n.res  -text "R: $pars(resistance) Ohm"
+  pack .n.res -side left -padx 10
+}
+
+if {$pars(gain)!=1} {
+  label .n.gain   -text "gain: $pars(gain)"
+  pack .n.gain -side left -padx 10
+}
+
 pack .n -anchor w
 
 # controls
