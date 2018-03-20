@@ -277,8 +277,10 @@ itcl::class SweepController {
       set cs1 $cm1
       set cs2 $cm2
       set rate 0
+      set dir 0
         put_comment "current jump to [expr $cs1+$cs2]"
     }
+
 
     if {$dir==0} {set tstep $idle_tstep}\
     else         {set tstep $ramp_tstep}
@@ -373,7 +375,7 @@ itcl::class SweepController {
 
   method sweep_ch1 {c} {
     if { $dev1 == {} } {return}
-    set v [expr {$c-$cs2}];
+    set v [expr {$c-$cs2*($antipar?-1:1)}];
     if {$v < $min_i} {set v $min_i}
     if {$v > $max_i} {set v $max_i}
     # is step is too small?
