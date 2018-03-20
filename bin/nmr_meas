@@ -592,7 +592,7 @@ itcl::class FreqInt {
     # in case if stop button pressed during measurement
     if {$run_i>$run_npt} {return}
     set amp [expr {hypot([lindex $res 0],[lindex $res 1])}]
-    set t [[clock milliseconds]/1000.0]
+    set t [expr [clock milliseconds]/1000.0]
     set x [expr [lindex $res 0]]
     set y [expr [lindex $res 1]]
     setfre_plot add_data [list $t $f $x $y $amp]
