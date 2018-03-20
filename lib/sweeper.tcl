@@ -144,8 +144,8 @@ itcl::class SweepController {
       set max_i2 [expr [$dev2 cget -max_i]*$gain]
       set min_i2 [expr [$dev2 cget -min_i]*$gain]
       if {$antipar} {
-        set max_i2 [expr {-[$dev2 cget -min_i]}]
-        set min_i2 [expr {-[$dev2 cget -max_i]}]
+        set max_i2 [expr {-[$dev2 cget -min_i]*$gain}]
+        set min_i2 [expr {-[$dev2 cget -max_i]*$gain}]
       }
     }
 
