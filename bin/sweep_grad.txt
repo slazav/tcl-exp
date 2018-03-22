@@ -31,9 +31,12 @@ plot_names    {Imeas Iset V R}  # column names
 plot_titles   {}         # column titles
 plot_colors   {red magenta darkcyan brown}  # column colors
 plot_hides    {0 1 1 0}  # column hides
+plot_symbols  {circle circle circle circle}  # plot symbols
+plot_ssizes   {1.5}       # plot symbols
 plot_logs     {}       # column log scales
 plot_fmts     {}       # column format settings
 plot_comm     1        # use comment in the plot
+plot_marker   0        # use marker in the plot
 plots_x    {time}      # x data for plots
 plots_y    {{}}        # y data for plots
 plots_zst  {x}         # zoom styles for plots

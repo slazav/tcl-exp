@@ -39,8 +39,11 @@ set default_pars {
   plot_colors  {}      {column colors}
   plot_hides   {}      {column hides}
   plot_logs    {}      {column log scales}
+  plot_symbols {}      {symbols}
+  plot_ssizes  {}      {symbol sizes}
   plot_fmts    {}      {column format settings}
   plot_comm    1       {use comment in the plot}
+  plot_marker  0       {use marker in the plot}
   plots_x   {time Iset} {x data for plots}
   plots_y   {{} {}}     {y data for plots}
   plots_zst    {}       {zoom styles for plots}
@@ -321,11 +324,14 @@ TimePlot time_plot .tplot\
    -names  $pars(plot_names)\
    -hides    $pars(plot_hides)\
    -logs     $pars(plot_logs)\
+   -symbols  $pars(plot_symbols)\
+   -ssizes   $pars(plot_ssizes)\
    -fmts     $pars(plot_fmts)\
    -plots_x  $pars(plots_x)\
    -plots_y  $pars(plots_y)\
    -zstyles  $pars(plots_zst)\
-   -use_comm $pars(plot_comm)
+   -use_comm   $pars(plot_comm)\
+   -use_marker $pars(plot_marker)
 
 pack .tplot -fill both -expand 1
 

@@ -32,6 +32,7 @@ plot_hides    {1 0 1 1 0 0}  # column hides
 plot_logs     {}       # column log scales
 plot_fmts     {}       # column format settings
 plot_comm     1        # use comment in the plot
+plot_marker   1        # use marker in the plot
 plots_x    {time Iset X}  # x data for plots
 plots_y    {{} {} Y}   # y data for plots
 plots_zst  {x x xy}    # zoom styles for plots
