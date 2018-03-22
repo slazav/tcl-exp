@@ -11,9 +11,11 @@ TimePlot pl .pl\
   -titles {sweep random-1 random2}\
   -plots_x {time X D1 D2}\
   -plots_y {{} {D1 D2} D2 {}}\
+  -symbols {{} circle}\
   -zstyles {x x xy}\
-  -use_comm 1
-pack .pl -expand yes -fill both
+  -use_comm 1\
+  -use_marker 1
+pack .pl -fill both -expand y
 
 
 # parameters for x sweep

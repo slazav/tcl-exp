@@ -14,6 +14,8 @@ itcl::class TimePlot {
   variable colors
   variable hides
   variable logs
+  variable symbols
+  variable ssizes
   variable fmts
   variable maxn
   variable maxt
@@ -21,6 +23,7 @@ itcl::class TimePlot {
   variable plots_y
   variable zstyles
   variable use_comm
+  variable use_marker
 
   variable plot_type
   variable plot_types
@@ -39,12 +42,15 @@ itcl::class TimePlot {
     {-h -hides}    hides    {}\
     {-f -fmts}     fmts     {}\
     {-l -logs}     logs     {}\
+    {-s -symbols}  symbols  {}\
+    {-z -ssizes}   ssizes   {}\
     {-N -maxn}     maxn     0\
     {-T -maxt}     maxt     0\
     {-X -plots_x}  plots_x  {time}\
     {-Y -plots_y}  plots_y  {{}}\
     {-Z -zstyles}  zstyles  {x}\
-    {-C -use_comm}  use_comm 0\
+    {-C -use_comm}   use_comm 0\
+    {-M -use_marker} use_marker 0\
     ]
     xblt::parse_options "timeplot" $args $options
 
@@ -82,6 +88,14 @@ itcl::class TimePlot {
     for {set i [llength $zstyles]} {$i < $ncols} {incr i} {
       lappend zstyles xy }
 
+    # empty symbols by default
+    for {set i [llength $symbols]} {$i < $ncols} {incr i} {
+      lappend symbols {} }
+
+    # symbol size 1.5 by default
+    for {set i [llength $ssizes]} {$i < $ncols} {incr i} {
+      lappend ssizes 1.5 }
+
     # configure interface
     frame $plot
     set graph  $plot.g
@@ -93,7 +107,7 @@ itcl::class TimePlot {
     scrollbar $scroll -orient horizontal
     pack $scroll -fill x
     # clear button
-    button $plot.clear -command "$this clear" -text Clear
+    button $plot.clear -command "$this clear" -text Clear -height 1
     pack $plot.clear -side right -padx 2
     # modes selection
     if {[llength $plots_x] > 0} {
@@ -145,11 +159,18 @@ itcl::class TimePlot {
       set n [lindex $names $i]
       set c [lindex $colors $i]
       set l [lindex $logs $i]
+      set s [lindex $symbols $i]
+      set ss [lindex $ssizes $i]
 
       # for each element we create x$n axis and $n axis
       $graph axis create x$n -title $t -titlecolor black -logscale $l
       $graph axis create $n -title $t -titlecolor black -logscale $l
-      $graph element create $n -symbol circle -pixels 1.5 -color $c -mapy $n
+      $graph element create $n -symbol $s -pixels $ss -color $c -mapy $n
+
+      if {$use_marker} {
+        $graph marker create text -font {helvetica 16} -text *\
+          -yoffset 4 -name $n -element $n -outline $c
+      }
     }
 
     setup_plot
@@ -259,6 +280,18 @@ itcl::class TimePlot {
     "$this:T" append [lindex $data 0]
     for {set i 0} {$i < $ncols} {incr i} {
       "$this:D$i" append [lindex $data [expr $i+1]] }
+
+    # reconfigure markers
+    if {$use_marker} {
+      foreach n [$graph element names *] {
+        set ax [$graph element cget $n -mapx]
+        set ay [$graph element cget $n -mapy]
+        set x [[$graph element cget $n -xdata] index end]
+        set y [[$graph element cget $n -ydata] index end]
+        $graph marker configure $n -coords [list $x $y]\
+          -mapx $ax -mapy $ay
+      }
+    }
 
     # remove old values:
     if {$maxn > 0 } {
