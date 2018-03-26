@@ -94,6 +94,7 @@ SweepController sweeper\
   -max_volt   $pars(ovp)\
   -max_rate   [expr $pars(max_rate)*$r_k]\
   -gain       $pars(gain)\
+  -skip       $pars(skip)\
   -ramp_tstep $pars(ramp_tstep)\
   -idle_tstep $pars(idle_tstep)\
   -on_new_val on_new_val\
