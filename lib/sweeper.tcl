@@ -254,8 +254,14 @@ itcl::class SweepController {
     }\
     else {set vm2 0}
 
+    set st0 0
     set st [ $dev1 get_stat ]
-    if {$dev2 != {}} { set st "$st:[ $dev2 get_stat ]" }
+    if {$st!="CC"} {set st0 1}
+    if {$dev2 != {}} {
+      set st2 [ $dev2 get_stat ]
+      if {$st2!="CC"} {set st0 1}
+      set st "$st:$st2"
+    }
 
     # do measurement if needed
     if {$gdev != {}} { set mval [ $gdev get ] }\
@@ -270,17 +276,18 @@ itcl::class SweepController {
     }
 
     # stop ramping if the real current jumped outside the tolerance
+    # or device status is wrong
     set tolerance  [expr 100*$min_i_step]
     set tolerance2 [expr 100*$min_i_step2]
     if { abs($cm1-$cs1) > $tolerance ||\
-         abs($cm2-$cs2) > $tolerance2} {
+         abs($cm2-$cs2) > $tolerance2 || $st0} {
       set cs1 $cm1
       set cs2 $cm2
       set rate 0
       set dir 0
-        put_comment "current jump to [expr $cs1+$cs2]"
+      if {$st0} { put_comment "device status: $st" }\
+      else { put_comment "current jump to [expr $cs1+$cs2]" }
     }
-
 
     if {$dir==0} {set tstep $idle_tstep}\
     else         {set tstep $ramp_tstep}
