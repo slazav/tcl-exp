@@ -7,7 +7,7 @@ package require xBlt 3
 
 
 set dev db_exp
-set db  drydemag/comments
+set db  drydemag_comments
 
 set lnum 10
 set lst {}

@@ -25,10 +25,10 @@ set par_list [list \
   gen_dev   {dgen2}   {2-ch generator}\
   gauge_dev {lockin1:XY} {Lock-in device name}\
   db_dev         db_exp      {db device}\
-  db_nmr_lockin  drydemag/nmr_lockin {database for nmr lockin parameters (range, tconst)}\
-  db_nmr_gen     drydemag/nmr_gen    {database for nmr generator parameters (exc_amp, exc_ph, comp_amp, comp_ph)}\
-  db_nmr_cal     drydemag/nmr_cal    {database for nmr calibration (exc_gain, exc_turn, comp_gain, comp_turn)}\
-  db_nmr_res     drydemag/nmr_res    {database for nmr resonance curves (fre x y)}\
+  db_nmr_lockin  drydemag_nmr_lockin {database for nmr lockin parameters (range, tconst)}\
+  db_nmr_gen     drydemag_nmr_gen    {database for nmr generator parameters (exc_amp, exc_ph, comp_amp, comp_ph)}\
+  db_nmr_cal     drydemag_nmr_cal    {database for nmr calibration (exc_gain, exc_turn, comp_gain, comp_turn)}\
+  db_nmr_res     drydemag_nmr_res    {database for nmr resonance curves (fre x y)}\
 ]
 
 foreach {name def title} $par_list { set pars($name) $def }

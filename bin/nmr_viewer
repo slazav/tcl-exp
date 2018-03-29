@@ -1,0 +1,79 @@
+#!/usr/bin/wish
+
+## Interface for current sweeper
+
+package require Device 1.2
+package require xBlt 3
+package require Exp
+
+######################################################
+### Read parameters from configuration file
+
+set default_pars {
+  db           {db_exp}   {db device}
+  db_mval      {drydemag_sweep_main}     {database for main sweeper values}
+  db_mann      {drydemag_sweep_main_a}   {database for main sweeper comments}
+  db_gval      {drydemag_sweep_grad}     {database for grad sweeper values}
+  db_gann      {drydemag_sweep_grad_a}   {database for grad sweeper comments}
+  db_qval      {drydemag_sweep_quad}     {database for quad sweeper values}
+  db_qann      {drydemag_sweep_quad_a}   {database for quad sweeper comments}
+  minsweep     {10}   {min sweep length, s}
+  day          {2018-03-22}     {day to show}
+}
+
+if {[llength $argv]>0 } {
+  read_conf [lindex $argv 0] pars $default_pars
+}\
+else {
+  foreach {name def title} $default_pars { set pars($name) $def }
+}
+
+
+######################################################
+### Interface
+
+# control panel
+frame .controls
+
+listbox .controls.sweeps -selectmode browse -exportselection 0 
+pack .controls.sweeps -side top -expand yes -fill both
+
+# go to day button:
+label .controls.dayl -text "Day:"
+entry .controls.day -textvariable pars(day) -width 12
+button .controls.dayg -text Go -command load_data
+pack .controls.dayl .controls.day .controls.dayg -side left -expand no
+
+# graphs
+blt::graph .iplot
+blt::graph .xyplot
+
+TimePlot tplot .tplot\
+  -ncols 5\
+  -names {imeas iset volt X Y}\
+  -hides {1 0 1 0 0}\
+  -use_comm 1
+
+# pack everything together
+pack .tplot -fill both -expand yes
+pack .iplot .xyplot .controls -side left -fill both -expand yes
+
+
+######################################################
+### Data loading
+
+proc load_data {} {
+  global pars nmr_vectors
+  set t1 [clock scan $pars(day) -format "%Y-%m-%d"]
+  set t2 [expr ($t1+3600*24)]
+
+  tplot clear
+
+  foreach line [$pars(db) cmd get_range $pars(db_mval) $t1 $t2] {
+    tplot add_data $line
+  }
+}
+
+
+Device $pars(db)
+load_data
