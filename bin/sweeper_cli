@@ -23,6 +23,7 @@ proc usage {} {
       sweep_stop  -- stop sweeping
       go_up       -- go to the upper limit and stop there (same as sweep_start  1 1)
       go_down     -- go to the lower limit and stop there (same as sweep_start -1 1)
+      go_to  <v> <r>  -- go to <v> with rate <r> and stop there
 }
   exit 1
 }
@@ -106,6 +107,15 @@ if {$cmd == "go_up"} {
 
 if {$cmd == "go_down"} {
   send $app sweep -1 1
+  exit 0
+}
+
+if {$cmd == "go_to"} {
+  set dest [lindex $argv 2]
+  set rate [lindex $argv 3]
+  send $app set_limits $dest $dest
+  send $app set rate $rate
+  send $app sweep 1 1
   exit 0
 }
 
