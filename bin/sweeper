@@ -192,7 +192,7 @@ proc on_new_com {t com} {
   if {[regexp {finished} $com] } {
     if {$::pars(db)!={} && $::pars(db_comm)!={}} {
       Device $::pars(db)
-      $::pars(db) cmd put $::pars(db_comm) now "$::pars(name) -> $::current A"
+      $::pars(db) cmd put $::pars(db_comm) now "$::pars(name) -> $::current $::pars(c_units)"
       itcl::delete object $::pars(db)
     }
   }
