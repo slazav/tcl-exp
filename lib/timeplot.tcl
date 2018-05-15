@@ -337,6 +337,7 @@ itcl::class TimePlot {
 
   ##########################################################
   # get time/data vectors names
-  method get_tvec {} { return "$this:T" }
-  method get_dvec {i} { return "$this:D$i" }
+  method get_tvec  {} { return "$this:T" }
+  method get_dvec  {i} { return "$this:D$i" }
+  method get_graph {} { return $graph }
 }
