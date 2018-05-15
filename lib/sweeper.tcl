@@ -15,7 +15,7 @@ package require xBlt
 # -a -db_ann      -- database name for annatations
 # -v -max_volt    -- max voltage, V (default 1)
 # -m -max_rate    -- max rate, A/S (default 1)
-# -g -gain        -- gain, ratio of solenoid current and device current (default 1)
+# -g -gain        -- gain, ratio of solenoid current and device current (default 1), can be negative
 # -r -ramp_tstep  -- ramping time step, s (default 1)
 # -i -idle_tstep  -- idle time step, s (default 10)
 # -s -skip        -- do not write points if current was not set (0)
@@ -131,21 +131,31 @@ itcl::class SweepController {
     if {$ps_dev1  == {} } { error "ps_dev1 is empty" }
     set dev1 [DeviceRole $ps_dev1 power_supply]
 #    $dev1 lock
-    set min_i_step [expr [$dev1 cget -min_i_step]*$gain]
+    set min_i_step [expr [$dev1 cget -min_i_step]*abs($gain)]
     set max_i [expr [$dev1 cget -max_i]*$gain]
     set min_i [expr [$dev1 cget -min_i]*$gain]
+    if {$gain < 0} {
+      set max_i_ $max_i
+      set max_i [expr $min_i]
+      set min_i [expr $max_i_]
+    }
 
     # open secons PS device if needed
     if {$ps_dev2 != {}} {
       if {$ps_dev1 == $ps_dev2} {error "same device for both channels"}
       set dev2 [DeviceRole $ps_dev2 power_supply]
 #      $dev2 lock
-      set min_i_step2 [expr [$dev2 cget -min_i_step]*$gain]
+      set min_i_step2 [expr [$dev2 cget -min_i_step]*abs($gain)]
       set max_i2 [expr [$dev2 cget -max_i]*$gain]
       set min_i2 [expr [$dev2 cget -min_i]*$gain]
       if {$antipar} {
         set max_i2 [expr {-[$dev2 cget -min_i]*$gain}]
         set min_i2 [expr {-[$dev2 cget -max_i]*$gain}]
+      }
+      if {$gain < 0} {
+        set max_i2_ $max2_i
+        set max_i2 [expr $min_i2]
+        set min_i2 [expr $max_i2_]
       }
     }
 
@@ -239,7 +249,7 @@ itcl::class SweepController {
 
     if {$dir != 0} { step }
 
-    # measure all values
+    # measure current
     set cm1 [expr {[$dev1 get_curr]*$gain}]
     if {$dev2 != {}} {
       set cm2 [expr {[$dev2 get_curr]*$gain}]
@@ -247,13 +257,19 @@ itcl::class SweepController {
     }\
     else {set cm2 0}
 
+    # measure voltage
     set vm1 [ $dev1 get_volt ]
     if {$dev2 != {}} {
       set vm2 [$dev2 get_volt]
       if {$antipar} {set vm2 [expr -$vm2]}
     }\
     else {set vm2 0}
+    if {$gain < 0} {
+      set vm1 [expr -$vm1]
+      set vm2 [expr -$vm2]
+    }
 
+    # get device state
     set st0 0
     set st [ $dev1 get_stat ]
     if {$st!="CC"} {set st0 1}
