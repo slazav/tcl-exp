@@ -19,7 +19,7 @@ proc usage {} {
       get_dir      -- get sweep direction (-1,0,1)
       set_limits <v1> <v2>    -- set current limits
       set_rate   <r>          -- set rate
-      sweep_start [<dir>] [<stop>] -- go in the direction <dir> and stop there if <stop>
+      sweep_start [<dir>] [<n>] -- go in the direction <dir> and do n sweeps (default -1 for infinite sweeps)
       sweep_stop  -- stop sweeping
       go_up       -- go to the upper limit and stop there (same as sweep_start  1 1)
       go_down     -- go to the lower limit and stop there (same as sweep_start -1 1)
@@ -78,6 +78,13 @@ if {$cmd == "set_rate"} {
   exit 0
 }
 
+if {$cmd == "set_sweeps"} {
+  set sweeps [lindex $argv 2]
+  if {$sweeps == {}} { error "sweeps setting is expected"}
+  send $app set sweeps $sweeps
+  exit 0
+}
+
 if {$cmd == "set_limits"} {
   set v1 [lindex $argv 2]
   set v2 [lindex $argv 3]
@@ -88,10 +95,11 @@ if {$cmd == "set_limits"} {
 
 if {$cmd == "sweep_start"} {
   set dir [lindex $argv 2]
-  set stop [lindex $argv 3]
+  set sweeps [lindex $argv 3]
   if {$dir  == {}} {set dir 1}
-  if {$stop == {}} {set stop 0}
-  send $app sweep $dir $stop
+  if {$sweeps == {}} {set sweeps -1}
+  send $app set sweeps $sweeps
+  send $app sweep $dir $sweeps
   exit 0
 }
 

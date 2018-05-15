@@ -108,9 +108,10 @@ set resistance 0;   ## resistance value in the interface
 set dev_status {};  ## device status string (CC, OV etc)
 
 set state 0;      ## does sweeper work?
-set rate  $pars(def_rate)
-set dest1 $pars(minI)
-set dest2 $pars(maxI)
+set sweeps -1;    ## number of sweeps
+set rate   $pars(def_rate)
+set dest1  $pars(minI)
+set dest2  $pars(maxI)
 
 # set/get sweep limits (A/mA/uA)
 proc set_limits {v1 v2} {
@@ -136,11 +137,11 @@ proc set_llimit {v} { set_limits $v $::dest2 }
 proc get_dir  {}   { return [sweeper get_dir] }
 proc get_rate {}   { return [expr [sweeper get_rate]/$::r_k] }
 
-proc sweep {dir wait} {
-  global r_k
-  if {$::state == 0} {return}
-  set_limits $::dest1 $::dest2
-  sweeper go [expr $r_k*$::rate] $dir $wait
+proc sweep {dir n} {
+  global r_k state dest1 dest2 rate
+  if {$state == 0} {return}
+  set_limits $dest1 $dest2
+  sweeper go [expr $r_k*$rate] $dir $n
 }
 
 proc sweep_to2 {} {
@@ -238,15 +239,20 @@ proc make_control {root} {
     label $root.g1.lrate -text "rate: " -padx 2 -pady 2
     entry $root.g1.rate -width 6 -textvariable ::rate
     label $root.g1.urate -text "($::pars(r_units)) "
+    label $root.g1.lsweeps -text "sweeps: " -padx 2 -pady 2
+    entry $root.g1.sweeps -width 6 -textvariable ::sweeps
+
     grid $root.g1.ldest1 $root.g1.dest1 $root.g1.udest1\
-         $root.g1.ldest2 $root.g1.dest2 $root.g1.udest2\
          $root.g1.lrate $root.g1.rate $root.g1.urate\
+       -sticky w
+    grid $root.g1.ldest2  $root.g1.dest2 $root.g1.udest2\
+         $root.g1.lsweeps $root.g1.sweeps\
        -sticky w
     pack $root.g1 -fill x
 
     frame $root.g2;  # go frame
-    button $root.g2.b1   -text "Go down" -padx 10 -pady 3 -command {sweep -1 0}
-    button $root.g2.b2   -text "Go up"   -padx 10 -pady 3 -command {sweep +1 0}
+    button $root.g2.b1   -text "Go down" -padx 10 -pady 3 -command {sweep -1 $::sweeps}
+    button $root.g2.b2   -text "Go up"   -padx 10 -pady 3 -command {sweep +1 $::sweeps}
     button $root.g2.b3   -text "Go back" -padx 10 -pady 3 -command go_back
     button $root.g2.b4   -text "Stop" -padx 10 -pady 3 -command stop
     grid $root.g2.b1 $root.g2.b2 $root.g2.b3 $root.g2.b4 -sticky we -padx 3

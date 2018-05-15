@@ -86,15 +86,15 @@ itcl::class SweepController {
   variable max_i2 0;
 
   # Main loop control parameters
-  variable rate   0; # rate
-  variable minlim 0; # sweep limits
-  variable maxlim 0;
-  variable dir    0; # sweep direction "+1/0/-1"
-  variable t_set  0; # time of last current setting
-  variable wait_at_dest 0; # should we stop at destination
-  variable state 0; # off/on
-  variable msg "";  # message to be logged into database on the next step
-  variable changed 0; # set to 1 if current was changed
+  variable rate     0; # rate
+  variable minlim   0; # sweep limits
+  variable maxlim   0;
+  variable dir      0; # sweep direction "+1/0/-1"
+  variable t_set    0; # time of last current setting
+  variable nsweeps -1; # number of sweeps to do (-1 for infinite)
+  variable state    0; # off/on
+  variable msg     ""; # message to be logged into database on the next step
+  variable changed  0; # set to 1 if current was changed
   variable in_the_loop 0;
 
   ######################################
@@ -349,8 +349,9 @@ itcl::class SweepController {
          ($dir<0 && abs([expr $cs1+$cs2]-$minlim)<abs($di))} {
       set c [expr $dir>0? $maxlim:$minlim]
 
+      if {$nsweeps>0} {set nsweeps [expr $nsweeps-1]}
       # do we want to do back?
-      if {$wait_at_dest || $maxlim == $minlim} {
+      if {$nsweeps==0 || $maxlim == $minlim} {
         set dir 0
         set msg "sweep finished at $c A"
       }\
@@ -481,7 +482,7 @@ itcl::class SweepController {
 
   ######################################
   # go to upper limit and then back
-  method  go {rate_ {dir_ 1} {wait_at_dest_ 0}} {
+  method  go {rate_ {dir_ 1} {nsweeps_ -1}} {
     # if we are outside limits, then no need to change direction
     if {$dir>0 && [get_scurr]<$minlim} {set dir_ $dir}
     if {$dir<0 && [get_scurr]>$maxlim} {set dir_ $dir}
@@ -489,24 +490,22 @@ itcl::class SweepController {
     # if some parameter is non-numeric, return error
     if {[catch {expr {abs($rate_)}}]} {error "non-numeric rate: $rate_"}
     if {![string is integer $dir_]} {error "non-integer dir (should be 1 or -1): $dir_"}
-    if {![string is integer $wait_at_dest_]} {error "non-integer wait flag (should be 0 or 1): $wait_at_dest_"}
+    if {![string is integer $nsweeps_]} {error "non-integer sweep number: $nsweeps_"}
 
     # rate should be positive, dir should be -1 or +1
     set rate_ [expr abs($rate_)]
     set dir_ [expr {$dir_>=0? 1:-1}]
 
-    # if no parameter is changing, do nothing
-    if {$dir==$dir_ && $wait_at_dest==$wait_at_dest_ && $rate==$rate_} {return}
+    # update nsweeps parameter
+    set nsweeps $nsweeps_
 
-    # if rate or direction is changing, put a message
-    if {$rate != $rate_ || $dir!=$dir_} {
-      set msg "sweep [expr {$dir_>0?{up}:{down}}] with rate $rate_ A/s"
-    }
+    # if direction and rate did not changed do nothing
+    if {$dir==$dir_ && $rate==$rate_} { return }
 
     # change parameters and restart the loop
-    set wait_at_dest $wait_at_dest_
     set rate $rate_
     set dir $dir_
+    set msg "sweep [expr {$dir_>0?{up}:{down}}] with rate $rate_ A/s"
     set t_set 0
     loop_restart
     return
