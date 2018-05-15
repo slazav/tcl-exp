@@ -1,0 +1,21 @@
+#!/usr/bin/tclsh
+
+source fit_res.tcl
+package require BLT
+
+set F 523123
+set Q 156
+set A 0.987
+
+blt::vector create fv av
+fv seq 1e4 1e6 100
+#av expr "$A/((exprfv-$F)**2)"
+
+set df2 [expr {$F**2/$Q**2/4}]
+av expr "$A/((fv-$F)^2 + $df2) * $df2"
+
+set res [fit_res fv av]
+puts "F: [lindex $res 0] -- $F"
+puts "Q: [lindex $res 1] -- $Q"
+puts "A: [lindex $res 2] -- $A"
+
