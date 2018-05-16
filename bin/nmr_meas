@@ -29,6 +29,7 @@ set par_list [list \
   db_nmr_gen     drydemag_nmr_gen    {database for nmr generator parameters (exc_amp, exc_ph, comp_amp, comp_ph)}\
   db_nmr_cal     drydemag_nmr_cal    {database for nmr calibration (exc_gain, exc_turn, comp_gain, comp_turn)}\
   db_nmr_res     drydemag_nmr_res    {database for nmr resonance curves (fre x y)}\
+  db_nmr_q       drydemag_nmr_q      {database for nmr reasured resonance parameters (fre q)}\
 ]
 
 foreach {name def title} $par_list { set pars($name) $def }
@@ -493,8 +494,8 @@ itcl::class FreqInt {
   public variable gen_int {}
   public variable lockin_int {}
 
-  public variable resfreq 0
-  public variable qfactor 0
+  public variable resfreq {}
+  public variable qfactor {}
 
   constructor {widget_} {
     set widget $widget_
@@ -569,6 +570,9 @@ itcl::class FreqInt {
     set G [setfre_plot get_graph]
     if {[$G element names fit] != {}} {$G element delete fit}
 
+    # clear olt q/f0 settings
+    set resfreq {}
+    set qfactor {}
     # save values to prevent modifications on the fly
     set run_of  [gen_int cget -fre]
     set run_f1  $fmin
@@ -630,7 +634,7 @@ itcl::class FreqInt {
     set xl [lindex $res 3]
     set xr [lindex $res 4]
     set aa [expr $a0/2.0]
-    set df2 [expr {$f0**2/$q**2/4}]
+    set df [expr {$f0/$q/2}]
 
     set resfreq [format %.2f $f0]
     set qfactor [format %.2f $q]
@@ -639,7 +643,7 @@ itcl::class FreqInt {
     set G [setfre_plot get_graph]
     blt::vector create fitx fity
     fitx seq $xl $xr [expr ($xr-$xl)/100]
-    fity expr {$a0/((fitx-$f0)^2 + $df2)*$df2}
+    fity expr {$a0/sqrt((fitx-$f0)^2 + $df^2)*$df}
 
     $G element create fit -outline black -mapx xFreq -mapy amp\
       -xdata fitx -ydata fity -symbol {}
@@ -659,6 +663,19 @@ itcl::class FreqInt {
       }
       $::pars(db_dev) cmd sync
     }
+
+    # set generator
+    if {$resfreq != {}} {
+      $gen_int configure -fre $resfreq
+      $gen_int apply_exc
+    }
+
+    # write $resfreq and $qfactor into DB
+    if {$::pars(db_dev)!={} && $::pars(db_nmr_q)!={} &&\
+        $resfreq != {} && $qfactor != {} && [$tv length]} {
+      $::pars(db_dev) cmd put $::pars(db_nmr_q) [$tv index 0] $resfreq $qfactor
+    }
+
   }
 
 }
