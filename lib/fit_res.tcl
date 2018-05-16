@@ -1,8 +1,8 @@
 # For a resonance curve (amp vs freq, BLT vectors) find
 # the maximum f0,a0 (using a simple 3-pt quadratic fit)
-# and q-factor Q=f0/df, where df is a width at a0/sqrt(2).
+# and q-factor Q=f0/df, where df is a width at a0*lvl.
 
-proc fit_res {fv av} {
+proc fit_res {fv av {lvl 0.70711}} {
   # find index of point with maximal amplitude
   set maxi 0
   for {set i 0} {$i < [$fv length]} {incr i} {
@@ -25,7 +25,7 @@ proc fit_res {fv av} {
   set a0 [expr {$C-$B**2/$A/4.0}]
 
   # calculate width at 1/2 amplitude
-  set aa [expr {$a0/2.0}]
+  set aa [expr {$a0*$lvl}]
 
   # right side
   set xr {}

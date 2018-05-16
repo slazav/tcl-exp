@@ -11,8 +11,8 @@ blt::vector create fv av
 fv seq 1e4 1e6 100
 #av expr "$A/((exprfv-$F)**2)"
 
-set df2 [expr {$F**2/$Q**2/4}]
-av expr "$A/((fv-$F)^2 + $df2) * $df2"
+set df [expr {$F/$Q/2}]
+av expr "$A/sqrt((fv-$F)^2 + $df^2) * $df"
 
 set res [fit_res fv av]
 puts "F: [lindex $res 0] -- $F"
