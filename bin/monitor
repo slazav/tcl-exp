@@ -75,16 +75,21 @@ proc enable {v} {
 }
 
 proc do_onoff {state} {
-  global dev
+  global dev pars
   if {$state == 0} {
     if {$dev!={}} {
       itcl::delete object $dev
       set dev {}
     }
+    if {[itcl::names object $pars(db_dev)]} {
+      itcl::delete object $pars(db_dev) }
   }\
   else {
     if {$::pars(gauge_dev)!={}} {
-      set dev [DeviceRole $::pars(gauge_dev) gauge]
+      set dev [DeviceRole $pars(gauge_dev) gauge]
+    }
+    if {$pars(db_dev)!={} && $pars(db)!={}} {
+      Device $pars(db_dev)
     }
   }
   enable $state
@@ -115,12 +120,11 @@ proc measure {} {
 
   # put values into db
   if {$pars(db_dev)!={} && $pars(db)!={}} {
-    Device $pars(db_dev)
     if {$pars(cal)!={}} {
       $pars(db_dev) cmd put $pars(db) $time $val $val0 }\
     else {
       $pars(db_dev) cmd put $pars(db) $time $val0 }
-    itcl::delete object $pars(db_dev)
+    $pars(db_dev) cmd sync
   }
 
   if {$pars(dt)>0} {
@@ -192,5 +196,4 @@ pack .tplot -fill both -expand 1
 
 ##########################################################
 
-measure
 
