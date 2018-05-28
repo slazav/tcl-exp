@@ -1,0 +1,11 @@
+# configuration for monitoring cell pressure
+
+name           {3He cell pressure} # program title
+gauge_dev      mult1:DCV         # gauge device
+db_dev         db_exp            # db device
+db             {drydemag_pcell}  # database name
+units          bar               # value units
+dt             1                 # default time step
+
+cal            {1.0+($val+3.6445e-3)/92.264e-3} # calibration function
+
