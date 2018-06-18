@@ -7,7 +7,7 @@ proc fit_res {fv av {lvl 0.70711}} {
   set maxi 0
   for {set i 0} {$i < [$fv length]} {incr i} {
     if {[$av index $i] > [$av index $maxi]} {set maxi $i} }
-  if {$maxi == 0 || $maxi == [$fv length]-1} {"fit_res: can't find maximum"}
+  if {$maxi == 0 || $maxi == [$fv length]-1} {error "fit_res: can't find maximum"}
 
   # calculate maximum (3-pt quadratic fit)
   set f1 [$fv index [expr $maxi-1]]
