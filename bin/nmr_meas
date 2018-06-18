@@ -546,6 +546,9 @@ itcl::class FreqInt {
       -plots_y {{}   Y}
     grid $widget.setfre_pl -columnspan 2
     widget_disable $widget
+
+    # create vectors for fit results
+    blt::vector create fitx fity
   }
 
   method get_widget {} {return $widget}
@@ -593,14 +596,15 @@ itcl::class FreqInt {
 
   # do one step
   method step {} {
-    if {$run_i>$run_npt} {finish; return}
+    if {$run_i>=$run_npt} {finish; return}
     set f [expr {$run_f1 + 1.0*($run_f2-$run_f1)*$run_i/($run_npt-1)}]
+    set f [format %.2f $f]
     $gen_int configure -fre $f
     $gen_int apply_exc
     $lockin_int wait_lock
     set res [$lockin_int get_w]
     # in case if stop button pressed during measurement
-    if {$run_i>$run_npt} {return}
+    if {$run_i>=$run_npt} {return}
     set amp [expr {hypot([lindex $res 0],[lindex $res 1])}]
     set t [expr [clock milliseconds]/1000.0]
     set x [expr [lindex $res 0]]
@@ -627,7 +631,6 @@ itcl::class FreqInt {
     set av [setfre_plot get_dvec 3]
     set res [fit_res $fv $av]
 
-
     set f0 [lindex $res 0]
     set q  [lindex $res 1]
     set a0 [lindex $res 2]
@@ -641,7 +644,6 @@ itcl::class FreqInt {
 
     # draw a fitting curve on the plot
     set G [setfre_plot get_graph]
-    blt::vector create fitx fity
     fitx seq $xl $xr [expr ($xr-$xl)/100]
     fity expr {$a0/sqrt((fitx-$f0)^2 + $df^2)*$df}
 
