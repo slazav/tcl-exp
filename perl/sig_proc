@@ -1,0 +1,773 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+############################################################
+# process an HPD signal
+
+## Options:
+
+##  From cfg:
+##      sig_dir -- folder for original SIG files (.sig)
+##      sigf_dir -- folder for original SIGF files (.sigf)
+##      png_dir -- folder for PNG files
+##      fig_dir -- folder for FIG files
+##      dat_dir -- folder for data files
+##      par_dir -- folder for parameter files
+##      freq_span -- frequency span (3000)
+##      nmr_ph     -- rotate phase of CW NMR signal (0)
+##      verb
+##    for sig_filter:
+##      sfft_win     -- fft window size
+##      png_win      -- fft window size
+##      tmin, tmax -- time span
+##      amin, amax -- amplitude
+##      W, H       -- png image size
+##  From signal:
+##      t0abs -- absolute time of trigger position
+##      t1abs,t2abs -- absolute time of signal begin and end
+##      dt -- time step
+##      t0 -- time of first sample (relative to trigger)
+##      n  -- number of points
+##  From database:
+##      fre -- generator frequency
+##      exc -- excitation amplitude
+##      com -- compensation amplitude
+##      exc_ph -- excitation phase
+##      com_ph -- compensation phase
+##      temp   -- temperature (noise thermometer)
+##      fre_fft -- fft frequency
+##      fmin, fmax -- frequency limits (in fft)
+
+## 
+
+
+############################################################
+## path to sig_filter program
+my $sig_filter = '~/PROG/pico_osc/sig_filter/sig_filter';
+#my $sig_filter = 'sig_filter';
+
+## path to graphene program:
+my $graphene = 'graphene -d /home/exports/DB';
+#my $graphene = 'graphene -d /var/lib/graphene';
+
+
+sub get_nmr {
+  my $t1 = shift;
+  my $t2 = shift;
+  my $x0 = (shift || 0);
+  my $y0 = (shift || 0);
+  my $ph = (shift || 0) * 3.1415926/180;
+
+  # get NMR data from the database
+  open DAT, "$graphene -r get_range drydemag_sweep_main $t1 $t2 |"
+    or die "Can't run graphene program: $!\n";
+
+  my (@T, @I, @X, @Y, @A);
+  foreach (<DAT>){
+    my @arr = split '\s+';
+    push @T, $arr[0];
+    push @I, $arr[2];
+    push @X, $arr[4];
+    push @Y, $arr[5];
+  }
+  close DAT;
+
+  # subtract baseline, calculate maximum
+  my $max =0;
+  $x0 = $X[$#X] if $x0 eq 'auto';
+  $y0 = $Y[$#Y] if $y0 eq 'auto';
+  for (my $i=0; $i<=$#X; $i++){
+    $X[$i] -= $x0;
+    $Y[$i] -= $y0;
+    my $a = sqrt($X[$i]**2 + $Y[$i]**2);
+    push @A, $a;
+    $max = $a if $max < $a;
+  }
+
+  # change phase:
+  if ($ph!=0) {
+    my $cph = cos($ph);
+    my $sph = sin($ph);
+    for (my $i=0; $i<=$#X; $i++){
+      my $x =  $X[$i]*$cph + $Y[$i]*$sph;
+      my $y = -$X[$i]*$sph + $Y[$i]*$cph;
+      $X[$i] = $x;
+      $Y[$i] = $y;
+    }
+  }
+  return (\@T, \@I, \@X, \@Y, \@A, $max);
+}
+
+############################################################
+## Read a configuration from file, set default values.
+## args:
+##    $cfg_file -- file name
+## returns:
+##    %ret -- key-value hash
+##
+## Usage:
+##   my %cfg = read_conf 'Signal.cfg';
+##   my $val = get_conf \%cfg, 'name', 'def';
+sub read_conf{
+  my $cfg_file = shift;
+  my %ret;
+
+  $ret{freq_span} = 3000;
+  $ret{nmr_ph} = 0;
+  $ret{verb} = 0;
+  $ret{sig_dir} = './sig';
+  $ret{sigf_dir} = './sigf';
+  $ret{png_dir} = './png';
+  $ret{fig_dir} = './fig';
+  $ret{dat_dir} = './dat';
+  $ret{par_dir} = './par';
+
+  open CFG, $cfg_file or die "can't open $cfg_file: $!\n";
+
+  foreach (<CFG>){
+    chomp;
+    s/#.*//;
+    next if /^ *$/;
+    $ret{$1}=$2 if /([a-zA-Z0-9_]+): *([^ ]+)/;
+  }
+  close CFG;
+
+  mkdir $ret{sigf_dir};
+  mkdir $ret{par_dir};
+  mkdir $ret{png_dir};
+  mkdir $ret{fig_dir};
+  mkdir $ret{dat_dir};
+  return %ret;
+}
+
+
+############################################################
+## Read signal parameters.
+## args:
+##   $sig -- file with the signal
+##   $pars     -- reference to a parameter structure
+## fields added to pars:
+##      t0abs -- absolute time of trigger position
+##      t1abs,t2abs -- absolute time of signal begin and end
+##      dt -- time step
+##      t0 -- time of first sample (relative to trigger)
+##      n  -- number of points
+sub sig_read_pars{
+  my $sig = shift;
+  my $pars = shift;
+  $sig = "$pars->{sig_dir}/$sig" if $pars->{sig_dir};
+
+  #read signal parameters
+  my ($t0abs, $t0, $dt, $n);
+  open SIG, $sig or die "can't open sig file: $sig: $!\n";
+  while (my $l = <SIG>){
+    chomp $l;
+    last if $l=~/^\*$/;
+    $pars->{t0abs}  = $1 if $l=~/t0abs: *([0-9\.eE+-]+)/;
+    $pars->{dt}     = $1 if $l=~/dt: *([0-9\.eE+-]+)/;
+    $pars->{t0}     = $1 if $l=~/t0: *([0-9\.eE+-]+)/;
+    $pars->{n}      = $1 if $l=~/points: *([0-9\.eE+-]+)/;
+  }
+
+  $pars->{timeS} = $pars->{n}*$pars->{dt};
+  $pars->{t1abs} = sprintf "%.9f", $pars->{t0abs} + $pars->{t0};
+  $pars->{t2abs} = sprintf "%.9f", $pars->{t0abs} + $pars->{t0} + $pars->{timeS};
+
+  if ($pars->{verb}>0) {
+   print "  Reading signal parameters ($sig):\n";
+   print "    t0abs = $pars->{t0abs} -- absolute time of trigger position\n";
+   print "    t1abs = $pars->{t1abs} -- absolute time of first sample\n";
+   print "    t2abs = $pars->{t2abs} -- absolute time of last sample\n";
+   print "    dt    = $pars->{dt} -- time step\n";
+   print "    t0    = $pars->{t0} -- time of first sample (relative to trigger)\n";
+   print "    n     = $pars->{n}  -- number of points\n";
+   print "    timeS = $pars->{timeS} -- signal length in seconds\n";
+  }
+
+  close SIG;
+}
+
+############################################################
+## Get some database parameters
+## args:
+##   $sig -- file with the signal
+##   $pars     -- reference to a parameter structure
+## fields added to pars:
+##      fre -- generator frequency
+##      exc -- excitation amplitude
+##      com -- compensation amplitude
+##      exc_ph -- excitation phase
+##      com_ph -- compensation phase
+##      temp   -- temperature (noise thermometer)
+sub sig_db{
+  my $t0 = shift;
+  my $pars = shift;
+
+  my ($g, $t);
+  # generator parameters:
+  $g = `$graphene get_prev drydemag_nmr_gen $t0`
+    or die "Can't run graphene program: $!\n";
+  ($t, $pars->{fre}, $pars->{exc}, $pars->{exc_ph}, $pars->{com}, $pars->{com_ph}) = split /\s+/, $g;
+
+  # temperature:
+  $g = `$graphene get drydemag_temp $t0`
+    or die "Can't run graphene program: $!\n";
+  ($t, $pars->{temp}) = split /\s+/, $g;
+
+  # calclate fft frequency
+  my $sfre = 1/$pars->{dt}; # sampling freq
+  my $m1 = $pars->{fre} % $sfre;
+  my $m2 = $pars->{fre} % ($sfre/2);
+  $pars->{fre_fft} = ($m1<$sfre/2)? $m2 : $sfre/2-$m2;
+  $pars->{fre_sign} = ($m1<$sfre/2)? 1:-1;
+  $pars->{fmin} = $pars->{fre_fft} - $pars->{freq_span}/2;
+  $pars->{fmax} = $pars->{fre_fft} + $pars->{freq_span}/2;
+
+  if ($pars->{verb}>0) {
+   print "  Some parameters from database:\n";
+   print "    fre    = $pars->{fre} -- generator frequency\n";
+   print "    exc    = $pars->{exc} -- excitation amplitude\n";
+   print "    com    = $pars->{com} -- compensation amplitude\n";
+   print "    exc_ph = $pars->{exc_ph} -- excitation phase\n";
+   print "    com_ph = $pars->{com_ph} -- compensation phase\n";
+   print "    temp   = $pars->{temp}  -- temperature (noise thermometer)\n";
+   print "  FFT freqency:";
+   print "    fre_fft = $pars->{fre_fft}\n";
+  }
+
+  if ($pars->{verb}>0) {
+    print "  Read CW NMR data from database:\n";
+    print "    $#{$pars->{nmr_t}} points\n";
+  }
+
+  # get NMR data from the database
+  ($pars->{nmr_t}, $pars->{nmr_i}, $pars->{nmr_x},
+   $pars->{nmr_y}, $pars->{nmr_a}, $pars->{nmr_max}) =
+    get_nmr($pars->{t1abs}, $pars->{t2abs}, 'auto', 'auto', $pars->{nmr_ph});
+  $pars->{nmr_max}=1 unless $pars->{nmr_max};
+
+  if ($#{$pars->{nmr_i}} > -1) {
+    my $i1 = ${$pars->{nmr_i}}[0];
+    my $i2 = ${$pars->{nmr_i}}[$#{$pars->{nmr_i}}];
+    my $t1 = ${$pars->{nmr_t}}[0];
+    my $t2 = ${$pars->{nmr_t}}[$#{$pars->{nmr_t}}];
+    $pars->{didt} = ($i2-$i1)/($t2-$t1); # time to current
+    $pars->{dfdi} = 405.886*20378/(2*3.1415926); # current to freq
+    $pars->{dfdt} = $pars->{didt}*$pars->{dfdi}; # time to freq shift
+
+    # get normal NMR line
+    if ($pars->{norm_nmr_t1} && $pars->{norm_nmr_t2}) {
+      ($pars->{norm_nmr_t}, $pars->{norm_nmr_i}, $pars->{norm_nmr_x},
+       $pars->{norm_nmr_y}, $pars->{norm_nmr_a}, $pars->{norm_nmr_max}) =
+          get_nmr($pars->{norm_nmr_t1}, $pars->{norm_nmr_t2},
+                  $pars->{norm_nmr_x0}, $pars->{norm_nmr_y0}, $pars->{norm_nmr_ph});
+        $pars->{norm_nmr_max}=1 unless $pars->{norm_nmr_max};
+         # convert current to time:
+        for (my $i=0; $i<= $#{$pars->{norm_nmr_i}}; $i++ ){
+        ${$pars->{norm_nmr_t}}[$i] =
+          $t1 + (${$pars->{norm_nmr_i}}[$i] - $i1) / $pars->{didt};
+      }
+      if ($pars->{verb}>0) {
+        print "  Read Normal 3He CW NMR data from database:\n";
+        print "    $#{$pars->{norm_nmr_i}} points\n";
+        print "    max: $pars->{norm_nmr_max}\n";
+      }
+    }
+
+  }
+
+}
+
+############################################################
+## Find exact frequency, get amplitude values
+sub sig_freq {
+  my $sig = shift;
+  my $pars = shift;
+
+  # fit0, fit1 files
+  my $fit0 = $sig; $fit0=~s/\.sigf?$//; $fit0.='.fit0';
+  my $fit1 = $sig; $fit1=~s/\.sigf?$//; $fit1.='.fit1';
+  $sig  = "$pars->{sig_dir}/$sig" if $pars->{sig_dir};
+  $fit0 = "$pars->{dat_dir}/$fit0" if $pars->{dat_dir};
+  $fit1 = "$pars->{dat_dir}/$fit1" if $pars->{dat_dir};
+
+  if ( ! -f $fit0 ) {
+    my $cmd = $sig_filter .
+            ($pars->{tmin}   ? " -T $pars->{tmin}":"") .
+            ($pars->{tmax}   ? " -U $pars->{tmax}":"") .
+            " -f fit \"$sig\"" .
+            ($pars->{fmin}   ? " -F $pars->{fmin}":"") .
+            ($pars->{fmax}   ? " -G $pars->{fmax}":"") .
+            " > \"$fit0\"";
+
+    if ($pars->{verb}>0) {
+      print "  Fit signal with a single sine wave:\n";
+      print "    $cmd\n";
+    }
+    `$cmd`;
+
+  }
+  open F, $fit0 or die "can't open $fit0: $!\n";
+  my ($t, $fre, $tau, $amp, $ph) = split /\s+/, <F>;
+  close F;
+
+  # fix frequency
+  if ($pars->{verb}>0) {
+#    print "  Fix FFT frequency: $pars->{fre_fft} -> $fre\n";
+  }
+#  $pars->{fre_fft} = $fre;
+  $pars->{fmin} = $pars->{fre_fft} - $pars->{freq_span}/2;
+  $pars->{fmax} = $pars->{fre_fft} + $pars->{freq_span}/2;
+
+
+  # find fit1 file
+
+  if ( ! -f $fit1 ) {
+    my $cmd= $sig_filter .
+           ($pars->{tmin}   ? " -T $pars->{tmin}":"") .
+           ($pars->{tmax}   ? " -U $pars->{tmax}":"") .
+           " -f sfft_int \"$sig\"" .
+           ($pars->{fmin}   ? " -F $pars->{fmin}":"") .
+           ($pars->{fmax}   ? " -G $pars->{fmax}":"") .
+           ($pars->{sfft_win} ? " -w $pars->{sfft_win}":"") .
+           " > \"$fit1\"";
+    if ($pars->{verb}>0) {
+      print "  Get sfft amplitude:\n";
+      print "    $cmd\n";
+    }
+    `$cmd`;
+
+  }
+  open F, $fit1 or die "can't open $fit1: $!\n";
+  $pars->{sfft_t} = [];
+  $pars->{sfft_a} = [];
+  $pars->{sfft_max} = 0;
+  foreach (<F>){
+    my ($t, $a) = split /\s+/;
+    $pars->{sfft_max} = $a if $pars->{sfft_max} < $a;
+    push @{$pars->{sfft_t}}, $t;
+    push @{$pars->{sfft_a}}, $a;
+  }
+  $pars->{sfft_max}=1 if $pars->{sfft_max} == 0;
+  close F;
+
+}
+
+############################################################
+## make sigf
+sub sig_make_sigf {
+  my $sig = shift;
+  my $pars = shift;
+
+  my $sigf = $sig; $sigf=~s/\.sigf?$//; $sigf.='.sigf';
+  $sig  = "$pars->{sig_dir}/$sig" if $pars->{sig_dir};
+  $sigf  = "$pars->{sigf_dir}/$sigf" if $pars->{sigf_dir};
+
+  if ( ! -f $sigf ) {
+    my $cmd= $sig_filter .
+           ($pars->{tmin}   ? " -T $pars->{tmin}":"") .
+           ($pars->{tmax}   ? " -U $pars->{tmax}":"") .
+           " -f sigf \"$sig\"" .
+           ($pars->{fmin}   ? " -F $pars->{fmin}":"") .
+           ($pars->{fmax}   ? " -G $pars->{fmax}":"") .
+           " > \"$sigf\"";
+    if ($pars->{verb}>0) {
+      print "  Create SIGF file:\n";
+      print "    $cmd\n";
+    }
+    `$cmd`;
+  }
+}
+
+############################################################
+## Create PNG picture if it does not exists
+## args:
+##   $sig -- file with the signal
+##   $pars -- configuration hash
+sub sig_make_png {
+  my $sig = shift;
+  my $pars = shift;
+
+  # find png file
+  my $png = $sig; $png=~s/\.sigf?$//; $png.='.png';
+  $sig  = "$pars->{sig_dir}/$sig" if $pars->{sig_dir};
+  $png  = "$pars->{png_dir}/$png" if $pars->{png_dir};
+
+#  $sig = "$pars->{sig_dir}/$sig" if $pars->{sig_dir};
+#  $png = "$pars->{png_dir}/$png" if $pars->{png_dir};
+#  mkdir $pars->{png_dir} unless -d $pars->{png_dir};
+
+  if ( ! -f $png ) {
+    my $cmd= $sig_filter .
+           ($pars->{tmin}   ? " -T $pars->{tmin}":"") .
+           ($pars->{tmax}   ? " -U $pars->{tmax}":"") .
+           " -f sfft_pnm \"$sig\"" .
+           ($pars->{fmin}   ? " -F $pars->{fmin}":"") .
+           ($pars->{fmax}   ? " -G $pars->{fmax}":"") .
+           ($pars->{amin}   ? " -A $pars->{amin}":"") .
+           ($pars->{amax}   ? " -B $pars->{amax}":"") .
+           ($pars->{png_win}? " -w $pars->{png_win}":"") .
+           ($pars->{W}      ? " -W $pars->{W}":"") .
+           ($pars->{H}      ? " -H $pars->{H}":"") .
+           " | pnmtopng > \"$png\"";
+    if ($pars->{verb}>0) {
+      print "  Create PNG file:\n";
+      print "    $cmd\n";
+    }
+    `$cmd`;
+  }
+}
+
+############################################################
+## save manually added  data from fig-file to *.ttxt, *.ftxt
+sub sig_save_fig_data {
+  my $sig = shift;
+  my $pars = shift;
+  my $fig = $sig; $fig=~s/\.sigf?$//; $fig.='.fig';
+  my $ttxt = $sig; $ttxt=~s/\.sigf?$//; $ttxt.='.ttxt';
+  my $ftxt = $sig; $ftxt=~s/\.sigf?$//; $ftxt.='.ftxt';
+
+  $sig  = "$pars->{sig_dir}/$sig" if $pars->{sig_dir};
+  $fig  = "$pars->{fig_dir}/$fig" if $pars->{fig_dir};
+  $ttxt  = "$pars->{dat_dir}/$ttxt" if $pars->{dat_dir};
+  $ftxt  = "$pars->{dat_dir}/$ftxt" if $pars->{dat_dir};
+
+  open FIG, $fig or return;
+  my @time2fig = [0,1];
+  my @freq2fig = [0,1];
+  my @D;
+
+  my $state=-1;
+  my $name='';
+  foreach (<FIG>){
+    # extract conversion parameters:
+    @time2fig = ($1,$2) if /# TIME2FIG:\s+(\S+)\s+(\S+)/;
+    @freq2fig = ($1,$2) if /# FREQ2FIG:\s+(\S+)\s+(\S+)/;
+
+    # switch to a scanning state:
+    $state=0 if /^1200 2/;
+
+    # extract all lines with [A-Z]\S+ comments:
+    if ($state == 2) {
+      push @D, {name=>$name, x1=>$1, y1=>$2, x2=>$3, y2=>$4}
+        if /^\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/;
+      $state=0;
+      $name='';
+    }
+    if ($state==1 && /^2 1 0/) {
+      $state = 2;
+    }
+    if ($state == 0 && /# ([A-Z]\S+)/i) {
+      $state=1;
+      $name=$1;
+    }
+  }
+  close FIG;
+
+  my @T;
+  my @F;
+  foreach my $d (@D){
+    #convert all lines to time-freq coordinates
+    $d->{x1} =  ($d->{x1}-$time2fig[0])/$time2fig[1];
+    $d->{x2} =  ($d->{x2}-$time2fig[0])/$time2fig[1];
+    $d->{y1} =  ($d->{y1}-$freq2fig[0])/$freq2fig[1];
+    $d->{y2} =  ($d->{y2}-$freq2fig[0])/$freq2fig[1];
+    $d->{k} = $d->{x1}==$d->{x2}? 0: ($d->{y1}-$d->{y2})/($d->{x1}-$d->{x2});
+
+    # for T[0-9]? lines we want only time values
+    if ($d->{name} =~ /T([0-9]+)/i)  {
+      $T[$1] = ($d->{x1}+$d->{x2})/2;
+      $pars->{"hpd_t" . $1}=$T[$1];
+    }
+
+    # for other lines we want names and all 4 coordinates
+    else {
+      push @F, [$d->{name}, $d->{x1}, $d->{y1}, $d->{x2}, $d->{y2}];
+      $pars->{"hpd__" . $d->{name}} = "$d->{x1} $d->{y1} $d->{x2} $d->{y2}";
+    }
+  }
+  open TTXT, "> $ttxt" or die "can't open file: $ttxt: $!\n";
+  printf TTXT " %.3f\n", $_||0 foreach (@T);
+
+  open FTXT, "> $ftxt" or die "can't open file: $ftxt: $!\n";
+  for (my $i=0; $i<=$#F; $i++){
+    printf FTXT join("\t", @{$F[$i]}), "\n";
+  }
+
+  $pars->{timelines} = [@T];
+  $pars->{freqlines} = [@F];
+
+}
+
+############################################################
+## Create FIG picture if it does not exists
+## args:
+##   $sig -- file with the signal
+##   $pars     -- reference to a parameter structure
+sub sig_make_fig {
+  my $sig = shift;
+  my $pars = shift;
+
+  my $fig = $sig; $fig=~s/\.sigf?$//; $fig.='.fig';
+  my $png = $sig; $png=~s/\.sigf?$//; $png.='.png';
+  sig_save_fig_data $sig, $pars;
+
+  $sig  = "$pars->{sig_dir}/$sig" if $pars->{sig_dir};
+  $fig  = "$pars->{fig_dir}/$fig" if $pars->{fig_dir};
+  $png  = "$pars->{png_dir}/$png" if $pars->{png_dir};
+  $fig =~ s|./||;
+  $png =~ s|./||;
+  my $depth = () = $fig =~ m|[^.]/|gi;
+  if ($png !~ m|^/|) {$png = '../' x $depth . $png;}
+
+  if ( -f $fig ) { rename $fig, "$fig.bak";}
+
+
+#  $sig = "$pars->{sig_dir}/$sig" if $pars->{sig_dir};
+#  $fig = "$pars->{fig_dir}/$fig" if $pars->{fig_dir};
+#  $png = "$pars->{png_dir}/$png" if $pars->{png_dir};
+#  mkdir $pars->{fig_dir} unless -d "$pars->{fig_dir}";
+
+  open FIG, "> $fig" or die "Can't open fig file: $!\n";
+
+  # image
+  my $img2fig = 8;
+  my $X1=100;   # x margin
+  my $Y1=100;   # y margin
+  my $X2=9000;
+  my $Y2=5000;
+  my $tl = 50;  # tick length
+  my $dt = 5;   # time step, seconds
+  my $df = 500; # freq step, hertz
+
+  my $timeS = $pars->{timeS};      # signal time span
+  my $freqS = $pars->{freq_span}; # signal frequency span
+  my $freq0 = $pars->{fre_fft};
+  my @freq2fig = ($Y1+($Y2-$Y1)/2, -($Y2-$Y1)/$freqS);
+  my @time2fig = ($X1, ($X2-$X1)/$timeS);
+
+  # header
+  print FIG "#FIG 3.2\n",
+            "Portrait\nCenter\nMetric\nA4\n100.00\nSingle\n-2\n";
+  print FIG "# TIME2FIG: $time2fig[0] $time2fig[1]\n";
+  print FIG "# FREQ2FIG: $freq2fig[0] $freq2fig[1]\n";
+  print FIG "1200 2\n";
+
+  # image frame
+  print FIG "2 2 0 1 0 7 150 -1 -1 0.000 0 0 -1 0 0 5\n",
+            "\t$X1 $Y1  $X2 $Y1  $X2 $Y2  $X1 $Y2 $X1 $Y1\n";
+  if ($pars->{fre_sign}>=0) { # frequency is not flipped
+    print FIG "2 5 0 1 0 -1 500 -1 -1 0.000 0 0 -1 0 0 5\n",
+              "\t0 $png\n",
+              "\t$X1 $Y1  $X2 $Y1  $X2 $Y2  $X1 $Y2 $X1 $Y1\n";
+  }
+  else { # frequency is flipped because of small sampling rate
+    print FIG "2 5 0 1 0 -1 500 -1 -1 0.000 0 0 -1 0 0 5\n",
+              "\t1 $png\n",
+              "\t$X1 $Y2  $X2 $Y2  $X2 $Y1  $X1 $Y1 $X1 $Y2\n";
+  }
+
+  # time ticks
+  my ($xt, $yt);
+  my ($y1,$y2,$y3,$y4) = ($Y1, $Y1+$tl, $Y2-$tl, $Y2);
+  $yt = $y4+250; # text coord
+  for (my $t=0; $t<=$timeS; $t+=$dt) {
+    my $x = int($time2fig[0] + $time2fig[1]*$t);
+    print FIG "2 1 0 1 0 7 150 -1 -1 0.000 0 0 -1 0 0 2\n\t$x $y1 $x $y2\n",
+              "2 1 0 1 0 7 150 -1 -1 0.000 0 0 -1 0 0 2\n\t$x $y3 $x $y4\n",
+              "4 1 0 50 -1 18 10 0.0000 4 135 375 $x $yt $t\\001\n";
+  }
+
+  # frequency ticks
+  my ($x1,$x2,$x3,$x4) = ($X1, $X1+$tl, $X2-$tl, $X2);
+  $xt = $x1-20; # text coord
+  for (my $f=0; $f <= $freqS/2; $f+=$df) {
+    foreach my $s (-1, 1) {
+      my $ff=$s*$f;
+      my $y = int($freq2fig[0] + $freq2fig[1]*$ff);
+      print FIG "2 1 0 1 0 7 150 -1 -1 0.000 0 0 -1 0 0 2\n\t$x1 $y $x2 $y\n",
+                "2 1 0 1 0 7 150 -1 -1 0.000 0 0 -1 0 0 2\n\t$x3 $y $x4 $y\n",
+                "4 2 0 50 -1 18 10 0.0000 4 135 375 $xt $y $ff\\001\n";
+    }
+  }
+
+  # frequency label
+  $yt = int($freq2fig[0]);
+  $xt = int($time2fig[0]) + $tl;
+  print FIG "4 0 0 100 -1 18 10 0.0000 4 135 375 $xt $yt $pars->{fre} Hz\\001\n";
+
+  # temperature label
+  $xt = $X1 + $tl;
+  $yt = $Y2 - $tl;
+  my $T = sprintf "%.3f", $pars->{temp}*1000;
+  print FIG "4 0 0 100 -1 18 10 0.0000 4 135 375 $xt $yt T = $T mK\\001\n";
+
+  # amplitude plot:
+  my $YP1=$Y2+300;
+  my $YP2=$YP1+($Y2-$Y1);
+  print FIG "2 2 0 1 0 7 150 -1 -1 0.000 0 0 -1 0 0 5\n",
+            "\t$X1 $YP1  $X2 $YP1  $X2 $YP2  $X1 $YP2 $X1 $YP1\n";
+
+  # SFFT amplitude plot
+  my @cw2fig   = (($YP2+$YP1)/2, -($YP2-$YP1)/$pars->{sfft_max}/2.05);
+  my $ncw=$#{$pars->{sfft_t}}+1;
+  print FIG "2 1 0 3 15 7 50 -1 -1 0.000 1 1 -1 0 0 $ncw\n";
+  for (my $i=0; $i<$ncw; $i++){
+    my $x = int($time2fig[0] + $time2fig[1]*${$pars->{sfft_t}}[$i]);
+    my $y = int($cw2fig[0] + $cw2fig[1]*${$pars->{sfft_a}}[$i]);
+    print FIG "\t$x $y\n";
+  }
+
+  if ($#{$pars->{nmr_i}} > -1) {
+    # CW NMR amplitude plot
+    @cw2fig   = (($YP2+$YP1)/2, -($YP2-$YP1)/$pars->{nmr_max}/2.05);
+    $ncw=$#{$pars->{nmr_t}}+1;
+    print FIG "2 1 0 3 25 7 50 -1 -1 0.000 1 1 -1 0 0 $ncw\n";
+    for (my $i=0; $i<$ncw; $i++){
+      my $x = int($time2fig[0] + $time2fig[1]*${$pars->{nmr_t}}[$i]);
+      my $y = int($cw2fig[0] + $cw2fig[1]*${$pars->{nmr_x}}[$i]);
+      print FIG "\t$x $y\n";
+    }
+    print FIG "2 1 0 3 23 7 50 -1 -1 0.000 1 1 -1 0 0 $ncw\n";
+    for (my $i=0; $i<$ncw; $i++){
+      my $x = int($time2fig[0] + $time2fig[1]*${$pars->{nmr_t}}[$i]);
+      my $y = int($cw2fig[0] + $cw2fig[1]*${$pars->{nmr_y}}[$i]);
+      print FIG "\t$x $y\n";
+    }
+    print FIG "2 1 0 3 15 7 50 -1 -1 0.000 1 1 -1 0 0 $ncw\n";
+    for (my $i=0; $i<$ncw; $i++){
+      my $x = int($time2fig[0] + $time2fig[1]*${$pars->{nmr_t}}[$i]);
+      my $y = int($cw2fig[0] + $cw2fig[1]*${$pars->{nmr_a}}[$i]);
+      print FIG "\t$x $y\n";
+    }
+    # larmor freq
+    print FIG "2 1 0 1 12 7 50 -1 -1 0.000 0 0 -1 0 0 $ncw\n";
+    for (my $i=0; $i<$ncw; $i++){
+      my $ff = (${$pars->{nmr_i}}[$i]-${$pars->{nmr_i}}[0])*$pars->{dfdi};
+      my $x = int($time2fig[0] + $time2fig[1]*${$pars->{nmr_t}}[$i]);
+      my $y = int($freq2fig[0] + $freq2fig[1]*$ff);
+      print FIG "\t$x $y\n";
+    }
+  }
+
+  # normal NMR amplitude plot
+  $ncw=$#{$pars->{norm_nmr_t}}+1;
+  if ($pars->{norm_nmr_t1} && $pars->{norm_nmr_t2} && $ncw > 0) {
+    @cw2fig   = (($YP2+$YP1)/2, -($YP2-$YP1)/$pars->{norm_nmr_max}/2.05);
+    print FIG "2 1 0 3 4 7 50 -1 -1 0.000 1 1 -1 0 0 $ncw\n";
+    for (my $i=0; $i<$ncw; $i++){
+      my $x = int($time2fig[0] + $time2fig[1]*${$pars->{norm_nmr_t}}[$i]);
+      my $y = int($cw2fig[0] + $cw2fig[1]*${$pars->{norm_nmr_x}}[$i]);
+      print FIG "\t$x $y\n";
+    }
+    print FIG "2 1 0 3 4 7 50 -1 -1 0.000 1 1 -1 0 0 $ncw\n";
+    for (my $i=0; $i<$ncw; $i++){
+      my $x = int($time2fig[0] + $time2fig[1]*${$pars->{norm_nmr_t}}[$i]);
+      my $y = int($cw2fig[0] + $cw2fig[1]*${$pars->{norm_nmr_y}}[$i]);
+      print FIG "\t$x $y\n";
+    }
+  }
+
+
+  # time lines
+  foreach (my $i=0; $i<= $#{$pars->{timelines}}; $i++){
+    my $x = int($time2fig[0] + $time2fig[1]*${$pars->{timelines}}[$i]);
+    print FIG "# T$i\n",
+          "2 1 0 1 1 7 50 -1 -1 0.000 0 0 -1 0 0 2\n",
+          "\t$x $Y1  $x $YP2\n";
+    my $xt = $x+100;
+    my $yt = $Y1+500;
+    print FIG "4 0 0 50 -1 18 10 0.0000 4 135 375 $xt $yt t$i\\001\n";
+  }
+
+  # peak lines
+  foreach (my $i=0; $i<= $#{$pars->{freqlines}}; $i++){
+    my $line = ${$pars->{freqlines}}[$i];
+    my $x1 = int($time2fig[0] + $time2fig[1]*${$line}[1]);
+    my $y1 = int($freq2fig[0] + $freq2fig[1]*${$line}[2]);
+    my $x2 = int($time2fig[0] + $time2fig[1]*${$line}[3]);
+    my $y2 = int($freq2fig[0] + $freq2fig[1]*${$line}[4]);
+    print FIG "# ${$line}[0]\n",
+          "2 1 0 1 1 7 50 -1 -1 0.000 0 0 -1 0 0 2\n",
+          "\t$x1 $y1  $x2 $y2\n";
+    my $xt = $x1;
+    my $yt = $y1+100;
+    print FIG "4 0 0 50 -1 18 10 0.0000 4 135 375 $xt $yt ${$line}[0]\\001\n";
+  }
+
+  # write png file
+#  my $figpng = $sig; $figpng=~s/\.sigf?$/.png/;
+#  `fig2dev -Lpng $fig_dir/$fig $fig_dir/$png`;
+
+}
+
+############################################################
+## Save parameters
+sub sig_save_pars {
+  my $sig = shift;
+  my $pars = shift;
+
+  my $par = $sig; $par=~s/\.sigf?$//; $par.='.par';
+  $sig  = "$pars->{sig_dir}/$sig" if $pars->{sig_dir};
+  $par  = "$pars->{par_dir}/$par" if $pars->{par_dir};
+
+  open PAR, "> $par" or die "can't open file: $par: $!\n";
+  print PAR "$_: $pars->{$_}\n" foreach (sort keys %{$pars});
+  close PAR;
+}
+
+sub extract_peaks {
+  opendir SD, "par" or die "can't open sig folder: par: $!\n";
+
+  my @data;
+  my %peak_names;
+  foreach my $f (sort readdir SD){
+    next unless $f=~/\.par$/;
+    my $h;
+    open P, "par/$f" or die "can't open file: $f: $!\n";
+    foreach (<P>) { $h->{$1} = $2 if /^\s*(\S+)\s*:\s*(.*)/; }
+    close P;
+    push @data, $h;
+    foreach (keys %{$h}) {
+      $peak_names{$1}=1 if /^hpd__(\S+)/;
+    }
+  }
+
+  for my $peak (sort keys %peak_names) {
+    open OUT, "> $peak.txt" or die "can't open file: $peak.txt: $!\n";
+    foreach my $h (@data){
+      next if !exists $h->{"hpd__". $peak};
+      my $v = $h->{"hpd__". $peak};
+      print OUT join' ', (
+        $h->{t1abs} || 0,
+        $h->{temp} || 0,
+        $h->{dfdt} || 0,
+        $h->{hpd_t0} || 0, $v);
+      print OUT "\n";
+    }
+    close OUT;
+  }
+}
+
+############################################################
+
+# process a signal
+
+my %cfg = read_conf('Signal.cfg');
+opendir SD, $cfg{sig_dir} or die "can't open sig folder: $cfg{sig_dir}: $!\n";
+
+foreach my $sig (sort readdir SD){
+  next unless $sig=~/\.sigf?$/;
+  my %c = %cfg;
+
+  sig_read_pars $sig, \%c;
+  sig_db $c{t0abs}, \%c;
+  sig_freq $sig, \%c;
+  sig_make_sigf $sig, \%c;
+  sig_make_png $sig, \%c;
+  sig_make_fig $sig, \%c;
+  sig_save_pars $sig, \%c;
+}
+
+extract_peaks
