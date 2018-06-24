@@ -644,11 +644,31 @@ sub sig_make_fig {
     # larmor freq
     print FIG "2 1 0 1 12 7 50 -1 -1 0.000 0 0 -1 0 0 $ncw\n";
     for (my $i=0; $i<$ncw; $i++){
-      my $ff = (${$pars->{nmr_i}}[$i]-${$pars->{nmr_i}}[0])*$pars->{dfdi};
+      my $ff = (${$pars->{nmr_i}}[0]-${$pars->{nmr_i}}[$i])*$pars->{dfdi};
       my $x = int($time2fig[0] + $time2fig[1]*${$pars->{nmr_t}}[$i]);
       my $y = int($freq2fig[0] + $freq2fig[1]*$ff);
       print FIG "\t$x $y\n";
     }
+
+    # Fomin's mode
+    for (my $s = -1; $s<=1; $s+=2) {
+      print FIG "2 1 0 1 15 7 50 -1 -1 0.000 0 0 -1 0 0 $ncw\n";
+      for (my $i=0; $i<$ncw; $i++){
+        my $df = (${$pars->{nmr_i}}[0]-${$pars->{nmr_i}}[$i])*$pars->{dfdi};
+        my $h = 0.001;
+        my $d = $df/$pars->{fre};
+        my $flegg2 = 0;
+
+        my $u = $d-$s*$h/sqrt(15);
+        my $f3 = $u<0? 0:sqrt( $u * (3.0/8.0+$flegg2)/(1.0+$flegg2) );
+        $f3 *= $pars->{fre};
+
+        my $x = int($time2fig[0] + $time2fig[1]*${$pars->{nmr_t}}[$i]);
+        my $y = int($freq2fig[0] + $freq2fig[1]*$f3);
+        print FIG "\t$x $y\n";
+      }
+    }
+
   }
 
   # normal NMR amplitude plot
