@@ -1,0 +1,61 @@
+#!/usr/bin/wish
+
+package require Exp
+
+set v1 0
+set v2 0
+set vr 0
+
+proc func_mkint {root} {
+  label $root.v1l -text "From: " -anchor w
+  entry $root.v1  -textvariable v1 -width 8
+  label $root.v1u -text "A, " -anchor w
+
+  label $root.v2l -text "To: " -anchor w
+  entry $root.v2  -textvariable v2 -width 8
+  label $root.v2u -text "A, " -anchor w
+
+  label $root.vrl -text "Rate: " -anchor w
+  entry $root.vr  -textvariable vr -width 8
+  label $root.vru -text "A/min"  -anchor w
+
+  grid  $root.v1l $root.v1 $root.v1u\
+        $root.v2l $root.v2 $root.v2u\
+        $root.vrl $root.vr $root.vru\
+        -sticky we
+}
+
+proc func_get {} {
+  return [list $::v1 $::v2 $::vr]
+}
+
+proc func_set {data} {
+  if {$data == {}} {
+    set ::v1 {}
+    set ::v2 {}
+    set ::vr {}
+  }\
+  else {
+    set ::v1 [format %.2f [lindex $data 0]]
+    set ::v2 [format %.2f [lindex $data 1]]
+    set ::vr [format %.2f [lindex $data 2]]
+  }
+}
+
+proc func_fmt {data} {
+  set a1 [format %.2f [lindex $data 0]]
+  set a2 [format %.2f [lindex $data 1]]
+  set a3 [format %.2f [lindex $data 2]]
+  return "$a1 A -> $a2 A @ $a3 A/min"
+}
+
+
+manual_db #auto\
+ -dbdev  db_exp\
+ -dbname drydemag_demag\
+ -func_mkint func_mkint\
+ -func_get func_get\
+ -func_set func_set\
+ -func_fmt func_fmt\
+ -num 20\
+
