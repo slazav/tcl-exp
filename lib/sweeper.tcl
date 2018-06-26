@@ -140,7 +140,7 @@ itcl::class SweepController {
       set min_i [expr $max_i_]
     }
 
-    # open secons PS device if needed
+    # open second PS device if needed
     if {$ps_dev2 != {}} {
       if {$ps_dev1 == $ps_dev2} {error "same device for both channels"}
       set dev2 [DeviceRole $ps_dev2 power_supply]
@@ -153,7 +153,7 @@ itcl::class SweepController {
         set min_i2 [expr {-[$dev2 cget -max_i]*$gain}]
       }
       if {$gain < 0} {
-        set max_i2_ $max2_i
+        set max_i2_ $max_i2
         set max_i2 [expr $min_i2]
         set min_i2 [expr $max_i2_]
       }
