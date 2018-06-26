@@ -357,7 +357,7 @@ itcl::class SweepController {
       }\
       else {
         set dir [expr -$dir]
-        set msg "sweep to [get_dest] A"
+        set msg "sweep [expr {$dir>0?{up}:{down}}] with rate $rate A/s"
       }
     }\
     else {
@@ -518,7 +518,7 @@ itcl::class SweepController {
     if {$dir>0 && [get_scurr]<$minlim} {return}
     if {$dir<0 && [get_scurr]>$maxlim} {return}
     set dir [expr -$dir]
-    set msg "sweep to [get_dest] A"
+    set msg "sweep [expr {$dir>0?{up}:{down}}] with rate $rate A/s"
     set t_set 0
     loop_restart
     return
