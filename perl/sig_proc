@@ -48,8 +48,8 @@ my $sig_filter = '~/PROG/pico_osc/sig_filter/sig_filter';
 #my $sig_filter = 'sig_filter';
 
 ## path to graphene program:
-my $graphene = 'graphene -d /home/exports/DB';
-#my $graphene = 'graphene -d /var/lib/graphene';
+#my $graphene = 'graphene -d /home/exports/DB';
+my $graphene = 'graphene -d /var/lib/graphene';
 
 
 sub get_nmr {
@@ -440,60 +440,66 @@ sub sig_save_fig_data {
 
   my $state=-1;
   my $name='';
-  foreach (<FIG>){
+  my @crd = ();
+  foreach my $l (<FIG>){
     # extract conversion parameters:
-    @time2fig = ($1,$2) if /# TIME2FIG:\s+(\S+)\s+(\S+)/;
-    @freq2fig = ($1,$2) if /# FREQ2FIG:\s+(\S+)\s+(\S+)/;
+    @time2fig = ($1,$2) if $l=~/^# TIME2FIG:\s+(\S+)\s+(\S+)/;
+    @freq2fig = ($1,$2) if $l=~/^# FREQ2FIG:\s+(\S+)\s+(\S+)/;
 
     # switch to a scanning state:
-    $state=0 if /^1200 2/;
+    $state=0 if $l=~/^1200 2/;
 
     # extract all lines with [A-Z]\S+ comments:
-    if ($state == 2) {
-      push @D, {name=>$name, x1=>$1, y1=>$2, x2=>$3, y2=>$4}
-        if /^\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/;
-      $state=0;
-      $name='';
+    if ($state == 2 && $l=~/^\s+\d+/) {
+      $l=~s/^\s*(.*?)\s*$/$1/;
+      my @c = split /\s+/, $l;
+      push(@crd, @c);
     }
-    if ($state==1 && /^2 1 0/) {
+    if ($state==1 && $l=~/^2 1 0/) {
       $state = 2;
     }
-    if ($state == 0 && /# ([A-Z]\S+)/i) {
+    if ($state >= 0 && $l=~/^# ([A-Z]\S+)/i) {
+      # save old object
+      push @D, {name=>$name, crd=>[@crd]} if $#crd>=0;
       $state=1;
       $name=$1;
+      @crd = ();
     }
   }
+  # save old object
+  push @D, {name=>$name, crd=>[@crd]} if $#crd>=0;
+
   close FIG;
 
   my @T;
   my @F;
   foreach my $d (@D){
+    my @crd = @{$d->{crd}};
     #convert all lines to time-freq coordinates
-    $d->{x1} =  ($d->{x1}-$time2fig[0])/$time2fig[1];
-    $d->{x2} =  ($d->{x2}-$time2fig[0])/$time2fig[1];
-    $d->{y1} =  ($d->{y1}-$freq2fig[0])/$freq2fig[1];
-    $d->{y2} =  ($d->{y2}-$freq2fig[0])/$freq2fig[1];
-    $d->{k} = $d->{x1}==$d->{x2}? 0: ($d->{y1}-$d->{y2})/($d->{x1}-$d->{x2});
+    for (my $i=0; $i<= $#crd-1; $i+=2 ) {
+      $crd[$i]   = ($crd[$i]-$time2fig[0])/$time2fig[1];
+      $crd[$i+1] = ($crd[$i+1]-$freq2fig[0])/$freq2fig[1];
+    }
 
     # for T[0-9]? lines we want only time values
-    if ($d->{name} =~ /T([0-9]+)/i)  {
-      $T[$1] = ($d->{x1}+$d->{x2})/2;
+    if ($d->{name} =~ /T([0-9]+)/i && $#crd>=3)  {
+      $T[$1] = ($crd[0]+$crd[2])/2;
       $pars->{"hpd_t" . $1}=$T[$1];
     }
 
-    # for other lines we want names and all 4 coordinates
+    # for other lines we want names and all coordinates
     else {
-      push @F, [$d->{name}, $d->{x1}, $d->{y1}, $d->{x2}, $d->{y2}];
-      $pars->{"hpd__" . $d->{name}} = "$d->{x1} $d->{y1} $d->{x2} $d->{y2}";
+      push @F, [$d->{name}, join(' ', @crd)];
+      $pars->{"hpd__" . $d->{name}} = join(' ', @crd);
     }
   }
-  open TTXT, "> $ttxt" or die "can't open file: $ttxt: $!\n";
-  printf TTXT " %.3f\n", $_||0 foreach (@T);
+#  open TTXT, "> $ttxt" or die "can't open file: $ttxt: $!\n";
+#  printf TTXT " %.3f\n", $_||0 foreach (@T);
 
-  open FTXT, "> $ftxt" or die "can't open file: $ftxt: $!\n";
-  for (my $i=0; $i<=$#F; $i++){
-    printf FTXT join("\t", @{$F[$i]}), "\n";
-  }
+#  open FTXT, "> $ftxt" or die "can't open file: $ftxt: $!\n";
+#  for (my $i=0; $i<=$#F; $i++){
+#    printf FTXT join("\t", @{$F[$i]}), "\n";
+#  }
 
   $pars->{timelines} = [@T];
   $pars->{freqlines} = [@F];
@@ -704,13 +710,16 @@ sub sig_make_fig {
   # peak lines
   foreach (my $i=0; $i<= $#{$pars->{freqlines}}; $i++){
     my $line = ${$pars->{freqlines}}[$i];
-    my $x1 = int($time2fig[0] + $time2fig[1]*${$line}[1]);
-    my $y1 = int($freq2fig[0] + $freq2fig[1]*${$line}[2]);
-    my $x2 = int($time2fig[0] + $time2fig[1]*${$line}[3]);
-    my $y2 = int($freq2fig[0] + $freq2fig[1]*${$line}[4]);
+    my $name = ${$line}[0];
+    my @crd  = split(/\s+/, ${$line}[1]);
+    my $n = ($#crd+1)/2;
+    for (my $i=0; $i<= $#crd-1; $i+=2 ) {
+      $crd[$i]   = int($time2fig[0] + $crd[$i]*$time2fig[1]);
+      $crd[$i+1] = int($freq2fig[0] + $crd[$i+1]*$freq2fig[1]);
+    }
     print FIG "# ${$line}[0]\n",
-          "2 1 0 1 1 7 50 -1 -1 0.000 0 0 -1 0 0 2\n",
-          "\t$x1 $y1  $x2 $y2\n";
+          "2 1 0 1 1 7 50 -1 -1 0.000 0 0 -1 0 0 $n\n",
+          "\t". join(' ', @crd). "\n";
     my $xt = $x1;
     my $yt = $y1+100;
     print FIG "4 0 0 50 -1 18 10 0.0000 4 135 375 $xt $yt ${$line}[0]\\001\n";
@@ -758,12 +767,15 @@ sub extract_peaks {
     open OUT, "> $peak.txt" or die "can't open file: $peak.txt: $!\n";
     foreach my $h (@data){
       next if !exists $h->{"hpd__". $peak};
-      my $v = $h->{"hpd__". $peak};
-      print OUT join' ', (
-        $h->{t1abs} || 0,
-        $h->{temp} || 0,
-        $h->{dfdt} || 0,
-        $h->{hpd_t0} || 0, $v);
+      my @crd  = split(/\s+/, $h->{"hpd__". $peak});
+      my $n = ($#crd+1)/2;
+      for (my $i=0; $i<= $#crd-1; $i+=2 ) {
+        print OUT join' ', (
+          $h->{t1abs} || 0,
+          $h->{temp} || 0,
+          $crd[$i]-$h->{hpd_t0},
+          $crd[$i+1], "\n" );
+      }
       print OUT "\n";
     }
     close OUT;
