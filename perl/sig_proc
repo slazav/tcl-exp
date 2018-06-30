@@ -48,8 +48,8 @@ my $sig_filter = '~/PROG/pico_osc/sig_filter/sig_filter';
 #my $sig_filter = 'sig_filter';
 
 ## path to graphene program:
-#my $graphene = 'graphene -d /home/exports/DB';
-my $graphene = 'graphene -d /var/lib/graphene';
+my $graphene = 'graphene -d /home/exports/DB';
+#my $graphene = 'graphene -d /var/lib/graphene';
 
 
 sub get_nmr {
@@ -215,6 +215,11 @@ sub sig_db{
     or die "Can't run graphene program: $!\n";
   ($t, $pars->{temp}) = split /\s+/, $g;
 
+  # grad:
+  $g = `$graphene get drydemag_sweep_grad $t0`
+    or die "Can't run graphene program: $!\n";
+  ($t, $pars->{grad}) = split /\s+/, $g;
+
   # calclate fft frequency
   my $sfre = 1/$pars->{dt}; # sampling freq
   my $m1 = $pars->{fre} % $sfre;
@@ -237,8 +242,7 @@ sub sig_db{
   }
 
   if ($pars->{verb}>0) {
-    print "  Read CW NMR data from database:\n";
-    print "    $#{$pars->{nmr_t}} points\n";
+    print "  Read 3He CW NMR data from database:\n";
   }
 
   # get NMR data from the database
@@ -246,6 +250,10 @@ sub sig_db{
    $pars->{nmr_y}, $pars->{nmr_a}, $pars->{nmr_max}) =
     get_nmr($pars->{t1abs}, $pars->{t2abs}, 'auto', 'auto', $pars->{nmr_ph});
   $pars->{nmr_max}=1 unless $pars->{nmr_max};
+
+  if ($pars->{verb}>0) {
+    print "    $#{$pars->{nmr_t}} points\n";
+  }
 
   if ($#{$pars->{nmr_i}} > -1) {
     my $i1 = ${$pars->{nmr_i}}[0];
@@ -455,10 +463,14 @@ sub sig_save_fig_data {
       my @c = split /\s+/, $l;
       push(@crd, @c);
     }
-    if ($state==1 && $l=~/^2 1 0/) {
-      $state = 2;
+    if ($l=~/^\d/) {
+      if ($state==1 && $l=~/^2 1 0/){
+        $state = 2;
+      } else {
+        $state = 0;
+      }
     }
-    if ($state >= 0 && $l=~/^# ([A-Z]\S+)/i) {
+    if ($state >= 0 && $l=~/^# ([A-Z]\S*)/i) {
       # save old object
       push @D, {name=>$name, crd=>[@crd]} if $#crd>=0;
       $state=1;
@@ -657,23 +669,23 @@ sub sig_make_fig {
     }
 
     # Fomin's mode
-    for (my $s = -1; $s<=1; $s+=2) {
-      print FIG "2 1 0 1 15 7 50 -1 -1 0.000 0 0 -1 0 0 $ncw\n";
-      for (my $i=0; $i<$ncw; $i++){
-        my $df = (${$pars->{nmr_i}}[0]-${$pars->{nmr_i}}[$i])*$pars->{dfdi};
-        my $h = 0.001;
-        my $d = $df/$pars->{fre};
-        my $flegg2 = 0;
-
-        my $u = $d-$s*$h/sqrt(15);
-        my $f3 = $u<0? 0:sqrt( $u * (3.0/8.0+$flegg2)/(1.0+$flegg2) );
-        $f3 *= $pars->{fre};
-
-        my $x = int($time2fig[0] + $time2fig[1]*${$pars->{nmr_t}}[$i]);
-        my $y = int($freq2fig[0] + $freq2fig[1]*$f3);
-        print FIG "\t$x $y\n";
-      }
-    }
+#    for (my $s = -1; $s<=1; $s+=2) {
+#      print FIG "2 1 0 1 15 7 50 -1 -1 0.000 0 0 -1 0 0 $ncw\n";
+#      for (my $i=0; $i<$ncw; $i++){
+#        my $df = (${$pars->{nmr_i}}[0]-${$pars->{nmr_i}}[$i])*$pars->{dfdi};
+#        my $h = 0.001;
+#        my $d = $df/$pars->{fre};
+#        my $flegg2 = 0;
+#
+#        my $u = $d-$s*$h/sqrt(15);
+#        my $f3 = $u<0? 0:sqrt( $u * (3.0/8.0+$flegg2)/(1.0+$flegg2) );
+#        $f3 *= $pars->{fre};
+#
+#        my $x = int($time2fig[0] + $time2fig[1]*${$pars->{nmr_t}}[$i]);
+#        my $y = int($freq2fig[0] + $freq2fig[1]*$f3);
+#        print FIG "\t$x $y\n";
+#      }
+#    }
 
   }
 
@@ -746,6 +758,7 @@ sub sig_save_pars {
   close PAR;
 }
 
+############################################################
 sub extract_peaks {
   opendir SD, "par" or die "can't open sig folder: par: $!\n";
 
@@ -765,6 +778,7 @@ sub extract_peaks {
 
   for my $peak (sort keys %peak_names) {
     open OUT, "> $peak.txt" or die "can't open file: $peak.txt: $!\n";
+    print OUT "# t1  temp grad exc  t-t0 f\n";
     foreach my $h (@data){
       next if !exists $h->{"hpd__". $peak};
       my @crd  = split(/\s+/, $h->{"hpd__". $peak});
@@ -772,8 +786,10 @@ sub extract_peaks {
       for (my $i=0; $i<= $#crd-1; $i+=2 ) {
         print OUT join' ', (
           $h->{t1abs} || 0,
-          $h->{temp} || 0,
-          $crd[$i]-$h->{hpd_t0},
+          1e3*$h->{temp} || 0,
+          1e3*$h->{grad} || 0,
+          $h->{exc} || 0,
+          -($crd[$i] - $h->{hpd_t0})*$h->{dfdt},
           $crd[$i+1], "\n" );
       }
       print OUT "\n";
@@ -792,6 +808,8 @@ opendir SD, $cfg{sig_dir} or die "can't open sig folder: $cfg{sig_dir}: $!\n";
 foreach my $sig (sort readdir SD){
   next unless $sig=~/\.sigf?$/;
   my %c = %cfg;
+
+
 
   sig_read_pars $sig, \%c;
   sig_db $c{t0abs}, \%c;
