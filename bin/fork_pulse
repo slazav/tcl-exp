@@ -267,7 +267,7 @@ proc do_pulse {} {
   $pars(gen_dev) write *TRG
   $pars(osc_dev) cmd wait
 
-  set ret [exec sig_filter -F $apars(fmin) -G $apars(fmax) -T $apars(fstart) -f fit $pars(sigfile) ]
+  set ret [exec sig_filter -T $apars(fstart) -f fit $pars(sigfile) -F $apars(fmin) -G $apars(fmax) ]
 
   if {$pars(db_dev) != {} && $pars(db_val) !={} } {
     $pars(db_dev) cmd put $pars(db_val) {*}$ret
@@ -294,7 +294,7 @@ proc do_pulse {} {
   sig_ym2 expr -sig_ym1
 
   ## load FFT
-  set ret [exec sig_filter -f fft_pow_lavr -N 10000 $pars(sigfile)]
+  set ret [exec sig_filter -f fft_pow $pars(sigfile) -N 10000 -l]
   fft_x set {}
   fft_y set {}
   foreach l [split $ret "\n"] {
