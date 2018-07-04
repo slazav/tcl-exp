@@ -1,0 +1,32 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use JSON;
+
+############################################################
+############################################################
+# Update FIG file and INF file
+#
+
+############################################################
+## path to sig_filter program
+my $sig_filter = '~/PROG/pico_osc/sig_filter/sig_filter';
+#my $sig_filter = 'sig_filter';
+
+
+############################################################
+## Process signals
+foreach my $sig (@ARGV) {
+
+  my $inf = $sig; $inf=~s/\.sigf?$//; $inf.='.inf';
+  my $fig = $sig; $fig=~s/\.sigf?$//; $fig.='.fig';
+
+  my $figpng = "f_$sig"; $figpng=~s/\.sigf?$/.png/;
+  `fig2dev -Lpng $fig $figpng`;
+}
+
+
+
+
+
+

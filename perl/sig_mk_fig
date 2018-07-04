@@ -370,8 +370,8 @@ foreach my $sig (@ARGV) {
 
 
   # write png file
-  my $figpng = "f_$sig"; $figpng=~s/\.sigf?$/.png/;
-  `fig2dev -Lpng $fig $figpng`;
+#  my $figpng = "f_$sig"; $figpng=~s/\.sigf?$/.png/;
+#  `fig2dev -Lpng $fig $figpng`;
 
 
   ############################################################
@@ -382,7 +382,6 @@ foreach my $sig (@ARGV) {
 
 }
 
-__END__
 
 
 
