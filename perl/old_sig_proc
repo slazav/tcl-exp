@@ -335,7 +335,7 @@ sub sig_freq {
     my $cmd= $sig_filter .
            ($pars->{tmin}   ? " -T $pars->{tmin}":"") .
            ($pars->{tmax}   ? " -U $pars->{tmax}":"") .
-           " -f sfft_int \"$sig\"" .
+           " -f slockin \"$sig\"" .
            ($pars->{fmin}   ? " -F $pars->{fmin}":"") .
            ($pars->{fmax}   ? " -G $pars->{fmax}":"") .
            ($pars->{sfft_win} ? " -w $pars->{sfft_win}":"") .
@@ -494,14 +494,54 @@ sub sig_save_fig_data {
     }
 
     # for T[0-9]? lines we want only time values
-    if ($d->{name} =~ /T([0-9]+)/i && $#crd>=3)  {
+    if ($d->{name} =~ /^T([0-9]+$)/i && $#crd>=3)  {
       $T[$1] = ($crd[0]+$crd[2])/2;
       $pars->{"hpd_t" . $1}=$T[$1];
+      next
+    }
+
+    # save other lines for plotting
+    push @F, [$d->{name}, join(' ', @crd)];
+
+    # for L lines we want only first value
+    if ($d->{name} =~ /^L$/i && $#crd>=1)  {
+      $pars->{hpd_lt}=$crd[0];
+      $pars->{hpd_lf}=$crd[1];
+
+      # if CW data exists calculate frequency shift
+      my $ncw = $#{$pars->{nmr_i}}+1;
+      if ($ncw>0) {
+        my $t0=$crd[0];
+        my $f0=$crd[1];
+        for (my $i=1; $i<$ncw; $i++){
+          # frequency shift from t=0
+          my $t1 = ${$pars->{nmr_t}}[$i-1];
+          my $t2 = ${$pars->{nmr_t}}[$i];
+          if ($t1 < $t0 && $t0 <= $t2){
+            my $f1 = (${$pars->{nmr_i}}[$i-1]-${$pars->{nmr_i}}[0])*$pars->{dfdi};
+            my $f2 = (${$pars->{nmr_i}}[$i]-${$pars->{nmr_i}}[0])*$pars->{dfdi};
+            $pars->{larm_df} = $f1 + ($f2-$f1)/($t2-$t1)*($t0-$t1) - $f0;
+            last;
+          }
+        }
+      }
     }
 
     # for other lines we want names and all coordinates
-    else {
-      push @F, [$d->{name}, join(' ', @crd)];
+    elsif ($#crd>2) {
+      # negative or positive?
+      $d->{name} .= ($crd[1]<0)? 'm':'p';
+
+      #fit with y=[Ax+B]^2
+      my ($sx,$sxx,$sy,$sxy,$sn) = (0,0,0,0,0);
+      for (my $i=0; $i<= $#crd-1; $i+=2 ) {
+        my $x = $crd[$i];
+        my $y = $crd[$i+1]*$crd[$i+1];
+        $sx+=$x; $sxx+=$x*$x; $sy+=$y; $sxy+=$x*$y; $sn++;
+      }
+      my $B = ($sxx*$sy-$sx*$sxy)/($sxx*$sn-$sx*$sx);
+      my $A = ($sy-$B*$sn)/$sx;
+      $pars->{"fit__" . $d->{name}} = "$A $B";
       $pars->{"hpd__" . $d->{name}} = join(' ', @crd);
     }
   }
@@ -558,12 +598,14 @@ sub sig_make_fig {
   my $tl = 50;  # tick length
   my $dt = 5;   # time step, seconds
   my $df = 500; # freq step, hertz
+  my $dfh = 100; # horizontal freq step, hertz
 
   my $timeS = $pars->{timeS};      # signal time span
   my $freqS = $pars->{freq_span}; # signal frequency span
   my $freq0 = $pars->{fre_fft};
   my @freq2fig = ($Y1+($Y2-$Y1)/2, -($Y2-$Y1)/$freqS);
   my @time2fig = ($X1, ($X2-$X1)/$timeS);
+  my $larm_df=$pars->{larm_df} || 0;
 
   # header
   print FIG "#FIG 3.2\n",
@@ -589,13 +631,23 @@ sub sig_make_fig {
   # time ticks
   my ($xt, $yt);
   my ($y1,$y2,$y3,$y4) = ($Y1, $Y1+$tl, $Y2-$tl, $Y2);
-  $yt = $y4+250; # text coord
+  $yt = $y4+200; # text coord
   for (my $t=0; $t<=$timeS; $t+=$dt) {
     my $x = int($time2fig[0] + $time2fig[1]*$t);
-    print FIG "2 1 0 1 0 7 150 -1 -1 0.000 0 0 -1 0 0 2\n\t$x $y1 $x $y2\n",
-              "2 1 0 1 0 7 150 -1 -1 0.000 0 0 -1 0 0 2\n\t$x $y3 $x $y4\n",
+    print FIG "2 1 0 1 0 7 150 -1 -1 0.000 0 0 -1 0 0 2\n\t$x $y3 $x $y4\n",
               "4 1 0 50 -1 18 10 0.0000 4 135 375 $x $yt $t\\001\n";
   }
+  $yt = $y1-50; # text coord
+  if ($timeS*$pars->{dfdt}) {
+    for (my $f=0; $f <= -$timeS*$pars->{dfdt}; $f+=$dfh) {
+      my $t = -$f/$pars->{dfdt};
+      my $x = int($time2fig[0] + $time2fig[1]*$t);
+      print FIG "2 1 0 1 0 7 150 -1 -1 0.000 0 0 -1 0 0 2\n\t$x $y1 $x $y2\n",
+                "4 1 0 50 -1 18 10 0.0000 4 135 375 $x $yt $f\\001\n";
+    }
+  }
+
+
 
   # frequency ticks
   my ($x1,$x2,$x3,$x4) = ($X1, $X1+$tl, $X2-$tl, $X2);
@@ -660,9 +712,10 @@ sub sig_make_fig {
       print FIG "\t$x $y\n";
     }
     # larmor freq
+    # find frequency shift
     print FIG "2 1 0 1 12 7 50 -1 -1 0.000 0 0 -1 0 0 $ncw\n";
     for (my $i=0; $i<$ncw; $i++){
-      my $ff = (${$pars->{nmr_i}}[0]-${$pars->{nmr_i}}[$i])*$pars->{dfdi};
+      my $ff = (${$pars->{nmr_i}}[$i]-${$pars->{nmr_i}}[0])*$pars->{dfdi} - $larm_df;
       my $x = int($time2fig[0] + $time2fig[1]*${$pars->{nmr_t}}[$i]);
       my $y = int($freq2fig[0] + $freq2fig[1]*$ff);
       print FIG "\t$x $y\n";
@@ -686,6 +739,23 @@ sub sig_make_fig {
 #        print FIG "\t$x $y\n";
 #      }
 #    }
+
+
+    for (my $s = -1; $s<=1; $s+=2) {
+      print FIG "2 1 0 1 15 7 50 -1 -1 0.000 0 0 -1 0 0 $ncw\n";
+      for (my $i=0; $i<$ncw; $i++){
+        my $df = (${$pars->{nmr_i}}[0]-${$pars->{nmr_i}}[$i])*$pars->{dfdi} + $larm_df - 150;
+
+        my $k = ($s<0)? 220:320;
+        my $f3 = ($df<0)? 0:sqrt($df*$k);
+
+        my $x = int($time2fig[0] + $time2fig[1]*${$pars->{nmr_t}}[$i]);
+        my $y = int($freq2fig[0] + $freq2fig[1]*$f3);
+        print FIG "\t$x $y\n";
+      }
+    }
+
+
 
   }
 
@@ -732,8 +802,8 @@ sub sig_make_fig {
     print FIG "# ${$line}[0]\n",
           "2 1 0 1 1 7 50 -1 -1 0.000 0 0 -1 0 0 $n\n",
           "\t". join(' ', @crd). "\n";
-    my $xt = $x1;
-    my $yt = $y1+100;
+    my $xt = $crd[$#crd-1]+100;
+    my $yt = $crd[$#crd]+100;
     print FIG "4 0 0 50 -1 18 10 0.0000 4 135 375 $xt $yt ${$line}[0]\\001\n";
   }
 
@@ -796,6 +866,39 @@ sub extract_peaks {
     }
     close OUT;
   }
+
+  open OUT, "> peaks.txt" or die "can't open file: peaks.txt: $!\n";
+  print OUT "# t1  temp grad exc  f-f0 f\n";
+  foreach my $h (@data){
+
+    printf OUT "%.9f %.3f %6.2f %4.2f",
+        $h->{t1abs} || 0,
+        1e3*$h->{temp} || 0,
+        1e3*$h->{grad} || 0,
+        $h->{exc} || 0;
+
+    foreach my $peak (split /\s+/, 'l1 ls1 h1 hs1'){
+      my ($Ap,$Bp) = split(/\s+/, $h->{"fit__${peak}p"} || "0 0");
+      my ($Am,$Bm) = split(/\s+/, $h->{"fit__${peak}m"} || "0 0");
+      my $A = ($Ap && $Am)? ($Ap+$Am)/2 : ($Ap?$Ap:$Am);
+      my $B = ($Bp && $Bm)? ($Bp+$Bm)/2 : ($Bp?$Bp:$Bm);
+      if ($B && $A) {
+        $B=-$B/$A;
+
+        $B = $B * $h->{dfdt} - $h->{larm_df};
+        $A=-$A/$h->{dfdt};
+        $A ='-' unless $A;
+        $B ='-' unless $B;
+        print OUT "  $A $B";
+      }
+      else {
+        print OUT "  - -";
+      }
+    }
+
+    print OUT "\n";
+  }
+
 }
 
 ############################################################

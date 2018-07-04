@@ -1,0 +1,39 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use JSON;
+
+############################################################
+############################################################
+# Update PNG picture
+
+############################################################
+## path to sig_filter program
+my $sig_filter = '~/PROG/pico_osc/sig_filter/sig_filter';
+#my $sig_filter = 'sig_filter';
+
+
+############################################################
+## Process signals
+foreach my $sig (@ARGV) {
+
+  my $inf = $sig; $inf=~s/\.sigf?$//; $inf.='.inf';
+  `sig_get_info $sigf` unless -f $inf;
+  open INF, "$inf" or die "can't open file: $inf: $!\n";
+  my $pars = decode_json(join "\n", (<INF>));
+  close INF;
+
+  my $sigf = $sig; $sigf=~s/\.sigf?$//; $sigf.='.sigf';
+  next if ($sig eq $sigf);
+  next if -f $sigf;
+
+  my $cmd= $sig_filter .
+         ($pars->{tmin}   ? " -T $pars->{tmin}":"") .
+         ($pars->{tmax}   ? " -U $pars->{tmax}":"") .
+         " -f sigf \"$sig\"" .
+         ($pars->{fmin}   ? " -F $pars->{fmin}":"") .
+         ($pars->{fmax}   ? " -G $pars->{fmax}":"") .
+         " > \"$sigf\"";
+  print "make SIGF: $sigf\n";
+  `$cmd`;
+}
