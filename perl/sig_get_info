@@ -38,16 +38,33 @@ use JSON;
 #    exc_ph -- excitation phase
 #    com_ph -- compensation phase
 #    temp   -- temperature (noise thermometer)
-#    fre_fft -- fft frequency
-#    fmin, fmax -- frequency limits (in fft)
+#    grad, quad -- gradient, quadratic coil current
 #
 #    fre_fft  -- frequency after fft transformation
-#    fre_sign -- is the  frequncy swapped?
+#    fre_sign -- is the frequncy swapped?
+#    fmin, fmax -- frequency limits (in fft, calculated 
+#                  using freq_span parameter)
 #
 #    nmr_t, nmr_i, nmr_x, nmr_y, nmr_a -- CW NMR data
 #    nmr_max -- CW NMR max amplitude
+#    didt dfdi dfdt -- field-sweep factors
+#                      calculated as linear slope between
+#                      first and last point in nmr_t - nmr_i data
+#    nmr_auto_ph -- auto phase adjustment
 #
-#    didt dfdi dtdf -- factors
+#    sfft_t, sfft_x, sfft_y -- sfft CW NMR data
+#    sfft_auto_ph -- auto phase adjustment
+#
+#  Fields added by sig_mk_fig later
+#
+#    fig_t0 -- time coordinate (not used)
+#    fig_lt, fig_lf -- Larmor tail coordinates (time, freq.shift)
+#    larm_df -- freqency shift from t=0 calculated from the Larmor tail
+#               (it uses interpolation of nmr_t - nmr_i data and dfdi)
+#    fig_marks -- user lines (color 1, depth 50) extracted from fig
+#                 array of hashes with color and crd fields.
+#    fig_peaks -- autodetected peaks
+
 
 ############################################################
 ## path to sig_filter program
