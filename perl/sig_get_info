@@ -61,10 +61,10 @@ use JSON;
 #    fig_lt, fig_lf -- Larmor tail coordinates (time, freq.shift)
 #    larm_df -- freqency shift from t=0 calculated from the Larmor tail
 #               (it uses interpolation of nmr_t - nmr_i data and dfdi)
-#    fig_marks -- user lines (color 1, depth 50) extracted from fig
-#                 array of hashes with color and crd fields.
-#    fig_peaks -- autodetected peaks
-
+#    fig_marks -- user lines (depth 50) extracted from fig
+#                 array of hashes with "color" and "crd" fields.
+#    fig_peaks -- autodetected peaks (color 1)
+#                 array of hashes with T,F,A,Q fields
 
 ############################################################
 ## path to sig_filter program
@@ -140,14 +140,16 @@ sub fix_phase {
 
   my $cp = cos($ph);
   my $sp = sin($ph);
+  my $max=0;
   for (my $i=0; $i<=$#{$X}; $i++){
     my $x = ${$X}[$i] - $x0;
     my $y = ${$Y}[$i] - $y0;
     ${$X}[$i] = $x*$cp + $y*$sp;
     ${$Y}[$i] =-$x*$sp + $y*$cp;
     ${$A}[$i] = sqrt($x*$x+$y*$y);
+    $max = ${$A}[$i] if (${$A}[$i] > $max);
   }
-  return ($x0,$y0,$ph);
+  return ($x0,$y0,$ph,$max);
 }
 
 
@@ -256,7 +258,8 @@ foreach my $sig (@ARGV) {
     $pars{dfdi} = 405.886*20378/(2*3.1415926); # current to freq
     $pars{dfdt} = $pars{didt}*$pars{dfdi}; # time to freq shift
   }
-  $pars{nmr_auto_ph} = fix_phase($pars{nmr_x}, $pars{nmr_y}, $pars{nmr_a});
+  ($pars{nmr_auto_x0}, $pars{nmr_auto_y0}, $pars{nmr_auto_ph}, $pars{nmr_max}) =
+     fix_phase($pars{nmr_x}, $pars{nmr_y}, $pars{nmr_a});
 
   ## Find exact frequency, get amplitude values
   my $cmd = $sig_filter .
@@ -286,18 +289,15 @@ foreach my $sig (@ARGV) {
          ($pars{sfft_win} ? " -w $pars{sfft_win}":"");
 
   if ($pars{ch}<2) { $cmd .= " -f $pars{fre_fft}"; }
-  print "  Get sfft amplitude:\n";
-  $pars{sfft_max} = 0;
   foreach (split /\n/, `$cmd`){
     my ($t,$x,$y) = split /\s+/;
     push @{$pars{sfft_t}}, $t;
     push @{$pars{sfft_x}}, $x;
     push @{$pars{sfft_y}}, $y;
-    my $a = sqrt($x*$x+$y*$y);
-    $pars{sfft_max} = $a if $pars{sfft_max} < $a;
-    push @{$pars{sfft_a}}, $a;
+    push @{$pars{sfft_a}}, sqrt($x*$x+$y*$y);
   }
-  $pars{sfft_auto_ph} = fix_phase($pars{sfft_x}, $pars{sfft_y}, $pars{sfft_a});
+  ($pars{sfft_auto_x0}, $pars{sfft_auto_y0}, $pars{sfft_auto_ph}, $pars{sfft_max}) = 
+     fix_phase($pars{sfft_x}, $pars{sfft_y}, $pars{sfft_a});
 
 
 
