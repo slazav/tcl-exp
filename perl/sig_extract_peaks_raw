@@ -1,0 +1,62 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use JSON;
+
+my $prog = $0;
+$prog =~s|^.*/([^/]*$)|$1|;
+
+############################################################
+############################################################
+# Extract peak information from inf-files and print it as a table
+#
+
+############################################################
+foreach my $sig (@ARGV) {
+
+  # read inf file for the signal
+  my $inf = $sig; $inf=~s/\.sigf?$//; $inf.='.inf';
+  `sig_get_info $sig` unless -f $inf;
+  open INF, "$inf" or die "can't open file: $inf: $!\n";
+  my $pars = decode_json(join "\n", (<INF>));
+  close INF;
+
+
+  next unless exists $pars->{fig_peaks};
+
+  my $fre  = $pars->{fre};
+  my $exc  = $pars->{exc};
+  my $grad = $pars->{grad}*1000;
+  my $quad = $pars->{quad}*1000;
+  my $temp = $pars->{temp}*1000;
+  my $dfdt = $pars->{dfdt};
+  my $df   = $pars->{larm_df} || 0;
+
+
+  foreach my $p (@{$pars->{fig_peaks}}){
+    my @T = @{$p->{T}};
+    my @F = @{$p->{F}};
+    my @A = @{$p->{A}};
+    my @Q = @{$p->{Q}};
+    my $name = $p->{name} || "";
+    my @DF;
+    my @FF;
+
+    # convert time to freq.shift
+    for (my $i=0; $i<$#T; $i++){
+      $DF[$i] = $T[$i]*$dfdt-$df;
+      $F[$i]/=2 if $name=~/2$/;
+      $F[$i]/=3 if $name=~/3$/;
+      $F[$i]/=4 if $name=~/4$/;
+    }
+
+    # print raw peak data
+    for (my $i=0; $i<$#T; $i++){
+      printf "%e %e %e %e\n", $DF[$i], $F[$i], $A[$i], $Q[$i];
+    }
+
+    ###
+    print "\n";
+  }
+
+}

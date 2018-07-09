@@ -167,6 +167,7 @@ $cfg{png_win}  = 50000;
 $cfg{peak_win}  = 50000;
 $cfg{peak_thr}  = 4.0;
 $cfg{peak_stp}  = 10000;
+$cfg{peak_fwin}  = 50;
 $cfg{W}  = 1600;
 $cfg{H}  = 1200;
 

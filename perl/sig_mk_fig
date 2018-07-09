@@ -45,6 +45,8 @@ foreach my $sig (@ARGV) {
 
     my $state=-1;
     my $color=0;
+    my $comm="";
+    my $name="";
     my @crd = ();
     foreach my $l (<FIG>){
       # extract conversion parameters:
@@ -54,7 +56,12 @@ foreach my $sig (@ARGV) {
       # switch to a scanning state:
       $state=0 if $l=~/^1200 2/;
 
-      # extract all lines with [A-Z]\S+ comments:
+      # extract comments:
+      if ($state == 0 && $l=~/^#\s+(\S+)/) {
+        $comm=$1;
+      }
+
+      # extract coordinates:
       if ($state == 1 && $l=~/^\s+\d+/) {
         $l=~s/^\s*(.*?)\s*$/$1/;
         my @c = split /\s+/, $l;
@@ -63,17 +70,19 @@ foreach my $sig (@ARGV) {
       # read lines with depth=50 and different colors
       if ($l=~/^\d/) {
         if ($state==0 && $l=~/^2 1 0 1 (\d+) 7 50/){
-          push @{$pars->{fig_marks}}, {color=>$color, crd=>[@crd]} if $#crd>=0;
+          push @{$pars->{fig_marks}}, {color=>$color, name=>$name, crd=>[@crd]} if $#crd>=0;
           @crd = ();
           $state = 1;
+          $name = $comm;
           $color = $1;
         } else {
           $state = 0;
         }
+        $comm = "";
       }
     }
     # save old object
-    push @{$pars->{fig_marks}}, {color=>$color, crd=>[@crd]} if $#crd>=0;
+    push @{$pars->{fig_marks}}, {color=>$color, name=>$name, crd=>[@crd]} if $#crd>=0;
     close FIG;
 
 
@@ -132,6 +141,7 @@ foreach my $sig (@ARGV) {
          " -f sfft_peak \"$sig\"" .
          " -T " . join(",", @T) .
          " -F " . join(",", @F) .
+         ($pars->{peak_fwin} ? " -w $pars->{peak_fwin}":"") .
          ($pars->{peak_win} ? " -w $pars->{peak_win}":"") .
          ($pars->{peak_stp} ? " -s $pars->{peak_stp}":"");
         @T=(); @F=(); @A=(); @Q=();
@@ -144,7 +154,7 @@ foreach my $sig (@ARGV) {
           push @A, $a;
           push @Q, $a/$a0; # peak quality
         }
-        push @{$pars->{fig_peaks}}, {T=>[@T], F=>[@F], A=>[@A], Q=>[@Q]};
+        push @{$pars->{fig_peaks}}, {name=>$d->{name}, T=>[@T], F=>[@F], A=>[@A], Q=>[@Q]};
       }
     }
   }
@@ -306,23 +316,24 @@ foreach my $sig (@ARGV) {
     }
 
     # Fomin's mode
-#    for (my $s = -1; $s<=1; $s+=2) {
-#      print FIG "2 1 0 1 15 7 60 -1 -1 0.000 0 0 -1 0 0 $ncw\n";
-#      for (my $i=0; $i<$ncw; $i++){
-#        my $df = (${$pars->{nmr_i}}[0]-${$pars->{nmr_i}}[$i])*$pars->{dfdi};
-#        my $h = 0.001;
-#        my $d = $df/$pars->{fre};
-#        my $flegg2 = 0;
-#
-#        my $u = $d-$s*$h/sqrt(15);
-#        my $f3 = $u<0? 0:sqrt( $u * (3.0/8.0+$flegg2)/(1.0+$flegg2) );
-#        $f3 *= $pars->{fre};
-#
-#        my $x = int($time2fig[0] + $time2fig[1]*${$pars->{nmr_t}}[$i]);
-#        my $y = int($freq2fig[0] + $freq2fig[1]*$f3);
-#        print FIG "\t$x $y\n";
-#      }
-#    }
+    for (my $s = -1; $s<=1; $s+=2) {
+      print FIG "2 1 0 1 15 7 60 -1 -1 0.000 0 0 -1 0 0 $ncw\n";
+      for (my $i=0; $i<$ncw; $i++){
+        my $df = (${$pars->{nmr_i}}[0]-${$pars->{nmr_i}}[$i])*$pars->{dfdi} + $larm_df;
+        my $h = 6.2e-5;
+        $df /= $pars->{fre};
+        my $flegg2 = (290e3/$pars->{fre})**2;
+
+
+        my $f3 = ($df-$s*$h/sqrt(15)) * (3.0/8.0+$flegg2)/(1.0+$flegg2);
+        $f3 = $f3<0? 0:sqrt($f3);
+        $f3 *= $pars->{fre} * $flegg2;
+
+        my $x = int($time2fig[0] + $time2fig[1]*${$pars->{nmr_t}}[$i]);
+        my $y = int($freq2fig[0] + $freq2fig[1]*$f3);
+        print FIG "\t$x $y\n";
+      }
+    }
 
 #    for (my $s = -1; $s<=1; $s+=2) {
 #      print FIG "2 1 0 1 15 7 60 -1 -1 0.000 0 0 -1 0 0 $ncw\n";
@@ -344,6 +355,7 @@ foreach my $sig (@ARGV) {
   # restore fig marks
   foreach my $L (@{$pars->{fig_marks}}){
     my $n = ($#{$L->{crd}}+1)/2;
+    print FIG "# $L->{name}\n" if exists $L->{name};
     print FIG "2 1 0 1 $L->{color} 7 50 -1 -1 0.000 0 0 -1 0 0 $n";
     for (my $i=0; $i <= $#{$L->{crd}}-1; $i+=2){
 
