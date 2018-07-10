@@ -18,7 +18,7 @@ my $sig_filter = '~/PROG/pico_osc/sig_filter/sig_filter';
 foreach my $sig (@ARGV) {
 
   my $inf = $sig; $inf=~s/\.sigf?$//; $inf.='.inf';
-  `sig_get_info $sigf` unless -f $inf;
+  `sig_get_info $sig` unless -f $inf;
   open INF, "$inf" or die "can't open file: $inf: $!\n";
   my $pars = decode_json(join "\n", (<INF>));
   close INF;

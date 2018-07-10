@@ -72,7 +72,7 @@ my $sig_filter = '~/PROG/pico_osc/sig_filter/sig_filter';
 #my $sig_filter = 'sig_filter';
 
 ## path to graphene program:
-my $graphene = 'graphene -d /home/exports/DB';
+my $graphene = '/usr/bin/graphene -d /home/exports/DB';
 #my $graphene = 'graphene -d /var/lib/graphene';
 
 ############################################################

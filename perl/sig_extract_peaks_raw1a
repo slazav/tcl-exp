@@ -1,0 +1,65 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use JSON;
+
+my $graphene = 'graphene -d /home/exports/DB';
+
+for (my $i=1; ;$i++){
+  my $dir = sprintf("pt%03d", $i);
+  opendir PD, $dir or last;
+  open O, "> $dir/plot" or die "can't open plot file: $!\n";
+  my @sigs;
+  my $n=0;
+
+  # get min/max time from file $dir/time.txt;
+  # use db to get mean temperature
+  my $temp=0;
+  if (open T, "$dir/time.txt"){
+    my ($t1,$t2);
+    foreach (<T>){
+      chomp;
+      $t1 = $_ if !$t1 || $t1 > $_;
+      $t2 = $_ if !$t2 || $t2 < $_;
+    }
+    close T;
+    open G, "$graphene get_range drydemag_temp $t1 $t2 |";
+    my ($ts,$tn)=(0,0);
+    foreach (<G>){
+      my ($t, $v) = split /\s+/;
+      $ts+=$v; $tn++;
+    }
+    $temp = 1000*$ts/$tn if $tn>0;
+    close G;
+  }
+
+  foreach my $f (sort readdir PD){
+    next unless $f=~/\.peak$/;
+    my ($u,$g,$p) = (0,0,'');
+    ($u,$g,$p) = ($1,$2,$3) if $f=~/([0-9\.-]+)_([0-9\.-]+)_(\S+)\.peak/;
+    push @sigs, {f=>$f, u=>$u, g=>$g, p=>$p, n=>$n};
+    $n++;
+  }
+
+  print O "#!/usr/bin/gnuplot\n\n";
+  foreach my $s (@sigs){
+    print O "f$s->{n}(x) = a$s->{n} * (x - b$s->{n})\n";
+    print O "fit f$s->{n}(x) \"$s->{f}\" using (-\$1):(\$2**2/sqrt($s->{u})) via a$s->{n},b$s->{n}\n";
+  }
+
+  print O "\nplot [0:] [0:]\\\n";
+  foreach my $s (@sigs){
+    print O "\"$s->{f}\" using (-\$1):(\$2**2/sqrt($s->{u})) lc $s->{n} title \"$s->{u} $s->{g} $s->{p}\", f$s->{n}(x) lc $s->{n} notitle,\\\n";
+  }
+  print O "0\n\n";
+
+  foreach my $s (@sigs){
+    my $ts = sprintf "\"%5.3f \"", $temp;
+    my $ps = sprintf "\" %3s \"", $s->{p};
+    print O "print $ts, $s->{u}, $s->{g}, $ps, a$s->{n}, b$s->{n}\n";
+  }
+
+  print O "\n\npause -1\n";
+  close O;
+  `chmod 755 $dir/plot`;
+}

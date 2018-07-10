@@ -36,7 +36,7 @@ foreach my $sig (@ARGV) {
          ($pars->{png_win}? " -w $pars->{png_win}":"") .
          ($pars->{W}      ? " -W $pars->{W}":"") .
          ($pars->{H}      ? " -H $pars->{H}":"") .
-         " | pnmtopng > \"$png\"";
+         " | /usr/bin/pnmtopng > \"$png\"";
   print "make PNG: $png\n";
   `$cmd`;
 }

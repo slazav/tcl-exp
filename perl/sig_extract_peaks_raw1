@@ -21,6 +21,7 @@ my %ids;  # old excitation
 opendir SD, "." or die "can't open sig folder: .: $!\n";
 foreach my $sig (sort readdir SD){
   next unless $sig=~/_n\.sig$/;
+  next if $sig=~/^_/;
 
 
   # read inf file for the signal
@@ -30,7 +31,7 @@ foreach my $sig (sort readdir SD){
   my $pars = decode_json(join "\n", (<INF>));
   close INF;
 
-  next unless exists $pars->{fig_peaks};
+  next unless exists $pars->{fig_peaks} && $#{$pars->{fig_peaks}}>-1;
 
   my $fre  = $pars->{fre};
   my $exc  = $pars->{exc};
@@ -52,7 +53,7 @@ foreach my $sig (sort readdir SD){
     $ptn++;
     $dir = sprintf("pt%03d", $ptn);
     `mkdir -p $dir`;
-    `rm -f $dir/*.peak`;
+    `rm -f $dir/*.peak $dir/temp.txt $dir/time.txt`;
      print STDERR "$ptn\n";
   }
 
@@ -62,6 +63,10 @@ foreach my $sig (sort readdir SD){
   $ts+=$temp;
   $ids{$id}=1;
 
+  `echo $temp >> $dir/temp.txt`;
+  `echo $pars->{t1abs} >> $dir/time.txt`;
+  `echo $pars->{t2abs} >> $dir/time.txt`;
+
   foreach my $p (@{$pars->{fig_peaks}}){
     my @T = @{$p->{T}};
     my @F = @{$p->{F}};
@@ -69,6 +74,7 @@ foreach my $sig (sort readdir SD){
     my @Q = @{$p->{Q}};
     my @DF;
     my @FF;
+    next unless $#T >-1;
 
     # skip larmor peak
     $p->{name} = "larm" if $p->{name} eq "l";
@@ -84,6 +90,7 @@ foreach my $sig (sort readdir SD){
 
     open OUT, ">> $dir/${id}_$p->{name}.peak"
       or die "can't open file: $dir/${id}_$p->{name}.peak: $!";
+    print OUT "# $sig\n";
     # print raw peak data
     for (my $i=0; $i<$#T; $i++){
       printf OUT "%e %e %e %e\n", $DF[$i], $F[$i], $A[$i], $Q[$i];
@@ -92,18 +99,4 @@ foreach my $sig (sort readdir SD){
     close OUT;
   }
 
-}
-
-for (my $i=1; $i<=$ptn; $i++){
-  $dir = sprintf("pt%03d", $i);
-  opendir PD, $dir or die "can't open folder: $dir: $!\n";
-  open O, "> $dir/plot" or die "can't open plot file: $!\n";
-  print O "#!/usr/bin/gnuplot\n plot\\\n";
-  foreach my $p (sort readdir PD){
-    next unless $p=~/\.peak$/;
-    print O "\"$p\" using (-\$1):(\$2**2),\\\n";
-  }
-  print O "\n\npause -1\n";
-  close O;
-  `chmod 755 $dir/plot`;
 }

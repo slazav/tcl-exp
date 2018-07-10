@@ -141,7 +141,7 @@ foreach my $sig (@ARGV) {
          " -f sfft_peak \"$sig\"" .
          " -T " . join(",", @T) .
          " -F " . join(",", @F) .
-         ($pars->{peak_fwin} ? " -w $pars->{peak_fwin}":"") .
+         ($pars->{peak_fwin} ? " -w $pars->{peak_fwin}":"50") .
          ($pars->{peak_win} ? " -w $pars->{peak_win}":"") .
          ($pars->{peak_stp} ? " -s $pars->{peak_stp}":"");
         @T=(); @F=(); @A=(); @Q=();
