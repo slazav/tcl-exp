@@ -16,14 +16,17 @@ my $sig_filter = '~/PROG/pico_osc/sig_filter/sig_filter';
 ############################################################
 ## Process signals
 foreach my $sig (@ARGV) {
-
   my $inf = $sig; $inf=~s/\.sigf?$//; $inf.='.inf';
+  my $png = $sig; $png=~s/\.sigf?$//; $png.='.png';
   `sig_get_info $sig` unless -f $inf;
+
+  my $r = `[ $png -ot $inf -o $png -ot $sig ] && echo 1 || echo 0`;
+  chomp($r); next if $r == 0;
+
   open INF, "$inf" or die "can't open file: $inf: $!\n";
   my $pars = decode_json(join "\n", (<INF>));
   close INF;
 
-  my $png = $sig; $png=~s/\.sigf?$//; $png.='.png';
   next if -f $png;
   my $cmd= $sig_filter .
          ($pars->{tmin}   ? " -T $pars->{tmin}":"") .

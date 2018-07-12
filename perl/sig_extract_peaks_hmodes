@@ -1,0 +1,221 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use JSON;
+
+use lib qw(/home/sla/PROG/exp_scripts/perl/);
+use sigproc;
+
+my $prog = $0;
+$prog =~s|^.*/([^/]*$)|$1|;
+
+`sig_mk_fig *.sig`;
+
+############################################################
+############################################################
+# Extract hmodes
+#  - fit modes with f^2 = A (df-df0)
+#  - find modes with A > 1000 Hz
+#  - split peaks into three groups:
+#    df0 < -50,  -50 < df0 < 50, df0 < 50 ???
+#  - find the best central peak f0c and the best side peak +/- f0s
+#  - refit all peaks with f0c and +/- f0s
+
+my $minA = 1000;
+my $df0brd = 50;
+my $df0cnt = 20;
+
+############################################################
+my $ts=0; # temperature sum
+my $n=0;  # temperature counter
+my $ptn=0; # point counter
+my $dir = "peaks";
+`mkdir -p $dir`;
+my %ids;  # old excitation
+
+open OUT, "> $dir/res.txt" or die "can't open file: $!\n";
+open OUTP, "> $dir/peaks.txt" or die "can't open file: $!\n";
+open OUTL, "> $dir/peaks_l.txt" or die "can't open file: $!\n";
+
+opendir SD, "." or die "can't open sig folder: .: $!\n";
+foreach my $sig (sort readdir SD){
+  next unless $sig=~/\.sig$/;
+  next if $sig=~/^_/;
+  next if $sig=~/^_p\.sig/;
+
+  my $pars = sigproc::read_sig_info($sig);
+  next unless exists $pars->{fig_peaks} && $#{$pars->{fig_peaks}}>-1;
+
+  my $fre  = $pars->{fre};
+  my $exc  = $pars->{exc};
+  my $grad = $pars->{grad}*1000;
+  my $quad = $pars->{quad}*1000;
+  my $temp = $pars->{temp}*1000;
+  my $dfdt = $pars->{dfdt};
+  my $df   = $pars->{larm_df} || 0;
+
+  my %peaks = sigproc::process_peaks($pars);
+  next unless %peaks;
+
+
+
+  my $txt = $sig; $txt=~s/\.sigf?$//; $txt.='.txt';
+  open TXT, "> $dir/$txt" or die "can't open file: $txt: $!\n";
+
+  # print all peaks into OUTP
+  my $min_df;
+  foreach my $p (values %peaks){
+    next if $p->{fitres} == 0;
+    printf OUTP "%24s %2s  %5.2f %6.2f %6.3f   %f %f  %f %f  %f\n", $sig, $p->{name},
+       $exc, $grad, $temp,  $p->{A}, $p->{dA}, $p->{df0}, $p->{ddf0}, $p->{len};
+
+    for (my $i=0; $i<= $#{$p->{DF}}; $i++ ) {
+      print TXT "${$p->{DF}}[$i] ${$p->{F}}[$i]\n";
+    }
+    $min_df = $p->{df0}-$p->{ddf0} if !defined($min_df) || $min_df > $p->{df0}-$p->{ddf0};
+print STDERR "> $p->{df0} $min_df\n";
+  }
+  close TXT;
+
+
+  # print GP file for all peaks
+  my $gpf = $sig; $gpf=~s/\.sigf?$//; $gpf.='.gp';
+  open GPF, "> $dir/$gpf" or die "can't open file: $gpf: $!\n";
+  print GPF "#!/usr/bin/gnuplot\n\n",
+            "set nokey\n";
+  print GPF "\nplot [$min_df:][0:] \"$txt\" using 1:(\$2**2) pt 6,\\\n";
+
+  foreach my $p (values %peaks){
+    next if $p->{fitres} == 0;
+    my $A1 = $p->{A}+$p->{dA};
+    my $df1 = $p->{dfc} - $p->{A}/$A1 * ($p->{dfc} - $p->{df0});
+    my $A2 = $p->{A}-$p->{dA};
+    my $df2 = $p->{dfc} - $p->{A}/$A2 * ($p->{dfc} - $p->{df0});
+    print GPF " $A1 * (x-$df1) lc 3,\\\n";
+    print GPF " $A2 * (x-$df2) lc 3,\\\n";
+  }
+  print GPF "0\n",
+            "\npause -1\n";
+  `chmod 755 $dir/$gpf`;
+
+
+
+  # LS,L-peaks
+  if (exists $peaks{'l'} && exists $peaks{'ls'}){
+    my $pl = $peaks{'l'};
+    my $ps = $peaks{'ls'};
+    if ($pl->{fitres}>0 && $ps->{fitres}>0){
+
+      my $k_ls = $pl->{A}/$ps->{A};
+      my $dk_ls = $pl->{dA}/$ps->{A} + $ps->{dA} *$pl->{A}/$ps->{A}/$ps->{A};
+      my $s_ls = $pl->{df0} - $ps->{df0};
+      my $ds_ls = $pl->{df0} + $ps->{df0};
+
+      printf OUTL "%24s  %5.2f %6.2f %6.3f   %f %f  %f %f\n", $sig,
+        $exc, $grad, $temp,  $k_ls, $dk_ls,  $s_ls, $ds_ls;
+
+
+      my $txt = $sig; $txt=~s/\.sigf?$//; $txt.='.txt';
+      open TXT, "> $dir/l_$txt" or die "can't open file: l_$txt: $!\n";
+      for (my $i=0; $i<= $#{$pl->{DF}}; $i++ ) {
+        print TXT "${$pl->{DF}}[$i] ${$pl->{F}}[$i]\n";}
+      for (my $i=0; $i<= $#{$ps->{DF}}; $i++ ) {
+        print TXT "${$ps->{DF}}[$i] ${$ps->{F}}[$i]\n";}
+      close TXT;
+
+
+      my $gpf = "l_$sig"; $gpf=~s/\.sigf?$//; $gpf.='.gp';
+      open GPF, "> $dir/$gpf" or die "can't open file: $gpf: $!\n";
+      print GPF "#!/usr/bin/gnuplot\n\n",
+            "set nokey\n";
+      print GPF "\nplot [0:][0:] \"l_$txt\" using 1:(\$2*\$2) pt 6,\\\n";
+
+      print GPF " $pl->{A} * (x-$pl->{df0}) lc 1,\\\n";
+      print GPF " $ps->{A} * (x-$ps->{df0}) lc 1,\\\n";
+
+      print GPF "0\n";
+      print GPF "pause -1\n";
+
+      close GPF;
+
+      `chmod 755 $dir/$gpf`;
+
+    }
+  }
+
+
+
+  # H-peaks
+  my (@LP, @CP, @RP); # left, right, central peaks
+  my ($df0c, $df0l, $df0r) = (0,0,0,0);
+  my ($wc, $wl, $wr) = (0,0,0,0);
+
+  foreach my $p (values %peaks){
+
+    # skip low-freq peaks
+    next if $p->{A} < $minA;
+    next if $p->{fitres} == 0;
+
+    my $w = $p->{len}*$p->{len}; # weighting function
+
+    if    ($p->{df0} < $df0cnt-$df0brd) {
+      $p->{type} = -1;
+      $df0l += $p->{df0}*$w; $wl+=$w;
+    }
+    elsif ($p->{df0} > $df0cnt+$df0brd) {
+      $p->{type} = +1;
+      $df0r += $p->{df0}*$w; $wr+=$w;
+    }
+    else {
+      $p->{type} = 0;
+      $df0c += $p->{df0}*$w; $wc+=$w;
+    }
+  }
+
+
+
+  next if $wc==0 || ($wr+$wl) == 0;
+  $df0c/=$wc;
+  my $gap = ($df0c*$wl - $df0l + $df0r - $df0c*$wr)/($wr+$wl);
+
+
+  # refit peaks with fixed df0
+  my (@pl,@pc,@pr);
+  foreach my $p (values %peaks){
+
+    # skip low-freq peaks
+    next if $p->{A} < $minA;
+    next if $p->{fitres} == 0;
+
+    my $df0 = 0;
+    if ($p->{type} < 0) {$df0 = $df0c-$gap;}
+    elsif ($p->{type} > 0) {$df0 = $df0c+$gap;}
+    else {$df0 = $df0c;}
+
+    # fit peaks with f^2 = a*(df-df0)
+    my ($ss,$sn) = (0,0);
+    for (my $i=0; $i<= $#{$p->{DF}}; $i++ ) {
+      my $x = ${$p->{DF}}[$i] - $df0;
+      my $y = ${$p->{F}}[$i]*${$p->{F}}[$i];
+      $ss+=$y/$x; $sn++;
+    }
+    $p->{fA} = $ss/$sn;
+    $p->{fdf0} = $df0;
+    if ($p->{type} < 0) {push @pl, $p->{fA};}
+    elsif ($p->{type} > 0) {push @pr, $p->{fA};}
+    else {push @pc, $p->{fA};}
+  }
+
+
+  @pc = sort @pc;
+  @pr = sort @pr;
+  @pl = sort @pl;
+
+  printf OUT "%20s  %5.2f %6.2f %6.3f   %.3f %.3f ", $sig, $exc, $grad, $temp,  $gap, $df0c;
+   for (my $i=0; $i<4; $i++){ print OUT " ", ($i<=$#pl? $pl[$i]:0); }
+   for (my $i=0; $i<4; $i++){ print OUT " ", ($i<=$#pc? $pc[$i]:0); }
+   for (my $i=0; $i<4; $i++){ print OUT " ", ($i<=$#pr? $pr[$i]:0); }
+  print OUT "\n";
+
+}
+

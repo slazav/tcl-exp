@@ -20,21 +20,24 @@ foreach my $sig (@ARGV) {
 
   my $inf = $sig; $inf=~s/\.sigf?$//; $inf.='.inf';
   `sig_get_info $sig` unless -f $inf;
+
+  my $inff = $sig; $inff=~s/\.sigf?$//; $inff.='.inff';
+
+  my $fig = $sig; $fig=~s/\.sigf?$//; $fig.='.fig';
+  my $png = $sig; $png=~s/\.sigf?$//; $png.='.png';
+  $png=~s|^.*/||;
+
+  my $r = `[ $fig -ot $sig -o $fig -ot $inf -o $inff -ot $fig ] && echo 1 || echo 0`;
+  chomp($r); next if $r == 0;
+
+  print "updating FIG-file: $fig\n";
+
   open INF, "$inf" or die "can't open file: $inf: $!\n";
   my $pars = decode_json(join "\n", (<INF>));
   close INF;
 
-  my $fig = $sig; $fig=~s/\.sigf?$//; $fig.='.fig';
-  my $png = $sig; $png=~s/\.sigf?$//; $png.='.png';
-  print "updating FIG-file: $fig\n";
 
-
-  delete $pars->{fig_t0};
-  delete $pars->{fig_lt};
-  delete $pars->{fig_lf};
-  delete $pars->{larm_df};
-  delete $pars->{fig_marks};
-  delete $pars->{fig_peaks};
+  my $figpars;
 
   ############################################################
   ## read data from fig if it exists
@@ -70,7 +73,7 @@ foreach my $sig (@ARGV) {
       # read lines with depth=50 and different colors
       if ($l=~/^\d/) {
         if ($state==0 && $l=~/^2 1 0 1 (\d+) 7 50/){
-          push @{$pars->{fig_marks}}, {color=>$color, name=>$name, crd=>[@crd]} if $#crd>=0;
+          push @{$figpars->{fig_marks}}, {color=>$color, name=>$name, crd=>[@crd]} if $#crd>=0;
           @crd = ();
           $state = 1;
           $name = $comm;
@@ -82,11 +85,11 @@ foreach my $sig (@ARGV) {
       }
     }
     # save old object
-    push @{$pars->{fig_marks}}, {color=>$color, name=>$name, crd=>[@crd]} if $#crd>=0;
+    push @{$figpars->{fig_marks}}, {color=>$color, name=>$name, crd=>[@crd]} if $#crd>=0;
     close FIG;
 
 
-    foreach my $d (@{$pars->{fig_marks}}){
+    foreach my $d (@{$figpars->{fig_marks}}){
 
       my $crd = \@{$d->{crd}};
       #convert all lines to time-freq coordinates
@@ -98,14 +101,14 @@ foreach my $sig (@ARGV) {
 
       # color=2 : t0 line
       if ($d->{color} == 2 && $#{$crd}>=3)  {
-        $pars->{fig_t0}=(${$crd}[0]+${$crd}[2])/2;
+        $figpars->{fig_t0}=(${$crd}[0]+${$crd}[2])/2;
         next;
       }
 
       # color=1 : Larmor point
       if ($d->{color} == 1 && $#{$crd}>=1)  {
-        $pars->{fig_lt}=${$crd}[0];
-        $pars->{fig_lf}=${$crd}[1];
+        $figpars->{fig_lt}=${$crd}[0];
+        $figpars->{fig_lf}=${$crd}[1];
 
         # if CW data exists calculate frequency shift
         my $ncw = $#{$pars->{nmr_i}}+1;
@@ -119,7 +122,7 @@ foreach my $sig (@ARGV) {
             if ($t1 < $t0 && $t0 <= $t2){
               my $f1 = (${$pars->{nmr_i}}[$i-1]-${$pars->{nmr_i}}[0])*$pars->{dfdi};
               my $f2 = (${$pars->{nmr_i}}[$i]-${$pars->{nmr_i}}[0])*$pars->{dfdi};
-              $pars->{larm_df} = $f1 + ($f2-$f1)/($t2-$t1)*($t0-$t1) - $f0;
+              $figpars->{larm_df} = $f1 + ($f2-$f1)/($t2-$t1)*($t0-$t1) - $f0;
               last;
             }
           }
@@ -141,7 +144,7 @@ foreach my $sig (@ARGV) {
          " -f sfft_peak \"$sig\"" .
          " -T " . join(",", @T) .
          " -F " . join(",", @F) .
-         ($pars->{peak_fwin} ? " -w $pars->{peak_fwin}":"50") .
+         ($pars->{peak_fwin} ? " -w $pars->{peak_fwin}":"") .
          ($pars->{peak_win} ? " -w $pars->{peak_win}":"") .
          ($pars->{peak_stp} ? " -s $pars->{peak_stp}":"");
         @T=(); @F=(); @A=(); @Q=();
@@ -154,7 +157,7 @@ foreach my $sig (@ARGV) {
           push @A, $a;
           push @Q, $a/$a0; # peak quality
         }
-        push @{$pars->{fig_peaks}}, {name=>$d->{name}, T=>[@T], F=>[@F], A=>[@A], Q=>[@Q]};
+        push @{$figpars->{fig_peaks}}, {name=>$d->{name}, T=>[@T], F=>[@F], A=>[@A], Q=>[@Q]};
       }
     }
   }
@@ -180,7 +183,7 @@ foreach my $sig (@ARGV) {
   my $freq0 = $pars->{fre_fft};
   my @freq2fig = ($Y1+($Y2-$Y1)/2, -($Y2-$Y1)/$freqS);
   my @time2fig = ($X1, ($X2-$X1)/$timeS);
-  my $larm_df=$pars->{larm_df} || 0;
+  my $larm_df=$figpars->{larm_df} || 0;
 
   # header
   print FIG "#FIG 3.2\n",
@@ -353,7 +356,7 @@ foreach my $sig (@ARGV) {
 
 
   # restore fig marks
-  foreach my $L (@{$pars->{fig_marks}}){
+  foreach my $L (@{$figpars->{fig_marks}}){
     my $n = ($#{$L->{crd}}+1)/2;
     print FIG "# $L->{name}\n" if exists $L->{name};
     print FIG "2 1 0 1 $L->{color} 7 50 -1 -1 0.000 0 0 -1 0 0 $n";
@@ -369,7 +372,7 @@ foreach my $sig (@ARGV) {
   }
 
   # draw peaks
-  foreach my $L (@{$pars->{fig_peaks}}){
+  foreach my $L (@{$figpars->{fig_peaks}}){
     my $n = $#{$L->{T}};
     for (my $i=0; $i <= $n; $i++){
       my $x = int($time2fig[0] + $time2fig[1]*${$L->{T}}[$i]);
@@ -388,9 +391,9 @@ foreach my $sig (@ARGV) {
 
   ############################################################
   ## Save parameters
-  open INF, "> $inf" or die "can't open file: $inf: $!\n";
-  print INF JSON->new->pretty->canonical->utf8->encode($pars);
-  close INF;
+  open INFF, "> $inff" or die "can't open file: $inff: $!\n";
+  print INFF JSON->new->pretty->canonical->utf8->encode($figpars);
+  close INFF;
 
 }
 
