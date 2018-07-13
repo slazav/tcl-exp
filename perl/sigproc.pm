@@ -9,21 +9,27 @@ sub mk_name {
 }
 
 ###############################################################
+sub read_inf {
+  my $f=shift;
+  open INF, "$f" or die "can't open file: $f: $!\n";
+  my $pars = decode_json(join "\n", (<INF>));
+  close INF;
+  return $pars;
+}
+
+
+###############################################################
 sub read_sig_info {
   my $sig=shift;
 
   # read inf file for the signal
   my $inf = $sig; $inf=~s/\.sigf?$//; $inf.='.inf';
   `sig_get_info $sig` unless -f $inf;
-  open INF, "$inf" or die "can't open file: $inf: $!\n";
-  my $pars = decode_json(join "\n", (<INF>));
-  close INF;
+  my $pars = read_inf($inf);
 
   # read inff
   my $inff = $sig; $inff=~s/\.sigf?$//; $inff.='.inff';
-  open INF, "$inff" or die "can't open file: $inff: $!\n";
-  my $pars1 = decode_json(join "\n", (<INF>));
-  close INF;
+  my $pars1 = read_inf($inff);
 
   $pars = { (%{$pars}, %{$pars1}) };
   $pars->{sig} = $sig;
@@ -40,11 +46,12 @@ sub read_sig_info {
 
 sub process_peaks {
   my $pars = shift;
-  my %ret;
+  my @ret;
+  my %names;
 
-  my $dfdt = $pars->{dfdt};
-  warn "No larmor mark at $pars->{sig}\n" if !exists $pars->{larm_df};
-  my $df   = $pars->{larm_df};
+  my $dfdi = $pars->{dfdi};
+  warn "No larmor mark at $pars->{sig}\n" if !exists $pars->{larm_i};
+  my $I0   = $pars->{larm_i};
 
   foreach my $p (@{$pars->{fig_peaks}}){
     next unless $#{$p->{T}} >-1;
@@ -56,8 +63,9 @@ sub process_peaks {
     next if $p->{name} eq "larm";
 
     # convert time to freq.shift, scale x2, x3 etc peaks:
+    my @I = time2curr($pars->{nmr_t}, $pars->{nmr_i}, $p->{T});
     for (my $i=0; $i <= $#{$p->{T}}; $i++){
-      ${$p->{DF}}[$i] = -${$p->{T}}[$i]*$dfdt+$df;
+      ${$p->{DF}}[$i] = -($I[$i]-$I0)*$dfdi+$df;
       ${$p->{F}}[$i]/=$1 if $p->{name}=~/(\d)$/;
       ${$p->{F}}[$i] = abs(${$p->{F}}[$i]);
     }
@@ -71,39 +79,37 @@ sub process_peaks {
     ($p->{fitres}, $p->{A}, $p->{df0}, $p->{dfc}, $p->{err}, $p->{dA}, $p->{ddf0})
       = sigproc::fit_peak($p->{DF}, $p->{F});
 
-    # skip bad peaks
-#    next if $p->{ddf0}>15;
-#    next if $p->{len}<100;
-
     # add to peaks array
-    if (!exists $ret{$p->{name}}) {
-      $ret{$p->{name}} = $p;
+    if (!exists $names{$p->{name}}) {
+      push @ret, $p;
+      $names{$p->{name}} = $#ret;
     }
     else {
+      my $np = $names{$p->{name}};
       my $a1 = $p->{A};
       my $da1 = $p->{dA};
       my $b1 = $p->{B};
       my $db1 = $p->{dB};
-      my $a2 = $ret{$p->{name}}->{A};
-      my $da2 = $ret{$p->{name}}->{dA};
-      my $b2 = $ret{$p->{name}}->{B};
-      my $db2 = $ret{$p->{name}}->{dB};
+      my $a2 = $ret[$np]->{A};
+      my $da2 = $ret[$np]->{dA};
+      my $b2 = $ret[$np]->{B};
+      my $db2 = $ret[$np]->{dB};
       warn "Different peaks with same name $p->{name} in $pars->{sig}\n"
         if abs($a1-$a2) > 4*($da1+$da2)/2 || abs($b1-$b2) > 4*($db1+$db2)/2;
-      push @{$ret{$p->{name}}->{T}},  @{$p->{T}};
-      push @{$ret{$p->{name}}->{DF}}, @{$p->{DF}};
-      push @{$ret{$p->{name}}->{F}},  @{$p->{F}};
-      push @{$ret{$p->{name}}->{A}},  @{$p->{A}};
-      push @{$ret{$p->{name}}->{Q}},  @{$p->{Q}};
+      push @{$ret[$np]->{T}},  @{$p->{T}};
+      push @{$ret[$np]->{DF}}, @{$p->{DF}};
+      push @{$ret[$np]->{F}},  @{$p->{F}};
+      push @{$ret[$np]->{A}},  @{$p->{A}};
+      push @{$ret[$np]->{Q}},  @{$p->{Q}};
     }
   }
 
-  foreach (values %ret){
+  foreach (@ret){
     ($p->{fitres}, $p->{A}, $p->{df0}, $p->{dfc}, $p->{err}, $p->{dA}, $p->{ddf0})
       = sigproc::fit_peak($p->{DF}, $p->{F});
   }
 
-  return %ret;
+  return @ret;
 }
 
 
@@ -168,7 +174,49 @@ sub fit_peak {
   return (1, $A, $df0, $x0, $err, $dA, $ddf0);
 }
 ###############################################################
+sub time2curr {
+  my $nmr_t = shift;
+  my $nmr_i = shift;
+  my $T = shift;
+
+  my @ret;
+  my $tau = 0.2;
+  my $k = 0;
+  my $n = $#{$nmr_t};
+  for (my $i = 0; $i<= $#{$T}; $i++){
+    $k-- while ($k>0 && ${$nmr_t}[$k+1] > ${$T}[$i]);
+    $k++ while ($k<$n-2 && ${$nmr_t}[$k+2] < ${$T}[$i]);
+    # now k+1 points to previous time
+    my $dt = ${$T}[$i]-${$nmr_t}[$k+1];
+    my $i1 = ${$nmr_i}[$k];
+    my $i2 = ${$nmr_i}[$k+1];
+    # At k+1 current switched from i1 to i2.
+    # then, after dt we have
+    push @ret, $i2 - ($i2-$i1) * exp(-$dt/$tau);
+  }
+  return @ret;
+}
+
+###############################################################
 
 
+# convert excitation voltage to frequency, V->Hz:
+# attenuation: k = 0.05
+# coil inductance L = 55uH
+# frequency: f0 = 1120kHz
+# current: I = U * k / (2*pi*f0*L),  0.129mA/V
+# field: H = I * 16.6 [G]
+# freq: f = 20378 * H/2/pi
+#  result: 6.95 Hz/V
+our $u2f = 6.95;
+
+# convert gradient to frequency, mA->Hz
+#  grad coil K = 15.7 GA/cm
+#  cell size L = 0.9 cm
+#    result: K*1e-3*I * 20378/2/pi  L/2  = 22.9 Hz/mA (1/2 cell)
+
+our $g2f = 22.9;
+our $fB = 290000;
+our $f0 = 1120000;
 
 1;

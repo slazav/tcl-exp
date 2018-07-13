@@ -6,5 +6,5 @@ v_units     mV
 p_units     nW
 max_volt    30
 db_dev      db_exp
-db_val      drydemag/heater_ns
+db_val      drydemag_heater_ns
 mon_int     600

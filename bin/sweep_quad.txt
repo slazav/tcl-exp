@@ -15,12 +15,12 @@ maxI          1500              # max current, A
 minI         -1500              # min current, A
 max_rate      50                # max rate, A/s
 def_rate      5                 # default rate, A/s
-gain          0.078748          # current divider
+# gain          0.078748          # current divider
 
-skip          0                 # do not write points if current was not set
+skip          1                 # do not write points if current was not set
 db       db_exp                 # db device
-db_val   drydemag/sweep_quad    # database for sweeper values
-db_ann   drydemag/sweep_quad_a  # database for sweeper annotations
+db_val   drydemag_sweep_quad    # database for sweeper values
+db_ann   drydemag_sweep_quad_a  # database for sweeper annotations
 db_comm  {}                     # database for high-level comments
 
 interface_type  grad    # interface control type: nmr, grad, hs

@@ -1,3 +1,9 @@
+package require Device
+package require DeviceRole 1.0
+package require xBlt
+package require incr
+
+
 #!/usr/bin/wish
 
 ## A monitoring script (pcell, leakdetector etc.)
@@ -33,7 +39,7 @@ set default_pars [list \
   plot_marker  0       {use marker in the plot}\
   plots_x   {time}     {x data for plots}\
   plots_y   {{}}       {y data for plots}\
-  plots_zst {}         {zoom styles for plots}\
+  plots_zst {x}         {zoom styles for plots}\
 ]
 
 if {[llength $argv]>0 } {

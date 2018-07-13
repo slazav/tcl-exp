@@ -5,5 +5,5 @@ v_units     V
 p_units     W
 
 db_dev      db_exp
-db_val      drydemag/heater_4K
+db_val      drydemag_heater_4K
 mon_int     600

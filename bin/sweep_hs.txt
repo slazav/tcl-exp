@@ -1,7 +1,7 @@
 # configuration for heat switch
 
 name     {Heat switch}          # program title
-ps_dev      ps0:3               # 1st power supply device
+ps_dev      ps0:4               # 1st power supply device
 ps_dev2     {}                  # 2nd power supply device
 antipar      0                  # anti-parallel connection
 gauge_dev   {}                  # measure device
@@ -16,11 +16,11 @@ minI          0                 # min current, mA
 max_rate      30                # max rate, mA/s
 def_rate      20                # default rate, mA/s
 
-skip          0                 # do not write points if current was not set
+skip          1                 # do not write points if current was not set
 db       db_exp                 # db device
-db_val   drydemag/sweep_hs      # database for sweeper values
-db_ann   drydemag/sweep_hs_a    # database for sweeper annotations
-db_comm  drydemag/comments      # database for high-level comments
+db_val   drydemag_sweep_hs      # database for sweeper values
+db_ann   drydemag_sweep_hs_a    # database for sweeper annotations
+db_comm  drydemag_comments      # database for high-level comments
 
 interface_type  hs    # interface control type: nmr, grad, hs
 plot_ncols    4        # number of columns in the plot

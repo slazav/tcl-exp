@@ -4,7 +4,7 @@ name     {Main magnet}          # program title
 ps_dev      TEST                # 1st power supply device
 ps_dev2     {}                  # 2nd power supply device
 antipar      0                  # anti-parallel connection
-gauge_dev   lockin0:XY          # measure device
+gauge_dev   lockin1:XY          # measure device
 ovp           5                 # overvoltage protection, V
 ramp_tstep    0.5               # ramping time step
 idle_tstep    0.5               # idle time step
@@ -15,8 +15,8 @@ def_rate     0.001              # default rate, A/s
 skip         0                  # do not write points if current was not set
 
 # db       db_exp                 # db device
-# db_val   drydemag/sweep_main    # database for sweeper values
-# db_ann   drydemag/sweep_main_a  # database for sweeper annotations
+# db_val   drydemag_sweep_main    # database for sweeper values
+# db_ann   drydemag_sweep_main_a  # database for sweeper annotations
 # db_comm  {}                     # database for high-level comments
 
 

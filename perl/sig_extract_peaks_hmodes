@@ -35,7 +35,7 @@ my %ids;  # old excitation
 
 open OUT, "> $dir/res.txt" or die "can't open file: $!\n";
 open OUTP, "> $dir/peaks.txt" or die "can't open file: $!\n";
-open OUTL, "> $dir/peaks_l.txt" or die "can't open file: $!\n";
+#open OUTL, "> $dir/peaks_l.txt" or die "can't open file: $!\n";
 
 opendir SD, "." or die "can't open sig folder: .: $!\n";
 foreach my $sig (sort readdir SD){
@@ -54,8 +54,8 @@ foreach my $sig (sort readdir SD){
   my $dfdt = $pars->{dfdt};
   my $df   = $pars->{larm_df} || 0;
 
-  my %peaks = sigproc::process_peaks($pars);
-  next unless %peaks;
+  my @peaks = sigproc::process_peaks($pars);
+  next unless @peaks;
 
 
 
@@ -64,7 +64,7 @@ foreach my $sig (sort readdir SD){
 
   # print all peaks into OUTP
   my $min_df;
-  foreach my $p (values %peaks){
+  foreach my $p (@peaks){
     next if $p->{fitres} == 0;
     printf OUTP "%24s %2s  %5.2f %6.2f %6.3f   %f %f  %f %f  %f\n", $sig, $p->{name},
        $exc, $grad, $temp,  $p->{A}, $p->{dA}, $p->{df0}, $p->{ddf0}, $p->{len};
@@ -73,7 +73,6 @@ foreach my $sig (sort readdir SD){
       print TXT "${$p->{DF}}[$i] ${$p->{F}}[$i]\n";
     }
     $min_df = $p->{df0}-$p->{ddf0} if !defined($min_df) || $min_df > $p->{df0}-$p->{ddf0};
-print STDERR "> $p->{df0} $min_df\n";
   }
   close TXT;
 
@@ -85,7 +84,7 @@ print STDERR "> $p->{df0} $min_df\n";
             "set nokey\n";
   print GPF "\nplot [$min_df:][0:] \"$txt\" using 1:(\$2**2) pt 6,\\\n";
 
-  foreach my $p (values %peaks){
+  foreach my $p (@peaks){
     next if $p->{fitres} == 0;
     my $A1 = $p->{A}+$p->{dA};
     my $df1 = $p->{dfc} - $p->{A}/$A1 * ($p->{dfc} - $p->{df0});
@@ -100,49 +99,48 @@ print STDERR "> $p->{df0} $min_df\n";
 
 
 
-  # LS,L-peaks
-  if (exists $peaks{'l'} && exists $peaks{'ls'}){
-    my $pl = $peaks{'l'};
-    my $ps = $peaks{'ls'};
-    if ($pl->{fitres}>0 && $ps->{fitres}>0){
-
-      my $k_ls = $pl->{A}/$ps->{A};
-      my $dk_ls = $pl->{dA}/$ps->{A} + $ps->{dA} *$pl->{A}/$ps->{A}/$ps->{A};
-      my $s_ls = $pl->{df0} - $ps->{df0};
-      my $ds_ls = $pl->{df0} + $ps->{df0};
-
-      printf OUTL "%24s  %5.2f %6.2f %6.3f   %f %f  %f %f\n", $sig,
-        $exc, $grad, $temp,  $k_ls, $dk_ls,  $s_ls, $ds_ls;
-
-
-      my $txt = $sig; $txt=~s/\.sigf?$//; $txt.='.txt';
-      open TXT, "> $dir/l_$txt" or die "can't open file: l_$txt: $!\n";
-      for (my $i=0; $i<= $#{$pl->{DF}}; $i++ ) {
-        print TXT "${$pl->{DF}}[$i] ${$pl->{F}}[$i]\n";}
-      for (my $i=0; $i<= $#{$ps->{DF}}; $i++ ) {
-        print TXT "${$ps->{DF}}[$i] ${$ps->{F}}[$i]\n";}
-      close TXT;
-
-
-      my $gpf = "l_$sig"; $gpf=~s/\.sigf?$//; $gpf.='.gp';
-      open GPF, "> $dir/$gpf" or die "can't open file: $gpf: $!\n";
-      print GPF "#!/usr/bin/gnuplot\n\n",
-            "set nokey\n";
-      print GPF "\nplot [0:][0:] \"l_$txt\" using 1:(\$2*\$2) pt 6,\\\n";
-
-      print GPF " $pl->{A} * (x-$pl->{df0}) lc 1,\\\n";
-      print GPF " $ps->{A} * (x-$ps->{df0}) lc 1,\\\n";
-
-      print GPF "0\n";
-      print GPF "pause -1\n";
-
-      close GPF;
-
-      `chmod 755 $dir/$gpf`;
-
-    }
-  }
-
+#  # LS,L-peaks
+#  if (exists $peaks{'l'} && exists $peaks{'ls'}){
+#    my $pl = $peaks{'l'};
+#    my $ps = $peaks{'ls'};
+#    if ($pl->{fitres}>0 && $ps->{fitres}>0){
+#
+#      my $k_ls = $pl->{A}/$ps->{A};
+#      my $dk_ls = $pl->{dA}/$ps->{A} + $ps->{dA} *$pl->{A}/$ps->{A}/$ps->{A};
+#      my $s_ls = $pl->{df0} - $ps->{df0};
+#      my $ds_ls = $pl->{df0} + $ps->{df0};
+#
+#      printf OUTL "%24s  %5.2f %6.2f %6.3f   %f %f  %f %f\n", $sig,
+#        $exc, $grad, $temp,  $k_ls, $dk_ls,  $s_ls, $ds_ls;
+#
+#
+#      my $txt = $sig; $txt=~s/\.sigf?$//; $txt.='.txt';
+#      open TXT, "> $dir/l_$txt" or die "can't open file: l_$txt: $!\n";
+#      for (my $i=0; $i<= $#{$pl->{DF}}; $i++ ) {
+#        print TXT "${$pl->{DF}}[$i] ${$pl->{F}}[$i]\n";}
+#      for (my $i=0; $i<= $#{$ps->{DF}}; $i++ ) {
+#        print TXT "${$ps->{DF}}[$i] ${$ps->{F}}[$i]\n";}
+#      close TXT;
+#
+#
+#      my $gpf = "l_$sig"; $gpf=~s/\.sigf?$//; $gpf.='.gp';
+#      open GPF, "> $dir/$gpf" or die "can't open file: $gpf: $!\n";
+#      print GPF "#!/usr/bin/gnuplot\n\n",
+#            "set nokey\n";
+#      print GPF "\nplot [0:][0:] \"l_$txt\" using 1:(\$2*\$2) pt 6,\\\n";
+#
+#      print GPF " $pl->{A} * (x-$pl->{df0}) lc 1,\\\n";
+#      print GPF " $ps->{A} * (x-$ps->{df0}) lc 1,\\\n";
+#      print GPF "0\n";
+#      print GPF "pause -1\n";
+#
+#      close GPF;
+#
+#      `chmod 755 $dir/$gpf`;
+#
+#    }
+#  }
+#
 
 
   # H-peaks
@@ -150,7 +148,7 @@ print STDERR "> $p->{df0} $min_df\n";
   my ($df0c, $df0l, $df0r) = (0,0,0,0);
   my ($wc, $wl, $wr) = (0,0,0,0);
 
-  foreach my $p (values %peaks){
+  foreach my $p (@peaks){
 
     # skip low-freq peaks
     next if $p->{A} < $minA;
@@ -181,7 +179,7 @@ print STDERR "> $p->{df0} $min_df\n";
 
   # refit peaks with fixed df0
   my (@pl,@pc,@pr);
-  foreach my $p (values %peaks){
+  foreach my $p (@peaks){
 
     # skip low-freq peaks
     next if $p->{A} < $minA;
