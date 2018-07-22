@@ -33,15 +33,26 @@ my $dir = "peaks";
 `mkdir -p $dir`;
 my %ids;  # old excitation
 
-open OUT, "> $dir/res.txt" or die "can't open file: $!\n";
 open OUTP, "> $dir/peaks.txt" or die "can't open file: $!\n";
 #open OUTL, "> $dir/peaks_l.txt" or die "can't open file: $!\n";
+
+#read new names
+my %nnames;
+my %npeaks;
+if (open NN, "$dir/nnames.txt"){
+  foreach (<NN>){
+    my ($s,$n,$nn) = split /\s+/; # signal, name, new name;
+    $nnames{"$s:$n"} = $nn if ($s && $n && $nn) && $nn ne '-';
+  }
+}
+
 
 opendir SD, "." or die "can't open sig folder: .: $!\n";
 foreach my $sig (sort readdir SD){
   next unless $sig=~/\.sig$/;
   next if $sig=~/^_/;
   next if $sig=~/^_p\.sig/;
+  my $base = $sig; $base=~s/\.sigf?$//;
 
   my $pars = sigproc::read_sig_info($sig);
   next unless exists $pars->{fig_peaks} && $#{$pars->{fig_peaks}}>-1;
@@ -51,22 +62,18 @@ foreach my $sig (sort readdir SD){
   my $grad = $pars->{grad}*1000;
   my $quad = $pars->{quad}*1000;
   my $temp = $pars->{temp}*1000;
-  my $dfdt = $pars->{dfdt};
-  my $df   = $pars->{larm_df} || 0;
 
   my @peaks = sigproc::process_peaks($pars);
   next unless @peaks;
 
-
-
-  my $txt = $sig; $txt=~s/\.sigf?$//; $txt.='.txt';
+  my $txt = $base.'.txt';
   open TXT, "> $dir/$txt" or die "can't open file: $txt: $!\n";
 
   # print all peaks into OUTP
   my $min_df;
   foreach my $p (@peaks){
-    next if $p->{fitres} == 0;
-    printf OUTP "%24s %2s  %5.2f %6.2f %6.3f   %f %f  %f %f  %f\n", $sig, $p->{name},
+    next unless $p->{fitres};
+    printf OUTP "%24s %2s  %5.2f %6.2f %6.3f   %f %f  %f %f  %f\n", $base, $p->{name},
        $exc, $grad, $temp,  $p->{A}, $p->{dA}, $p->{df0}, $p->{ddf0}, $p->{len};
 
     for (my $i=0; $i<= $#{$p->{DF}}; $i++ ) {
@@ -85,7 +92,8 @@ foreach my $sig (sort readdir SD){
   print GPF "\nplot [$min_df:][0:] \"$txt\" using 1:(\$2**2) pt 6,\\\n";
 
   foreach my $p (@peaks){
-    next if $p->{fitres} == 0;
+    next unless $p->{fitres};
+    print "peak: $p->{name} $p->{A}\n";
     my $A1 = $p->{A}+$p->{dA};
     my $df1 = $p->{dfc} - $p->{A}/$A1 * ($p->{dfc} - $p->{df0});
     my $A2 = $p->{A}-$p->{dA};
@@ -98,122 +106,143 @@ foreach my $sig (sort readdir SD){
   `chmod 755 $dir/$gpf`;
 
 
-
-#  # LS,L-peaks
-#  if (exists $peaks{'l'} && exists $peaks{'ls'}){
-#    my $pl = $peaks{'l'};
-#    my $ps = $peaks{'ls'};
-#    if ($pl->{fitres}>0 && $ps->{fitres}>0){
-#
-#      my $k_ls = $pl->{A}/$ps->{A};
-#      my $dk_ls = $pl->{dA}/$ps->{A} + $ps->{dA} *$pl->{A}/$ps->{A}/$ps->{A};
-#      my $s_ls = $pl->{df0} - $ps->{df0};
-#      my $ds_ls = $pl->{df0} + $ps->{df0};
-#
-#      printf OUTL "%24s  %5.2f %6.2f %6.3f   %f %f  %f %f\n", $sig,
-#        $exc, $grad, $temp,  $k_ls, $dk_ls,  $s_ls, $ds_ls;
-#
-#
-#      my $txt = $sig; $txt=~s/\.sigf?$//; $txt.='.txt';
-#      open TXT, "> $dir/l_$txt" or die "can't open file: l_$txt: $!\n";
-#      for (my $i=0; $i<= $#{$pl->{DF}}; $i++ ) {
-#        print TXT "${$pl->{DF}}[$i] ${$pl->{F}}[$i]\n";}
-#      for (my $i=0; $i<= $#{$ps->{DF}}; $i++ ) {
-#        print TXT "${$ps->{DF}}[$i] ${$ps->{F}}[$i]\n";}
-#      close TXT;
-#
-#
-#      my $gpf = "l_$sig"; $gpf=~s/\.sigf?$//; $gpf.='.gp';
-#      open GPF, "> $dir/$gpf" or die "can't open file: $gpf: $!\n";
-#      print GPF "#!/usr/bin/gnuplot\n\n",
-#            "set nokey\n";
-#      print GPF "\nplot [0:][0:] \"l_$txt\" using 1:(\$2*\$2) pt 6,\\\n";
-#
-#      print GPF " $pl->{A} * (x-$pl->{df0}) lc 1,\\\n";
-#      print GPF " $ps->{A} * (x-$ps->{df0}) lc 1,\\\n";
-#      print GPF "0\n";
-#      print GPF "pause -1\n";
-#
-#      close GPF;
-#
-#      `chmod 755 $dir/$gpf`;
-#
-#    }
-#  }
-#
-
-
-  # H-peaks
-  my (@LP, @CP, @RP); # left, right, central peaks
-  my ($df0c, $df0l, $df0r) = (0,0,0,0);
-  my ($wc, $wl, $wr) = (0,0,0,0);
-
+  ## rescale peaks, sort by new names, save to files
   foreach my $p (@peaks){
-
-    # skip low-freq peaks
-    next if $p->{A} < $minA;
-    next if $p->{fitres} == 0;
-
-    my $w = $p->{len}*$p->{len}; # weighting function
-
-    if    ($p->{df0} < $df0cnt-$df0brd) {
-      $p->{type} = -1;
-      $df0l += $p->{df0}*$w; $wl+=$w;
+    next unless exists $nnames{"$base:$p->{name}"};
+    my $nname = $nnames{"$base:$p->{name}"};
+    my $txt = "$base:$nname.txt";
+    open TXT, "> $dir/$txt" or die "can't open file: $txt: $!\n";
+    for (my $i=0; $i<$#{$p->{F}}; $i++) {
+      if ($p->{A} > 1000){
+        ${$p->{F}}[$i] *= sqrt($exc);
+      }
+      else {
+        ${$p->{F}}[$i] /= sqrt($exc);
+      }
+      print TXT "${$p->{DF}}[$i] ${$p->{F}}[$i]\n";
     }
-    elsif ($p->{df0} > $df0cnt+$df0brd) {
-      $p->{type} = +1;
-      $df0r += $p->{df0}*$w; $wr+=$w;
-    }
-    else {
-      $p->{type} = 0;
-      $df0c += $p->{df0}*$w; $wc+=$w;
-    }
+    close TXT;
+    $p->{base} = $base;
+    $p->{nname} = $nname;
+    $p->{grad} = $grad;
+    $p->{temp} = $temp;
+    $p->{exc} = $exc;
+    push @{$npeaks{$nname}}, $p;
   }
-
-
-
-  next if $wc==0 || ($wr+$wl) == 0;
-  $df0c/=$wc;
-  my $gap = ($df0c*$wl - $df0l + $df0r - $df0c*$wr)/($wr+$wl);
-
-
-  # refit peaks with fixed df0
-  my (@pl,@pc,@pr);
-  foreach my $p (@peaks){
-
-    # skip low-freq peaks
-    next if $p->{A} < $minA;
-    next if $p->{fitres} == 0;
-
-    my $df0 = 0;
-    if ($p->{type} < 0) {$df0 = $df0c-$gap;}
-    elsif ($p->{type} > 0) {$df0 = $df0c+$gap;}
-    else {$df0 = $df0c;}
-
-    # fit peaks with f^2 = a*(df-df0)
-    my ($ss,$sn) = (0,0);
-    for (my $i=0; $i<= $#{$p->{DF}}; $i++ ) {
-      my $x = ${$p->{DF}}[$i] - $df0;
-      my $y = ${$p->{F}}[$i]*${$p->{F}}[$i];
-      $ss+=$y/$x; $sn++;
-    }
-    $p->{fA} = $ss/$sn;
-    $p->{fdf0} = $df0;
-    if ($p->{type} < 0) {push @pl, $p->{fA};}
-    elsif ($p->{type} > 0) {push @pr, $p->{fA};}
-    else {push @pc, $p->{fA};}
-  }
-
-
-  @pc = sort @pc;
-  @pr = sort @pr;
-  @pl = sort @pl;
-
-  printf OUT "%20s  %5.2f %6.2f %6.3f   %.3f %.3f ", $sig, $exc, $grad, $temp,  $gap, $df0c;
-   for (my $i=0; $i<4; $i++){ print OUT " ", ($i<=$#pl? $pl[$i]:0); }
-   for (my $i=0; $i<4; $i++){ print OUT " ", ($i<=$#pc? $pc[$i]:0); }
-   for (my $i=0; $i<4; $i++){ print OUT " ", ($i<=$#pr? $pr[$i]:0); }
-  print OUT "\n";
-
 }
 
+# fit npeaks with individual df, but with same A for each nname
+my (%A,%A_e);
+my (%sh,%shn); # mean shift for each nname
+my %signals;
+foreach my $nname (sort keys %npeaks){
+  print "nname: $nname\n";
+  my ($res, $err);
+  ($res, $A{$nname}, $A_e{$nname}, $err) = sigproc::fit_peaks($npeaks{$nname});
+  my ($ss,$sn)=(0,0);
+  foreach my $p (@{$npeaks{$nname}}){
+    push @{$signals{$p->{base}}}, $p;
+    $ss += $p->{df0};
+    $sn++;
+  }
+  $sh{$nname} = $ss;
+  $shn{$nname} = $sn;
+  print "SH($nname) = $sh{$nname}/$shn{$nname}\n";
+}
+
+#shift signals
+my %sig_sh;
+foreach my $base (sort keys %signals){
+  my $peaks = $signals{$base};
+  my ($ss,$sn)=(0,0);
+  # mean difference with mean peak position excluding this signal
+  foreach my $p (@{$signals{$base}}){
+    # TODO: weight!
+    my $n = $shn{$p->{nname}};
+    if ($n>0){
+      $ss += ($p->{df0} - $sh{$p->{nname}}/$n)*($n-1);
+      $sn += ($n-1);
+    }
+  }
+  $sig_sh{$base} = $sn ? $ss/$sn : 0;
+  print "SH($base) = $sig_sh{$base}\n";
+}
+
+open GPF, "> $dir/npeaks.gp" or die "can't open file: $!\n";
+print GPF "#!/usr/bin/gnuplot\n\n";
+print GPF "\nplot [-100:][0:]\\\n";
+
+$n=0;
+my %fpeaks; # for combined fit
+foreach my $nname (sort keys %npeaks){
+  $n++;
+  my ($res, $A, $dA, $err) = sigproc::fit_peaks($npeaks{$nname});
+  my $pn=0;
+
+  foreach my $p (@{$npeaks{$nname}}){
+    my $ssh = $sig_sh{$p->{base}};
+    my $t = ($pn++ == 0)? "title \"$nname\"": "notitle";
+    print GPF " \"$p->{base}:$nname.txt\" using (\$1-$ssh):(\$2**2) lc $n $t,\\\n";
+    print GPF " $A{$nname}*(x-$p->{df0}+$ssh) notitle lc $n,\\\n";
+
+    $_-=$ssh foreach (@{$p->{DF}});
+
+    if (!exists $fpeaks{$nname}) {
+      $fpeaks{$nname} = $p;
+    }
+    else {
+      push @{$fpeaks{$nname}->{T}},  @{$p->{T}};
+      push @{$fpeaks{$nname}->{DF}}, @{$p->{DF}};
+      push @{$fpeaks{$nname}->{F}},  @{$p->{F}};
+    }
+  }
+}
+print GPF "0\n",
+          "\npause -1\n";
+`chmod 755 $dir/npeaks.gp`;
+
+# do combined fits
+my (%sides, %sides_n);
+foreach my $nname (keys %fpeaks){
+  my $p = $fpeaks{$nname};
+  sigproc::fit_peak($p);
+
+  # make "side" arrays, C0+C1, L0+L1 etc.
+  $nname=~s/\d+$//;
+  $sides{$nname}+=$p->{df0};
+  $sides_n{$nname}++;
+}
+
+# refit with fised df0
+foreach my $nname (keys %fpeaks){
+  my $p = $fpeaks{$nname};
+  $nname=~s/\d+$//;
+  my $df0 = $sides{$nname}/$sides_n{$nname};
+  sigproc::fit_peak_fixdf($p, $df0);
+}
+
+
+open GPF, "> $dir/npeaks_a.gp" or die "can't open file: $!\n";
+print GPF "#!/usr/bin/gnuplot\n\n";
+print GPF "\nplot [-100:][0:]\\\n";
+
+$n=0;
+foreach my $base (sort keys %signals){
+  my $np=0;
+  $n++;
+  foreach my $p (@{$signals{$base}}){
+    my $t = ($np++ == 0)? "title \"$base\"": "notitle";
+    my $ssh = $sig_sh{$base};
+    print GPF " \"$base:$p->{nname}.txt\" using (\$1-$ssh):(\$2**2) lc $n pt $n $t,\\\n";
+  }
+}
+
+foreach my $nname (sort keys %fpeaks){
+  my $p = $fpeaks{$nname};
+  print GPF " $p->{Af}*(x-$p->{df0f}) notitle lc 0,\\\n";
+  print "$nname $p->{Af} $p->{dA} $p->{df0f}  $p->{temp} $p->{grad} $p->{exc}\n";
+}
+
+print GPF "0 notitle\n",
+          "\npause -1\n";
+`chmod 755 $dir/npeaks_a.gp`;

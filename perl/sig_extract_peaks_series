@@ -2,6 +2,9 @@
 use strict;
 use warnings;
 use JSON;
+use lib qw(/home/sla/PROG/exp_scripts/perl/);
+use sigproc;
+
 
 my $prog = $0;
 $prog =~s|^.*/([^/]*$)|$1|;
@@ -27,7 +30,7 @@ foreach my $sig (sort readdir SD){
   next if $sig=~/^_p\.sig/;
 
 
-  my $pars = read_sig_info($sig);
+  my $pars = sigproc::read_sig_info($sig);
   next unless exists $pars->{fig_peaks} && $#{$pars->{fig_peaks}}>-1;
 
   my $fre  = $pars->{fre};
@@ -144,7 +147,7 @@ for (my $i=1; ;$i++){
 
   print O "\nplot [0:] [0:]\\\n";
   foreach my $s (@sigs){
-    print O "\"$s->{f}\" using (-\$1):(\$2**2) lc $s->{n} title \"$s->{u} $s->{g} $s->{p}\", f$s->{n}(x) lc $s->{n} notitle,\\\n";
+    print O "\"$s->{f}\" using (-\$1):(\$2**2/$s->{u}) lc $s->{n} title \"$s->{u} $s->{g} $s->{p}\", f$s->{n}(x) lc $s->{n} notitle,\\\n";
   }
   print O "0\n\n";
 

@@ -53,31 +53,34 @@ sub process_peaks {
   warn "No larmor mark at $pars->{sig}\n" if !exists $pars->{larm_i};
   my $I0   = $pars->{larm_i};
 
+#  my $I0   = ${$pars->{nmr_i}}[0];
+
   foreach my $p (@{$pars->{fig_peaks}}){
     next unless $#{$p->{T}} >-1;
 
     warn "No peak name at $pars->{sig}\n" unless $p->{name};
 
-    # skip larmor peak
+    # skip larmor peak (old-style points with 'l' name)
     $p->{name} = "larm" if $p->{name} eq "l";
     next if $p->{name} eq "larm";
 
     # convert time to freq.shift, scale x2, x3 etc peaks:
     my @I = time2curr($pars->{nmr_t}, $pars->{nmr_i}, $p->{T});
     for (my $i=0; $i <= $#{$p->{T}}; $i++){
-      ${$p->{DF}}[$i] = -($I[$i]-$I0)*$dfdi+$df;
+      ${$p->{DF}}[$i] = -($I[$i]-$I0)*$dfdi;
       ${$p->{F}}[$i]/=$1 if $p->{name}=~/(\d)$/;
       ${$p->{F}}[$i] = abs(${$p->{F}}[$i]);
     }
     # remove numbers from names:
     $p->{name}=~s/\d$//;
 
+
     # data length, Hz
     $p->{len} = abs(${$p->{DF}}[$#{$p->{DF}}]-${$p->{DF}}[0]);
+    next if $p->{len} == 0;
 
     # fit the peak
-    ($p->{fitres}, $p->{A}, $p->{df0}, $p->{dfc}, $p->{err}, $p->{dA}, $p->{ddf0})
-      = sigproc::fit_peak($p->{DF}, $p->{F});
+    sigproc::fit_peak($p);
 
     # add to peaks array
     if (!exists $names{$p->{name}}) {
@@ -104,11 +107,7 @@ sub process_peaks {
     }
   }
 
-  foreach (@ret){
-    ($p->{fitres}, $p->{A}, $p->{df0}, $p->{dfc}, $p->{err}, $p->{dA}, $p->{ddf0})
-      = sigproc::fit_peak($p->{DF}, $p->{F});
-  }
-
+  sigproc::fit_peak($p) foreach (@ret);
   return @ret;
 }
 
@@ -117,19 +116,19 @@ sub process_peaks {
 ###############################################################
 # do a linear fit f^2 = a*(df-df0)
 sub fit_peak {
-  my @def=(0,0,0,0,0,0);
-  my $df = shift; # array reference
-  my $f  = shift; # array reference
+  my $p = shift;
+  my $df = $p->{DF}; # array reference
+  my $f  = $p->{F}; # array reference
 
   my ($sx,$sxx,$sy,$syy,$sxy,$sn) = (0,0,0,0,0);
 
-  return @def if $#{$df}<2;
+  return if $#{$df}<2;
 
   # find mean x value, it will be needed later
   for (my $i=0; $i <= $#{$df}; $i++ ) {
     $sx+=${$df}[$i]; $sn++;
   }
-  return @def if $sn==0;
+  return if $sn==0;
   my $x0 = $sx/$sn;
   $sx=0; $sn=0;
 
@@ -145,11 +144,11 @@ sub fit_peak {
   # sA = ds/dA = sum[2x(Ax+B-y)] = 0
   # sB = ds/dB = sum[Ax+B-y] = 0
 
-  return @def if $sxx*$sn==0;
+  return if $sxx*$sn==0;
   my $A = $sxy/$sxx;
   my $B = $sy/$sn;
 
-  return @def if $A==0;
+  return if $A==0;
   my $df0 = -$B/$A + $x0;
 
   # near the minimum
@@ -171,8 +170,115 @@ sub fit_peak {
 
   my $ddf0 = $dB/$A + $dA*$B/$A/$A;
 
-  return (1, $A, $df0, $x0, $err, $dA, $ddf0);
+  $p->{A} = $A;
+  $p->{df0} = $df0;
+  $p->{dfc} = $x0;
+  $p->{err} = $err;
+  $p->{dA} = $dA;
+  $p->{ddf0} = $ddf0;
+  $p->{fitres} = 1;
 }
+
+###############################################################
+# do a linear fit f^2 = a*(df-df0) with fixed df0
+# do not modify errors!
+sub fit_peak_fixdf {
+  my $p = shift;
+  my $df0 = shift;
+  my $df = $p->{DF}; # array reference
+  my $f  = $p->{F}; # array reference
+  return if $#{$df}<1;
+
+  my ($sx,$sxx,$sxy) = (0,0,0);
+
+  # calculate all other sums with x-x0
+  for (my $i=0; $i <= $#{$df}; $i++ ) {
+    my $x = ${$df}[$i] - $df0;
+    my $y = ${$f}[$i]*${$f}[$i];
+    $sx+=$x; $sxx+=$x*$x; $sxy+=$x*$y;
+  }
+  return if $sxx==0;
+  $p->{Af} = ($sxy-$df0*$sx)/$sxx;
+  $p->{df0f} = $df0;
+}
+
+###############################################################
+# Do a linear fit f^2 = A*(df-df0) of  many peaks with same A.
+# argument: array of hashes with F and DF fields.
+# add fields:
+#   dfc, B, B_e, df0, df0_e
+# return
+#   res, A, A_e, err
+
+sub fit_peaks {
+  my @def=(0,0,0,0);
+  my $peaks = shift;
+
+  # s = sum_k sum_i (A x_ik + B_k - y_ik)^2
+  # again shift all peaks to the mean value of x.
+  # then
+  #
+  # ds/dA = 2 A sum_k sum_i (x_ik)^2 - 2 sum_k sum_i x_ik y_ik = 0
+  # A = sum_k sum_i (x_ik)^2 / sum_k sum_i x_ik y_ik
+  #
+  # B_k = sum_i y_ik / sim_i 1
+  #
+  # errors:
+  # sAB = d2s/(dA dB_k) = 2*A x_ik = 0
+  # s = s0 + sAA dA^2 + sBB dB^2
+  #
+  # A_err = sqrt(s0/4 ssxx)
+  # B_err_k = sqrt(s0/sn_k)
+
+
+  #first calculate mean values of x for each peak
+  foreach my $p (@{$peaks}) {
+    next if $#{$p->{DF}} < 0;
+    my ($sx,$sn) = (0,0);
+    for (my $i=0; $i <= $#{$p->{DF}}; $i++ ) {
+      $sx += ${$p->{DF}}[$i]; $sn++;
+    }
+    $p->{dfc} = $sx/$sn;
+  }
+
+  # now calculate all sums
+  my ($ssxx, $ssxy, $ssn) = (0,0,0);
+  my $s0 = 0;
+  foreach my $p (@{$peaks}) {
+    next if $#{$p->{DF}} < 0;
+    my ($syy, $sy,$sn) = (0,0);
+    for (my $i=0; $i <= $#{$p->{DF}}; $i++ ) {
+      my $x = ${$p->{DF}}[$i] - $p->{dfc};
+      my $y = ${$p->{F}}[$i]*${$p->{F}}[$i];
+      $ssxx+=$x*$x; $ssxy+=$x*$y;
+      $syy+=$y*$y; $sy+=$y; $sn++;
+    }
+    $ssn+=$sn;
+    $p->{B} = $sy/$sn;
+    $s0 += $syy + $p->{B}*$p->{B}*$sn - 2*$p->{B}*$sy;
+  }
+  return @def if $ssxx==0 || $ssn==0;
+  my $A = $ssxy/$ssxx;
+  $s0 -= $A*$ssxy;
+
+  my $A_e = sqrt($s0/(4*$ssxx));
+
+  return @def if $A==0;
+
+  # mean square error
+  my $err = sqrt($s0/$ssn);
+
+  # B errors, df0
+  foreach my $p (@{$peaks}) {
+    next if $#{$p->{DF}} < 0;
+    $p->{B_e} = sqrt($s0/($#{$p->{DF}}+1));
+    $p->{df0} = - $p->{B}/$A + $p->{dfc};
+    $p->{df0_e} = $p->{B_e}/$A + $A_e*$p->{B}/$A/$A;
+  }
+  return (1, $A, $dA, $err);
+}
+
+
 ###############################################################
 sub time2curr {
   my $nmr_t = shift;

@@ -118,26 +118,12 @@ foreach my $sig (@ARGV) {
           my $t0=${$crd}[0];
           my $f0=${$crd}[1];
 
-          ($figpars->{larm_i})
-             = sigproc::time2curr($pars->{nmr_t}, $pars->{nmr_i}, [$t0]);
+          $figpars->{larm_i}
+             = (sigproc::time2curr($pars->{nmr_t}, $pars->{nmr_i}, [$t0]))[0];
           $figpars->{larm_i} -= $f0/$pars->{dfdi};
-          my $i0=${$pars->{nmr_i}}[0];
-#          for (my $i=1; $i<$ncw; $i++){
-#            # frequency shift from t=0
-#            my $t1 = ${$pars->{nmr_t}}[$i-1];
-#            my $t2 = ${$pars->{nmr_t}}[$i];
-#            if ($t1 < $t0 && $t0 <= $t2){
-#              my $i1 = ${$pars->{nmr_i}}[$i-1];
-#              my $i2 = ${$pars->{nmr_i}}[$i];
-#              $figpars->{larm_i} = $i1 + ($i2-$i1)*($t0-$t1)/($t2-$t1) - $f0/$pars->{dfdi};
-#              #my $f1 = ($i1-$i0)*$pars->{dfdi};
-#              #my $f2 = ($i2-$i0)*$pars->{dfdi};
-#              #$figpars->{larm_df} = $i0 + ($f2-$f1)/($t2-$t1)*($t0-$t1) - $f0;
-#              $figpars->{larm_df} = ($figpars->{larm_i} - $i0) * $pars->{dfdi};
-#              last;
-#            }
-#          }
 
+          # naive, not needed
+          my $i0=${$pars->{nmr_i}}[0];
           $figpars->{larm_df} = ($figpars->{larm_i} - $i0) * $pars->{dfdi};
         }
         next;
@@ -331,38 +317,48 @@ foreach my $sig (@ARGV) {
     print FIG "2 1 0 1 12 7 60 -1 -1 0.000 0 0 -1 0 0 $#curr\n";
     my $i0 = $figpars->{larm_i} || $pars->{nmr_i}[0];
     for (my $i=0; $i<=$#curr; $i++){
-      my $ff = ($curr[$i]-$figpars->{larm_i})*$pars->{dfdi};
+      my $ff = ($curr[$i]-$i0)*$pars->{dfdi};
       my $x = int($time2fig[0] + $time2fig[1]*$times[$i]);
       my $y = int($freq2fig[0] + $freq2fig[1]*$ff);
       print FIG "\t$x $y\n";
     }
-    print FIG "2 1 0 3 12 7 60 -1 -1 0.000 1 1 -1 0 0 1\n";
-    foreach (1){
-      my $t = $larm_df/$pars->{dfdt};
-      my $x = int($time2fig[0] + $time2fig[1]*$t);
-      my $y = int($freq2fig[0]);
-      print FIG "\t$x $y\n";
-    }
+#    print FIG "2 1 0 3 12 7 60 -1 -1 0.000 1 1 -1 0 0 1\n";
+#    foreach (1){
+#      my $t = $larm_df/$pars->{dfdt};
+#      my $x = int($time2fig[0] + $time2fig[1]*$t);
+#      my $y = int($freq2fig[0]);
+#      print FIG "\t$x $y\n";
+#    }
 
-    # Fomin's mode
-    for (my $s = -1; $s<=1; $s+=2) {
-      print FIG "2 1 0 1 15 7 60 -1 -1 0.000 0 0 -1 0 0 $ncw\n";
-      for (my $i=0; $i<$ncw; $i++){
-        my $df = (${$pars->{nmr_i}}[0]-${$pars->{nmr_i}}[$i])*$pars->{dfdi} + $larm_df;
-        my $h = 6.2e-5;
-        $df /= $pars->{fre};
-        my $flegg2 = (290e3/$pars->{fre})**2;
+#    print FIG "2 1 0 1 12 7 60 -1 -1 0.000 0 0 -1 0 0 $ncw\n";
+#    for (my $i=0; $i<$ncw; $i++){
+#      my $ff = (${$pars->{nmr_i}}[$i]-${$pars->{nmr_i}}[0])*$pars->{dfdi} - $larm_df;
+#      my $x = int($time2fig[0] + $time2fig[1]*${$pars->{nmr_t}}[$i]);
+#      my $y = int($freq2fig[0] + $freq2fig[1]*$ff);
+#      print FIG "\t$x $y\n";
+#    }
 
 
-        my $f3 = ($df-$s*$h/sqrt(15)) * (3.0/8.0+$flegg2)/(1.0+$flegg2);
-        $f3 = $f3<0? 0:sqrt($f3);
-        $f3 *= $pars->{fre} * $flegg2;
 
-        my $x = int($time2fig[0] + $time2fig[1]*${$pars->{nmr_t}}[$i]);
-        my $y = int($freq2fig[0] + $freq2fig[1]*$f3);
-        print FIG "\t$x $y\n";
-      }
-    }
+#    # Fomin's mode
+#    for (my $s = -1; $s<=1; $s+=2) {
+#      print FIG "2 1 0 1 15 7 60 -1 -1 0.000 0 0 -1 0 0 $ncw\n";
+#      for (my $i=0; $i<$ncw; $i++){
+#        my $df = (${$pars->{nmr_i}}[0]-${$pars->{nmr_i}}[$i])*$pars->{dfdi} + $larm_df;
+#        my $h = 6.2e-5;
+#        $df /= $pars->{fre};
+#        my $flegg2 = (290e3/$pars->{fre})**2;
+#
+#
+#        my $f3 = ($df-$s*$h/sqrt(15)) * (3.0/8.0+$flegg2)/(1.0+$flegg2);
+#        $f3 = $f3<0? 0:sqrt($f3);
+#        $f3 *= $pars->{fre} * $flegg2;
+#
+#        my $x = int($time2fig[0] + $time2fig[1]*${$pars->{nmr_t}}[$i]);
+#        my $y = int($freq2fig[0] + $freq2fig[1]*$f3);
+#        print FIG "\t$x $y\n";
+#      }
+#    }
 
 #    for (my $s = -1; $s<=1; $s+=2) {
 #      print FIG "2 1 0 1 15 7 60 -1 -1 0.000 0 0 -1 0 0 $ncw\n";

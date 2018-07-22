@@ -255,7 +255,7 @@ foreach my $sig (@ARGV) {
     my $i2 = ${$pars{nmr_i}}[$#{$pars{nmr_i}}];
     my $t1 = ${$pars{nmr_t}}[0];
     my $t2 = ${$pars{nmr_t}}[$#{$pars{nmr_t}}];
-    $pars{didt} = ($i2-$i1)/($t2-$t1); # time to current
+    $pars{didt} = ($i2-$i1)/($t2-$t1); # time to current - naive
     $pars{dfdi} = 405.886*20378/(2*3.1415926); # current to freq
     $pars{dfdt} = $pars{didt}*$pars{dfdi}; # time to freq shift
   }
