@@ -43,30 +43,6 @@ set sigfile "/tmp/noise_${pars(osc_dev)}.sig"
 set overload 0
 set avr -1
 
-######################################################
-proc mk_fft_plot {pwid} {
-
-  blt::graph $pwid -leftmargin 80
-  pack $pwid -fill both -expand 1
-
-  $pwid legend configure -activebackground white
-
-  # configure standard xBLT things:
-  xblt::plotmenu $pwid -showbutton 1 -buttonlabel Menu -menuoncanvas 0
-  xblt::legmenu  $pwid -showseparator 0
-
-  xblt::hielems $pwid
-  xblt::crosshairs $pwid -show 1
-  xblt::measure $pwid
-  xblt::readout $pwid -variable v_readout -active 1
-  xblt::zoomstack $pwid -axes {x y} -recttype xy
-  $pwid element create avr -xdata avrx  -ydata avry -symbol "" -color green
-  $pwid element create ref -xdata refx  -ydata refy -symbol "" -color red
-  $pwid element create fft -xdata fftx  -ydata ffty -symbol "" -color blue
-  $pwid axis configure y -title {Spectral density, nV/sqrt(Hz)} -logscale 1
-  $pwid axis configure x -title {Frequency, Hz} -logscale 1
-}
-######################################################
 
 ##################################################
 ## do the measurement
@@ -117,16 +93,20 @@ proc do_meas {} {
   # If averaging is running:
   if {$avr > 0} {
     avry expr { avry * 1.0*$avr/($avr+1.0) + ffty * 1.0/($avr+1.0)}
-    incr avr
   }
 
   # If averaging is resetted
   if {$avr == 0} {
     avrx set fftx
     avry set ffty
-    incr avr
   }
 
+  if {$avr>=0} {
+    incr avr
+    .avr configure -text "Averaging ($avr)"
+  } else {
+    .avr configure -text "Averaging (OFF)"
+  }
 
 #  close_device
 
@@ -135,51 +115,101 @@ proc do_meas {} {
 
 ##################################################
 
+proc open_device {} {
+  global pars
+  if {![itcl::is object $pars(osc_dev)]} {
+    Device $pars(osc_dev)
+    $pars(osc_dev) lock
+    if {! [regexp {^pico_rec} {*}[$pars(osc_dev) cmd *idn?]] } {
+      error "unsupported osc device (pico_rec program is needed)"}
+  }
+  set range_values [lindex [$pars(osc_dev) cmd ranges $pars(chan)] 0]
+  .acq.sc configure -values $range_values
+}
+
+proc close_device {} {
+  global pars
+  if {[itcl::is object $pars(osc_dev)]} {
+    $pars(osc_dev) unlock
+    itcl::delete object $pars(osc_dev)
+  }
+}
+
+##################################################
+
+######################################################
+proc mk_fft_plot {pwid} {
+
+  blt::graph $pwid -leftmargin 80
+  pack $pwid -fill both -expand 1
+
+  $pwid legend configure -activebackground white
+
+  # configure standard xBLT things:
+  xblt::plotmenu $pwid -showbutton 1 -buttonlabel Menu -menuoncanvas 0
+  xblt::legmenu  $pwid -showseparator 0
+
+  xblt::hielems $pwid
+  xblt::crosshairs $pwid -show 1
+  xblt::measure $pwid
+  xblt::readout $pwid -variable v_readout -active 1
+  xblt::zoomstack $pwid -axes {x y} -recttype xy
+  $pwid element create avr -xdata avrx  -ydata avry -symbol "" -color green
+  $pwid element create ref -xdata refx  -ydata refy -symbol "" -color red
+  $pwid element create fft -xdata fftx  -ydata ffty -symbol "" -color blue
+  $pwid axis configure y -title {Spectral density, nV/sqrt(Hz)} -logscale 1
+  $pwid axis configure x -title {Frequency, Hz} -logscale 1
+}
+######################################################
 
 mk_fft_plot .p
-pack .p
 
-frame .pars
-label .pars.oscl  -text {Device: }
-label .pars.chl   -text {Channel: }
-label .pars.scl   -text {Scale [V]: }
-label .pars.dtl   -text {dt [s]: }
-label .pars.nptsl -text {Npts: }
-label .pars.noutl -text {Nout: }
-label .pars.fminl -text {Fmin [Hz]: }
-label .pars.fmaxl -text {Fmax [Hz]: }
-label .pars.tminl -text {Tmin [s]}
+####################
+## aquire frame: device, channel, scale, time step, points
+labelframe .acq -text {Acquire signal}
+label .acq.oscl  -text {Device: }
+label .acq.chl   -text {Channel: }
+label .acq.scl   -text {Scale [V]: }
+label .acq.dtl   -text {dt [s]: }
+label .acq.nptsl -text {Points: }
+entry .acq.osc  -width 10 -textvariable parsi(osc_dev)
+entry .acq.ch   -width 10 -textvariable parsi(chan)
+ttk::combobox .acq.sc -width 9 -textvariable parsi(scale)
+entry .acq.dt   -width 10 -textvariable parsi(dt)
+entry .acq.npts -width 10 -textvariable parsi(npts)
 
-entry .pars.osc  -width 10 -textvariable parsi(osc_dev)
-entry .pars.ch   -width 10 -textvariable parsi(chan)
-ttk::combobox .pars.sc -width 9 -textvariable parsi(scale)
-entry .pars.dt   -width 10 -textvariable parsi(dt)
-entry .pars.npts -width 10 -textvariable parsi(npts)
-entry .pars.nout -width 10 -textvariable parsi(nout)
-entry .pars.fmin -width 10 -textvariable parsi(fmin)
-entry .pars.fmax -width 10 -textvariable parsi(fmax)
-entry .pars.tmin -width 10 -textvariable parsi(tmin)
-checkbutton .pars.log -text "Log.Freq" -variable parsi(log)
+grid .acq.oscl  .acq.osc  -sticky ne -pady 1
+grid .acq.chl   .acq.ch   -sticky ne -pady 1
+grid .acq.scl   .acq.sc   -sticky ne -pady 1
+grid .acq.nptsl .acq.npts -sticky ne -pady 1
+grid .acq.dtl   .acq.dt   -sticky ne -pady 1
 
-button .pars.apply -text "Apply" -command settings_apply
-button .pars.reset -text "Reset" -command settings_reset
+####################
+## fft frame
+labelframe .fft -text FFT
+label .fft.noutl -text {Points: }
+label .fft.fminl -text {Fmin [Hz]: }
+label .fft.fmaxl -text {Fmax [Hz]: }
+label .fft.tminl -text {Tmin [s]: }
 
-button .pars.refset -text "Set ref" -command {refx set fftx; refy set ffty}
-button .pars.refclr -text "Clear ref" -command {refx set {}; refy set {}}
+entry .fft.nout -width 10 -textvariable parsi(nout)
+entry .fft.fmin -width 10 -textvariable parsi(fmin)
+entry .fft.fmax -width 10 -textvariable parsi(fmax)
+entry .fft.tmin -width 10 -textvariable parsi(tmin)
+checkbutton .fft.log -text "Log.Freq" -variable parsi(log)
 
-button .pars.avrset -text "Start avr" -command {set avr 0}
-button .pars.avrclr -text "Stop avr" -command {set avr -1}
+grid .fft.noutl .fft.nout -sticky ne -pady 1
+grid .fft.fminl .fft.fmin -sticky ne -pady 1
+grid .fft.fmaxl .fft.fmax -sticky ne -pady 1
+grid .fft.tminl .fft.tmin -sticky ne -pady 1
+grid .fft.log -columnspan 2 -pady 1 -sticky ne
 
-
-grid .pars.oscl .pars.osc .pars.chl .pars.ch .pars.scl .pars.sc
-grid .pars.nptsl .pars.npts .pars.noutl .pars.nout .pars.dtl .pars.dt
-grid .pars.fminl .pars.fmin .pars.fmaxl .pars.fmax .pars.tminl .pars.tmin
-grid .pars.log
-grid .pars.apply .pars.reset
-grid .pars.refset .pars.refclr
-grid .pars.avrset .pars.avrclr
-pack .pars
-
+####################
+## apply/reset buttons for acquire and fft frames
+frame .abtn
+button .abtn.apply -text "Apply" -command settings_apply
+button .abtn.reset -text "Reset" -command settings_reset
+grid .abtn.apply .abtn.reset -sticky e
 
 proc settings_apply {} {
   global pars parsi
@@ -193,26 +223,61 @@ proc settings_reset {} {
   array set parsi [array get pars]
 }
 
-proc open_device {} {
-  global pars
-  if {![itcl::is object $pars(osc_dev)]} {
-    Device $pars(osc_dev)
-    $pars(osc_dev) lock
-    if {! [regexp {^pico_rec} {*}[$pars(osc_dev) cmd *idn?]] } {
-      error "unsupported osc device (pico_rec program is needed)"}
-  }
-  set range_values [lindex [$pars(osc_dev) cmd ranges $pars(chan)] 0]
-  .pars.sc configure -values $range_values
+####################
+## reference frame
+set ref_src "last"
+labelframe .ref -text {Reference signal}
+ttk::combobox .ref.src -width 8 -textvariable ref_src -values {last average}
+button .ref.upd -text "Update" -command ref_upd
+button .ref.clr -text "Clear" -command {refx set {}; refy set {}}
+grid .ref.src .ref.upd .ref.clr -pady 2
+
+proc ref_upd {} {
+  global ref_src
+  if { $ref_src == "last" } { refx set fftx; refy set ffty }\
+  else { refx set avrx; refy set avry }
 }
 
-proc close_device {} {
-  global pars
-  if {[itcl::is object $pars(osc_dev)]} {
-    $pars(osc_dev) unlock
-    itcl::delete object $pars(osc_dev)
+####################
+## average frame
+labelframe .avr -text {Avereging}
+button .avr.start -text "Start" -command {set avr 0}
+button .avr.stop  -text "Stop"  -command {set avr -1}
+button .avr.clear -text "Clear" -command {set avr -1; avrx set {}; avry set {}}
+grid .avr.start .avr.stop .avr.clear -sticky w -pady 2
+
+button .avr.save -text "Save" -command on_save
+grid .avr.save -sticky w
+
+proc on_save {} {
+  set fname [tk_getSaveFile\
+    -confirmoverwrite 1\
+    -initialdir .\
+  ]
+  if {$fname eq ""} return
+  set f [open $fname w]
+  puts $f {#Noise spectrum, written by noise_int program}
+  puts $f {#f[Hz] -- V[nV/sqrt(Hz)]}
+  for {set i 0} {$i<[avrx length]} {incr i} {
+    puts $f "[avrx index $i] [avry index $i]"
   }
+  close $f
 }
+
+
+
+####################
+# pack top-level widgets
+grid rowconfigure . 5 -weight 1; # last empty row
+grid columnconfigure . 0 -weight 0
+grid columnconfigure . 1 -weight 1
+
+grid .p -column 1 -row 0 -rowspan 6 -sticky ewsn
+grid .acq -sticky ewn -column 0 -row 0 -pady 1
+grid .fft -sticky ewn -column 0 -row 1 -pady 1
+grid .abtn -sticky esn -column 0 -row 2 -pady 1
+grid .ref  -sticky ewn -column 0 -row 3 -pady 4
+grid .avr  -sticky ewn -column 0 -row 4 -pady 4
 
 settings_reset
-open_device
 do_meas
