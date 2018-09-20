@@ -78,11 +78,11 @@ for {set i 0} {$i<$avr} {incr i} {
   # read and average FFT
   set data [exec sig_filter {*}$fpars1 $pref {*}$fpars2]
 
+  vx delete 0:end
+  vy delete 0:end
   foreach {x y} $data {
-    if {$i==0} {
-      vx append $x
-      vy append $y
-    }
+    vx append $x
+    vy append $y
   }
   if {$i==0} { vys expr vy }\
   else {vys expr vys+vy}
