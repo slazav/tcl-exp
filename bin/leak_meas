@@ -1,0 +1,62 @@
+#!/usr/bin/wish
+
+package require DeviceRole 1.2
+package require Exp
+
+#set mm1 [DeviceRole mult1:DCI gauge]
+#set mm2 [DeviceRole mult2:DCI gauge]
+set ld  [DeviceRole leak_ag   gauge]
+Device db
+set dt 1000
+set status 0
+
+
+# Configure time plot
+TimePlot pl .pl\
+  -ncols 3\
+  -maxt 600\
+  -names {leak Pext Pint}\
+  -titles {leak {Pext, bar} {Pint, bar}}\
+  -plots_x {time}\
+  -plots_y {{}}\
+  -logs    {1 1 1}\
+  -zstyles {x}\
+  -symbols {circle circle circle}\
+  -use_comm 0\
+  -use_marker 0
+pack .pl -fill both -expand y
+
+frame .n
+
+label .n.dtl  -text "Delay, ms"
+entry .n.dt  -textvariable dt
+checkbutton .n.status -text Active -variable ::status -command measure
+
+pack .n.dtl .n.dt .n.status -side left -padx 10
+pack .n -anchor w
+
+
+
+proc measure {} {
+  global mm1 mm2 ld dt status
+  if {$status == 0} return
+#  set I1a 20.3881e-3
+#  set I2a 10.5112e-3
+#  set I1z 4.000e-3
+#  set I2z 4.000e-3
+
+  set t [expr [clock milliseconds]/1000.0]
+#  set v1 [$mm1 get]
+#  set v2 [$mm2 get]
+#  set p1 [expr {($v1 - $I1z)/($I1a-$I1z)}]
+#  set p2 [expr {($v2 - $I2z)/($I2a-$I2z)}]
+  if {![catch {set l [$ld get]}] && [lindex $l 0] >0 } {
+    set leak [lindex $l 0]
+    set pext [lindex $l 1]
+    set pint [lindex $l 2]
+    db cmd "put leak_test $t $leak $pext $pint"
+    pl add_data [list $t $leak $pext $pint ]
+  }
+  after $dt measure
+}
+
