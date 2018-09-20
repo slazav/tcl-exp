@@ -1,0 +1,218 @@
+#!/usr/bin/wish
+
+## Interface for noise measurements
+
+package require Device 1.2
+package require xBlt 3
+package require Exp
+
+# data for fft plot
+blt::vector create fftx
+blt::vector create ffty
+
+# reference plot
+blt::vector create refx
+blt::vector create refy
+
+# average plot
+blt::vector create avrx
+blt::vector create avry
+
+set default_pars {
+  osc_dev osc1  {oscilloscope device}
+  chan    A     {}
+  scale   0.05  {}
+  dt      5e-8  {}
+  npts    1e6   {numper of points to record}
+  nout    1000  {number of points in the spectrum}
+  fmin    {100} {}
+  fmax    {}    {}
+  tmin    {}    {}
+  tmax    {}    {}
+  log     1     {}
+  delay   100   {delay between measurements, ms}
+}
+
+# pars - used in measurements, parsi - interface
+foreach {name def title} $default_pars {
+  set pars($name) $def
+  set parsi($name) $def
+}
+
+set sigfile "/tmp/noise_${pars(osc_dev)}.sig"
+set overload 0
+set avr -1
+
+######################################################
+proc mk_fft_plot {pwid} {
+
+  blt::graph $pwid -leftmargin 80
+  pack $pwid -fill both -expand 1
+
+  $pwid legend configure -activebackground white
+
+  # configure standard xBLT things:
+  xblt::plotmenu $pwid -showbutton 1 -buttonlabel Menu -menuoncanvas 0
+  xblt::legmenu  $pwid -showseparator 0
+
+  xblt::hielems $pwid
+  xblt::crosshairs $pwid -show 1
+  xblt::measure $pwid
+  xblt::readout $pwid -variable v_readout -active 1
+  xblt::zoomstack $pwid -axes {x y} -recttype xy
+  $pwid element create avr -xdata avrx  -ydata avry -symbol "" -color green
+  $pwid element create ref -xdata refx  -ydata refy -symbol "" -color red
+  $pwid element create fft -xdata fftx  -ydata ffty -symbol "" -color blue
+  $pwid axis configure y -title {Spectral density, nV/sqrt(Hz)} -logscale 1
+  $pwid axis configure x -title {Frequency, Hz} -logscale 1
+}
+######################################################
+
+##################################################
+## do the measurement
+
+proc do_meas {} {
+  global pars overload sigfile avr
+
+  # open devices if needed
+  open_device
+
+  # setup device and record the signal
+  $pars(osc_dev) cmd chan_set $pars(chan) 1 AC $pars(scale)
+  $pars(osc_dev) cmd trig_set NONE 0.1 FALLING 0
+  $pars(osc_dev) cmd block $pars(chan) 0 $pars(npts) $pars(dt) $sigfile
+  $pars(osc_dev) cmd wait
+
+  # Overload check
+  set re {s/^\s+chan:.*(1|0)$/\1/p}
+  set overload [exec sed -r -n -e $re $sigfile]
+  if {$overload == 1} {puts stderr "OVERLOAD"}
+
+  ## load FFT
+  ## build filter parameters:
+  set fpars1 "-f fft_pow"
+  set fpars2 "-N $pars(nout)"
+  if {$pars(log) == 1}   {set fpars2 "$fpars2 -l"}
+  if {$pars(fmin) != {}} {set fpars2 "$fpars2 -F $pars(fmin)"}
+  if {$pars(fmax) != {}} {set fpars2 "$fpars2 -G $pars(fmax)"}
+  if {$pars(tmin) != {}} {set fpars1 "$fpars1 -T $pars(tmin)"}
+  if {$pars(tmax) != {}} {set fpars1 "$fpars1 -U $pars(tmax)"}
+  set data [exec sig_filter {*}$fpars1 $sigfile {*}$fpars2]
+
+  fftx set {}
+  ffty set {}
+  foreach {x y} $data {
+    fftx append $x
+    ffty append $y
+  }
+
+  ffty expr {sqrt(ffty)*1e9}
+
+  # If averaging is runnint but array size has changed
+  # then reset the averaging:
+  if {$avr > 0 && [avrx length] != [fftx length] } {
+    set avr 0
+  }
+
+  # If averaging is running:
+  if {$avr > 0} {
+    avry expr { avry * 1.0*$avr/($avr+1.0) + ffty * 1.0/($avr+1.0)}
+    incr avr
+  }
+
+  # If averaging is resetted
+  if {$avr == 0} {
+    avrx set fftx
+    avry set ffty
+    incr avr
+  }
+
+
+#  close_device
+
+  after [expr $pars(delay)] do_meas
+}
+
+##################################################
+
+
+mk_fft_plot .p
+pack .p
+
+frame .pars
+label .pars.oscl  -text {Device: }
+label .pars.chl   -text {Channel: }
+label .pars.scl   -text {Scale [V]: }
+label .pars.dtl   -text {dt [s]: }
+label .pars.nptsl -text {Npts: }
+label .pars.noutl -text {Nout: }
+label .pars.fminl -text {Fmin [Hz]: }
+label .pars.fmaxl -text {Fmax [Hz]: }
+label .pars.tminl -text {Tmin [s]}
+
+entry .pars.osc  -width 10 -textvariable parsi(osc_dev)
+entry .pars.ch   -width 10 -textvariable parsi(chan)
+ttk::combobox .pars.sc -width 9 -textvariable parsi(scale)
+entry .pars.dt   -width 10 -textvariable parsi(dt)
+entry .pars.npts -width 10 -textvariable parsi(npts)
+entry .pars.nout -width 10 -textvariable parsi(nout)
+entry .pars.fmin -width 10 -textvariable parsi(fmin)
+entry .pars.fmax -width 10 -textvariable parsi(fmax)
+entry .pars.tmin -width 10 -textvariable parsi(tmin)
+checkbutton .pars.log -text "Log.Freq" -variable parsi(log)
+
+button .pars.apply -text "Apply" -command settings_apply
+button .pars.reset -text "Reset" -command settings_reset
+
+button .pars.refset -text "Set ref" -command {refx set fftx; refy set ffty}
+button .pars.refclr -text "Clear ref" -command {refx set {}; refy set {}}
+
+button .pars.avrset -text "Start avr" -command {set avr 0}
+button .pars.avrclr -text "Stop avr" -command {set avr -1}
+
+
+grid .pars.oscl .pars.osc .pars.chl .pars.ch .pars.scl .pars.sc
+grid .pars.nptsl .pars.npts .pars.noutl .pars.nout .pars.dtl .pars.dt
+grid .pars.fminl .pars.fmin .pars.fmaxl .pars.fmax .pars.tminl .pars.tmin
+grid .pars.log
+grid .pars.apply .pars.reset
+grid .pars.refset .pars.refclr
+grid .pars.avrset .pars.avrclr
+pack .pars
+
+
+proc settings_apply {} {
+  global pars parsi
+  # TODO validate
+  array set pars [array get parsi]
+  .p axis configure x -title {Frequency, Hz} -logscale $pars(log)
+}
+
+proc settings_reset {} {
+  global pars parsi
+  array set parsi [array get pars]
+}
+
+proc open_device {} {
+  global pars
+  if {![itcl::is object $pars(osc_dev)]} {
+    Device $pars(osc_dev)
+    $pars(osc_dev) lock
+    if {! [regexp {^pico_rec} {*}[$pars(osc_dev) cmd *idn?]] } {
+      error "unsupported osc device (pico_rec program is needed)"}
+  }
+  set range_values [lindex [$pars(osc_dev) cmd ranges $pars(chan)] 0]
+  .pars.sc configure -values $range_values
+}
+
+proc close_device {} {
+  global pars
+  if {[itcl::is object $pars(osc_dev)]} {
+    $pars(osc_dev) unlock
+    itcl::delete object $pars(osc_dev)
+  }
+}
+
+settings_reset
+open_device
+do_meas
