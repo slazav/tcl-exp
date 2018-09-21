@@ -149,7 +149,10 @@ itcl::class TimePlot {
     xblt::zoomstack  $graph -scrollbutton 2 -axes x -recttype x
     xblt::elemop     $graph
 
-    if {$use_comm == 1} {xblt::xcomments $graph -interactive 0}
+    if {$use_comm == 1} {
+      xblt::xcomments $graph -interactive 0 -show_x 1\
+                             -time_fmt "%Y-%m-%d %H:%M:%S"
+    }
 
     # create BLT vectors for data, create axis for each data column
     blt::vector create "$this:T"
