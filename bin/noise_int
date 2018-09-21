@@ -40,15 +40,36 @@ foreach {name def title} $default_pars {
 }
 
 set sigfile "/tmp/noise_${pars(osc_dev)}.sig"
-set overload 0
-set avr -1
-
+set overload {};      # overload message?
+set avr -1;           # averaging count (-1 is off)
+set apply_flag 0;     # do we need to apply settings?
+set run_flag   1;     # do we need to run measurements?
+set run_status 0;     # is the measurement running?
 
 ##################################################
 ## do the measurement
 
 proc do_meas {} {
-  global pars overload sigfile avr
+  global pars parsi overload sigfile avr
+  global apply_flag run_flag run_status
+
+  set run_status 1
+
+  # apply settings if needed
+  if {$apply_flag} {
+    # TODO validate
+    if { $pars(osc_dev) != $parsi(osc_dev) } { close_device }
+    array set pars [array get parsi]
+    .p axis configure x -title {Frequency, Hz} -logscale $pars(log)
+    set apply_flag 0
+  }
+
+  # stop the measurement if needed
+  if {!$run_flag} {
+    close_device
+    set run_status 0
+    return
+  }
 
   # open devices if needed
   open_device
@@ -60,9 +81,9 @@ proc do_meas {} {
   $pars(osc_dev) cmd wait
 
   # Overload check
-  set re {s/^\s+chan:.*(1|0)$/\1/p}
-  set overload [exec sed -r -n -e $re $sigfile]
-  if {$overload == 1} {puts stderr "OVERLOAD"}
+  set re "s/^\\s+chan: *$pars(chan) .*(1|0)\$/\\1/p"
+  if {[exec sed -r -n -e $re $sigfile] == 1} {set overload "OVERLOAD"}\
+  else {set overload {}}
 
   ## load FFT
   ## build filter parameters:
@@ -107,8 +128,6 @@ proc do_meas {} {
   } else {
     .avr configure -text "Averaging (OFF)"
   }
-
-#  close_device
 
   after [expr $pars(delay)] do_meas
 }
@@ -207,21 +226,9 @@ grid .fft.log -columnspan 2 -pady 1 -sticky ne
 ####################
 ## apply/reset buttons for acquire and fft frames
 frame .abtn
-button .abtn.apply -text "Apply" -command settings_apply
-button .abtn.reset -text "Reset" -command settings_reset
+button .abtn.apply -text "Apply" -command {set ::apply_flag 1}
+button .abtn.reset -text "Reset" -command {array set parsi [array get pars]}
 grid .abtn.apply .abtn.reset -sticky e
-
-proc settings_apply {} {
-  global pars parsi
-  # TODO validate
-  array set pars [array get parsi]
-  .p axis configure x -title {Frequency, Hz} -logscale $pars(log)
-}
-
-proc settings_reset {} {
-  global pars parsi
-  array set parsi [array get pars]
-}
 
 ####################
 ## reference frame
@@ -264,20 +271,27 @@ proc on_save {} {
   close $f
 }
 
-
+####################
+# Overload label and On/Off checkbox
+frame .ctl
+label .ctl.ovl -font {-size 12 -weight bold} -fg red -textvariable overload
+checkbutton .ctl.onoff -text "ON/OFF" -variable run_flag\
+   -command {if {$::run_flag && !$::run_status} do_meas}
+pack .ctl.ovl -side left
+pack .ctl.onoff -side right
 
 ####################
 # pack top-level widgets
-grid rowconfigure . 5 -weight 1; # last empty row
+grid rowconfigure . 6 -weight 1; # last empty row
 grid columnconfigure . 0 -weight 0
 grid columnconfigure . 1 -weight 1
 
-grid .p -column 1 -row 0 -rowspan 6 -sticky ewsn
+grid .p -column 1 -row 0 -rowspan 7 -sticky ewsn
 grid .acq -sticky ewn -column 0 -row 0 -pady 1
 grid .fft -sticky ewn -column 0 -row 1 -pady 1
 grid .abtn -sticky esn -column 0 -row 2 -pady 1
 grid .ref  -sticky ewn -column 0 -row 3 -pady 4
 grid .avr  -sticky ewn -column 0 -row 4 -pady 4
+grid .ctl -sticky ews -column 0 -row 5 -pady 2
 
-settings_reset
 do_meas
