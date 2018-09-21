@@ -46,6 +46,18 @@ set apply_flag 0;     # do we need to apply settings?
 set run_flag   1;     # do we need to run measurements?
 set run_status 0;     # is the measurement running?
 
+# I assume that all errors are happened inside do_meas function.
+# If it happens the measurement is stopped. We have to
+# leave run_flag and run_status in corrent state.
+# The default bgerror calls tkerror function and then displays
+# the dialog if return value is 1.
+proc tkerror {msg} {
+  puts "Error: $msg"
+  set ::run_status 0
+  set ::run_flag 0
+  return -code error
+}
+
 ##################################################
 ## do the measurement
 
