@@ -20,16 +20,15 @@ blt::vector create avry
 
 set default_pars {
   osc_dev osc1  {oscilloscope device}
-  chan    A     {}
-  scale   0.05  {}
-  dt      5e-8  {}
+  chan    A     {oscilloscope channel (A,B...)}
+  scale   0.05  {oscilloscope scale}
+  dt      5e-8  {oscilloscope tstep (real setting can differ)}
   npts    1e6   {numper of points to record}
   nout    1000  {number of points in the spectrum}
-  fmin    {100} {}
-  fmax    {}    {}
-  tmin    {}    {}
-  tmax    {}    {}
-  log     1     {}
+  fmin    {100} {fmin argument for sig silter}
+  fmax    {}    {fmax argument for sig silter}
+  tmin    {}    {tmin argument for sig silter}
+  log     1     {Logscale frequency. In the plot axis AND in sig_filter }
   delay   100   {delay between measurements, ms}
 }
 
@@ -46,9 +45,9 @@ set apply_flag 0;     # do we need to apply settings?
 set run_flag   1;     # do we need to run measurements?
 set run_status 0;     # is the measurement running?
 
-# I assume that all errors are happened inside do_meas function.
-# If it happens the measurement is stopped. We have to
-# leave run_flag and run_status in corrent state.
+##################################################
+# If error happens inside do_meas the measurement is.
+# We have to  leave run_flag and run_status in corrent state.
 # The default bgerror calls tkerror function and then displays
 # the dialog if return value is 1.
 proc tkerror {msg} {
@@ -59,7 +58,10 @@ proc tkerror {msg} {
 }
 
 ##################################################
-## do the measurement
+## MEASUREMENT
+## All manipulations with devices should be here.
+## Interface controls it by setting some flags.
+##################################################
 
 proc do_meas {} {
   global pars parsi overload sigfile avr
@@ -105,7 +107,6 @@ proc do_meas {} {
   if {$pars(fmin) != {}} {set fpars2 "$fpars2 -F $pars(fmin)"}
   if {$pars(fmax) != {}} {set fpars2 "$fpars2 -G $pars(fmax)"}
   if {$pars(tmin) != {}} {set fpars1 "$fpars1 -T $pars(tmin)"}
-  if {$pars(tmax) != {}} {set fpars1 "$fpars1 -U $pars(tmax)"}
   set data [exec sig_filter {*}$fpars1 $sigfile {*}$fpars2]
 
   fftx set {}
@@ -166,9 +167,10 @@ proc close_device {} {
   }
 }
 
-##################################################
-
 ######################################################
+### INTERFACE
+######################################################
+# plot
 proc mk_fft_plot {pwid} {
 
   blt::graph $pwid -leftmargin 80
@@ -191,8 +193,6 @@ proc mk_fft_plot {pwid} {
   $pwid axis configure y -title {Spectral density, nV/sqrt(Hz)} -logscale 1
   $pwid axis configure x -title {Frequency, Hz} -logscale 1
 }
-######################################################
-
 mk_fft_plot .p
 
 ####################
