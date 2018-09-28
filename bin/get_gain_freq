@@ -10,6 +10,7 @@ package require xBlt
 #
 # -g -gen_dev   -- generator device (default gen0:1)
 # -m -meas_dev  -- measurement device (default lockin0:XY)
+# -p -ps_dev    -- power supply device (default gen1)
 # -v -volt      -- voltage (default 0.01)
 # -o -offs      -- offset (default 0.0)
 # -F -fmin      -- min frequency (default 23e3)
@@ -24,8 +25,10 @@ package require xBlt
 set options [list \
 {-g -gen_dev}  gen_dev  {gen0:1}\
 {-m -meas_dev} meas_dev {lockin0:XY}\
+{-p -ps_dev}   ps_dev   {gen1}\
 {-v -volt}     volt     {0.01}\
 {-o -offs}     offs     {0.0}\
+{-V -vcc}      vcc      {3.0}\
 {-F -fmin}     fmin     {25e3}\
 {-G -fmax}     fmax     {2e6}\
 {-n}           npts     {100}\
@@ -36,7 +39,7 @@ set options [list \
 {-t -tconst}   tconst   {0.1}\
 ]
 
-xblt::parse_options "get_gain" $argv $options
+xblt::parse_options "get_gain_freq" $argv $options
 
 
 if {$npts <= 0} {error "$npts <= 0"}
@@ -60,6 +63,10 @@ set gauge [DeviceRole $meas_dev gauge]
 $gauge set_range  $range
 $gauge set_tconst $tconst
 
+# prepare power supply
+set ps [DeviceRole $ps_dev dc_source]
+$ps set_volt $vcc
+
 # initial delay
 after [expr {int($del*1000)}]
 
@@ -70,7 +77,10 @@ for {set i 0} {$i < $npts} {incr i} {
   $gen set_ac_fast $f $volt $offs
   after [expr {int($dt*1000)}]
   set out [$gauge get]
-  puts "$f $volt $out"
+  set x [lindex $out 0]
+  set y [lindex $out 1]
+  set g [expr {sqrt($x**2+$y**2)*sqrt(8)/$volt}]
+  puts "$f $volt $vcc $g $x $y"
   set f [expr {$log? $f*$dfk : $f+$df}]
 
 }
