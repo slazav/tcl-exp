@@ -23,6 +23,8 @@ set default_pars {
   rate 1e5   {record sampling rate}
   sc   1     {oscilloscope range}
 
+  nforks 1   {number of forks}
+
   fadj 1     {adjust frequency}
   fmin 32000 {min value}
   fmax 33000 {max value}
@@ -84,9 +86,11 @@ set need_setup 1;    # do we want to update device settings before measurements?
 
 # measured values
 set time 0;  # system time
-set amp 0;   # amplitude
-set rtau 0;  # 1/relaxation time
-set fre 0;   # frequency
+for {set i 0} {$i<$::pars(nforks)} {incr i} {
+  set amp($i)  0;  # amplitude
+  set rtau($i) 0;  # 1/relaxation time
+  set fre($i)  0;  # frequency
+}
 
 # data for raw signal plot and fitted curves
 blt::vector create sig_x
@@ -283,21 +287,31 @@ proc do_pulse {} {
   $pars(gen_dev) write *TRG
   $pars(osc_dev) cmd wait
 
-  set ret [exec sig_filter -T $apars(fstart) -f fit $pars(sigfile) -F $apars(fmin) -G $apars(fmax) ]
+  set ret [exec sig_filter -T $apars(fstart) -f fitn $pars(sigfile) -N $pars(nforks) -F $apars(fmin) -G $apars(fmax) ]
+  set ret [split $ret "\n"]
+
+
+  for {set i 0} {$i<$::pars(nforks)} {incr i} {
+    set line [lindex $ret $i]
+    ## parse results
+    set time [lindex $line 0]
+    set fre($i)  [format %.6f [lindex $line 1]]
+    set rtau($i) [format %.8f [lindex $line 2]]
+    set amp($i)  [format %.6f [expr {1000*[lindex $line 3]}]]
+  }
+  set data []
+  lappend data [lindex [lindex $ret 0] 0]
+  for {set i 0} {$i<$::pars(nforks)} {incr i} { lappend data [lindex [lindex $ret $i] 1]}
+  for {set i 0} {$i<$::pars(nforks)} {incr i} { lappend data [lindex [lindex $ret $i] 2]}
+  for {set i 0} {$i<$::pars(nforks)} {incr i} { lappend data [lindex [lindex $ret $i] 3]}
 
   if {$pars(db_dev) != {} && $pars(db_val) !={} } {
-    $pars(db_dev) cmd put $pars(db_val) {*}$ret
+    $pars(db_dev) cmd put $pars(db_val) {*}$data
     $pars(db_dev) cmd sync
   }
 
-  ## pars results
-  set time [lindex $ret 0]
-  set fre  [format %.6f [lindex $ret 1]]
-  set rtau [format %.8f [lindex $ret 2]]
-  set amp  [format %.6f [expr {1000*[lindex $ret 3]}]]
-
   ## push data to the time plot
-  pl add_data $ret
+  pl add_data $data
 
   ## load signal
   set ncols [sig_load sig $pars(sigfile)]
@@ -306,7 +320,7 @@ proc do_pulse {} {
   set min 0
   set max $sig_x(max)
   sig_xm seq $min $max [expr {($max-$min)/500}]
-  sig_ym1 expr {0.5*1e-3*$amp*exp(-sig_xm*$rtau)}
+  sig_ym1 expr {0.5*1e-3*$amp(0)*exp(-sig_xm*$rtau(0))}
   sig_ym2 expr -sig_ym1
 
   ## load FFT
@@ -319,10 +333,16 @@ proc do_pulse {} {
   }
   fft_y expr {sqrt(fft_y)*1e9}
 
-  if {$fre>0} {
+  # todo!
+  if {$fre(0)>0} {
+    # todo: use max(amp), max(tau), mean(fre)
+    set fre0 $fre(0)
+    set rtau0 $rtau(0)
+    set amp0 $amp(0)
+
     ## adjust frequency if needed
     if {$apars(fadj)} {
-      set apars(fre) [format %.0f $fre]
+      set apars(fre) [format %.0f $fre0]
       if {$apars(fre) < $apars(fmin)} {set apars(fre) $apars(fmin)}
       if {$apars(fre) > $apars(fmax)} {set apars(fre) $apars(fmax)}
       set pars(fre) $apars(fre)
@@ -330,7 +350,7 @@ proc do_pulse {} {
     }
     ## adjust record time if needed
     if {$apars(tadj)} {
-      set apars(time) [format %.3e [expr {$apars(tx)/$rtau}]]
+      set apars(time) [format %.3e [expr {$apars(tx)/$rtau0}]]
       if {$apars(time) < $apars(tmin)} {set apars(time) $apars(tmin)}
       if {$apars(time) > $apars(tmax)} {set apars(time) $apars(tmax)}
       set pars(time) $apars(time)
@@ -340,7 +360,7 @@ proc do_pulse {} {
     if {$apars(radj)} {
       global range_values
       foreach r $range_values {
-        if {1e-3*$amp < 2*0.8*$r} {
+        if {1e-3*$amp0 < 2*0.8*$r} {
           set apars(sc) $r
           set  pars(sc) $r
           set need_setup 1
@@ -422,16 +442,23 @@ proc mk_meas_frame {root} {
 
   frame $root.res
   labelframe $root.res.amp -text "Amplitude, mV: "
-  label $root.res.amp.val -textvariable amp  -font {-size 15} -text 0 -width 12
-  pack $root.res.amp.val
+  for {set i 0} {$i<$::pars(nforks)} {incr i} {
+    label $root.res.amp.val$i -textvariable amp($i)  -font {-size 15} -text 0 -width 12
+    pack $root.res.amp.val$i
+  }
 
   labelframe $root.res.rtau -text "1/Tau, 1/s: "
-  label $root.res.rtau.val -textvariable rtau  -font {-size 15} -text 0 -width 12
-  pack $root.res.rtau.val
+  for {set i 0} {$i<$::pars(nforks)} {incr i} {
+    label $root.res.rtau.val$i -textvariable rtau($i)  -font {-size 15} -text 0 -width 12
+    pack $root.res.rtau.val$i
+  }
 
   labelframe $root.res.fre -text "Frequency, Hz: "
-  label $root.res.fre.val -textvariable fre -font {-size 15} -text 0 -width 12
-  pack $root.res.fre.val
+  for {set i 0} {$i<$::pars(nforks)} {incr i} {
+    label $root.res.fre.val$i -textvariable fre($i) -font {-size 15} -text 0 -width 12
+    pack $root.res.fre.val$i
+  }
+
   pack $root.res.amp $root.res.rtau $root.res.fre\
     -side left -fill x -expand 1
 
@@ -513,11 +540,22 @@ proc mk_tplot_frame {root} {
   set graph $root.p
   set swid $root.sb
 
+  set pl_names []
+  set pl_x {time}
+  set pl_y {{}}
+  for {set i 0} {$i<$::pars(nforks)} {incr i} { lappend pl_names fre-$i }
+  for {set i 0} {$i<$::pars(nforks)} {incr i} { lappend pl_names rel-$i }
+  for {set i 0} {$i<$::pars(nforks)} {incr i} { lappend pl_names amp-$i }
+  for {set i 0} {$i<$::pars(nforks)} {incr i} {
+    lappend pl_x "fre-$i"
+    lappend pl_y "rel-$i"
+  }
+
   TimePlot pl $graph\
-    -ncols 3\
+    -ncols [expr 3*$pars(nforks)]\
     -maxn $pars(plot_maxn)\
     -maxt $pars(plot_maxt)\
-    -names {freq width amp}\
+    -names $pl_names\
     -plots_x {time freq}\
     -plots_y {{}   width}\
     -use_comm 0
