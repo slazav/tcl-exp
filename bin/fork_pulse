@@ -443,19 +443,20 @@ proc mk_meas_frame {root} {
   frame $root.res
   labelframe $root.res.amp -text "Amplitude, mV: "
   for {set i 0} {$i<$::pars(nforks)} {incr i} {
-    label $root.res.amp.val$i -textvariable amp($i)  -font {-size 15} -text 0 -width 12
+    label $root.res.amp.val$i -textvariable amp($i)  -font {-size 15} -text 0
     pack $root.res.amp.val$i
   }
 
   labelframe $root.res.rtau -text "1/Tau, 1/s: "
   for {set i 0} {$i<$::pars(nforks)} {incr i} {
-    label $root.res.rtau.val$i -textvariable rtau($i)  -font {-size 15} -text 0 -width 12
+    label $root.res.rtau.val$i -textvariable rtau($i)  -font {-size 15} -text 0
     pack $root.res.rtau.val$i
   }
 
   labelframe $root.res.fre -text "Frequency, Hz: "
   for {set i 0} {$i<$::pars(nforks)} {incr i} {
-    label $root.res.fre.val$i -textvariable fre($i) -font {-size 15} -text 0 -width 12
+    label $root.res.fre.val$i -textvariable fre($i) -font {-size 15} -text 0
+
     pack $root.res.fre.val$i
   }
 
