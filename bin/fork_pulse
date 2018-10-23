@@ -36,6 +36,7 @@ set default_pars {
   sadj 1     {adjust sampling rate}
 
   del  10.0  {delay between measurements, s}
+  navr  1    {number of averages}
   meas 0     {repeat measurements}
 
   osc_dev    {} {oscilloscope device}
@@ -283,9 +284,21 @@ proc do_pulse {} {
   set NP [expr {int(1.0*$t1/$dt)}]; # pretigger sample count
   set N  [expr {int(1.0*$t2/$dt)}]; # sample count
 
-  $pars(osc_dev) cmd block A $NP $N $dt $pars(sigfile)
-  $pars(gen_dev) write *TRG
-  $pars(osc_dev) cmd wait
+  if {$pars(navr)<1 || $pars(navr)>65536} {
+    error "bad number of averages: $pars(navr)"
+  }
+  if {$pars(navr)> 1} {$pars(osc_dev) cmd avr_start}
+
+  if {$pars(navr) == 1} {set fname $pars(sigfile)} else {set fname "-"}
+  for {set iavr 0} {$iavr<$pars(navr)} {incr iavr} {
+    $pars(osc_dev) cmd block A $NP $N $dt $fname
+    $pars(gen_dev) write *TRG
+    $pars(osc_dev) cmd wait
+  }
+  if {$pars(navr)>1} {
+    $pars(osc_dev) cmd avr_save $pars(sigfile)
+    $pars(osc_dev) cmd avr_stop
+  }
 
   set ret [exec sig_filter -T $apars(fstart) -f fitn $pars(sigfile) -N $pars(nforks) -F $apars(fmin) -G $apars(fmax) ]
   set ret [split $ret "\n"]
@@ -464,11 +477,14 @@ proc mk_meas_frame {root} {
     -side left -fill x -expand 1
 
   frame $root.m
+  label       $root.m.avrl -text "Number of averages:"
+  entry       $root.m.avrv -textvariable pars(navr) -width 6
   checkbutton $root.m.meas -text "Repeat measurements with period" -variable pars(meas)
   label       $root.m.dll -text "sec"
   entry       $root.m.del -textvariable pars(del) -width 7
   button      $root.m.run
-  pack   $root.m.run $root.m.dll $root.m.del $root.m.meas -side right
+  pack   $root.m.run $root.m.dll $root.m.del $root.m.meas\
+         $root.m.avrv $root.m.avrl -side right
 
   pack $root.name $root.res $root.m -fill x -expand 1
   set_state wait
