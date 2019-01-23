@@ -63,7 +63,7 @@ puts stderr "waiting..."
 
 after [expr {int($del*1000)}]
 set names {}
-set pref [exec mktemp]
+set pref /tmp/get_noise.sig
 for {set i 0} {$i<$avr} {incr i} {
 
   puts stderr "recording signal $i/$avr"
@@ -71,18 +71,19 @@ for {set i 0} {$i<$avr} {incr i} {
   $osc_dev cmd wait
 
   # Overload check
-  set re {s/^\s+chan:.*(1|0)$/\1/p}
-  set ov [exec sed -r -n -e $re $pref]
-  if {$ov == 1} {puts stderr "OVERLOAD"}
+  if {[$osc_dev cmd filter -f overload -c 0 $pref] == 1} {
+    puts stderr "OVERLOAD" }
 
   # read and average FFT
-  set data [exec sig_filter {*}$fpars1 $pref {*}$fpars2]
+  set data [$osc_dev cmd filter {*}$fpars1 $pref {*}$fpars2]
 
-  vx delete 0:end
-  vy delete 0:end
-  foreach {x y} $data {
-    vx append $x
-    vy append $y
+  if {$i > 0} {
+    vx delete 0:end
+    vy delete 0:end
+  }
+  foreach {v} $data {
+    vx append [lindex $v 0]
+    vy append [lindex $v 1]
   }
   if {$i==0} { vys expr vy }\
   else {vys expr vys+vy}
