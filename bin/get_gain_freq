@@ -13,6 +13,7 @@ package require xBlt
 # -p -ps_dev    -- power supply device (default gen1)
 # -v -volt      -- voltage (default 0.01)
 # -o -offs      -- offset (default 0.0)
+# -V -vcc       -- Vcc  (default 3)
 # -F -fmin      -- min frequency (default 23e3)
 # -G -fmax      -- max frequency (default 2e6)
 # -n            -- number of points (default 100)
@@ -21,6 +22,8 @@ package require xBlt
 # -D -del       -- initial delay (default 2)
 # -r -range     -- measurement range, V (default 0.1)
 # -t -tconst    -- measurement time constant, s (default 0.1)
+# -g -gfactor   -- gain factor, ratio of measured/set signal for direct connecton (default 1)
+#  (for lockin -g 1/sqrt(8), for osc -g 1/sqrt(2) )
 
 set options [list \
 {-g -gen_dev}  gen_dev  {gen0:1}\
@@ -37,6 +40,7 @@ set options [list \
 {-D -del}      del      {2}\
 {-r -range}    range    {0.1}\
 {-t -tconst}   tconst   {0.1}\
+{-g -gfactor}  gfact    {1}\
 ]
 
 xblt::parse_options "get_gain_freq" $argv $options
@@ -79,7 +83,7 @@ for {set i 0} {$i < $npts} {incr i} {
   set out [$gauge get]
   set x [lindex $out 0]
   set y [lindex $out 1]
-  set g [expr {sqrt($x**2+$y**2)*sqrt(8)/$volt}]
+  set g [expr {sqrt($x**2+$y**2)/$gfact/$volt}]
   puts "$f $volt $vcc $g $x $y"
   set f [expr {$log? $f*$dfk : $f+$df}]
 
