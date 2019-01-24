@@ -1,0 +1,89 @@
+#!/usr/bin/tclsh
+
+package require DeviceRole 1.1
+package require xBlt
+
+## script for measuring amplifier gain as a function of offset
+## with a generator, power supply and a lock-in amp.
+
+## set all parameters from cmdline
+#
+# -g -gen_dev   -- generator device (default gen0:1)
+# -m -meas_dev  -- measurement device (default lockin0:XY)
+# -p -ps_dev    -- power supply device (default gen1)
+# -v -volt      -- voltage (default 0.01)
+# -o -offs      -- offset (default 0.0)
+# -F -freq      -- frequency (default 1e6)
+# -V -vcc       -- Vcc (default 4)
+# -O -omin      -- min offset (default -1)
+# -P -omax      -- max offset (default 1)
+# -n            -- number of points (default 21)
+# -d -dt        -- delay between samples  (default 0.5)
+# -D -del       -- initial delay (default 2)
+# -r -range     -- measurement range, V (default 0.1)
+# -t -tconst    -- measurement time constant, s (default 0.1)
+# -g -gfactor   -- gain factor, ratio of measured/set signal for direct connecton (default 1)
+
+set options [list \
+{-g -gen_dev}  gen_dev  {gen0:1}\
+{-m -meas_dev} meas_dev {lockin0:XY}\
+{-p -ps_dev}   ps_dev   {gen1}\
+{-v -volt}     volt     {0.01}\
+{-o -offs}     offs     {0.0}\
+{-F -freq}     freq     {1e6}\
+{-V -vcc}      vcc      {0}\
+{-O -omin}     omin     {0}\
+{-P -omax}     omax     {5}\
+{-G -fmax}     fmax     {2e6}\
+{-n}           npts     {21}\
+{-d -dt}       dt       {0.5}\
+{-D -del}      del      {2}\
+{-r -range}    range    {0.1}\
+{-t -tconst}   tconst   {0.1}\
+{-g -gfactor}  gfact    {1}\
+]
+
+xblt::parse_options "get_gain_vcc" $argv $options
+
+
+if {$npts <= 0} {error "$npts <= 0"}
+
+if {$npts!=1} {
+  if {$omax <= $omin} {error "$omax <= $omin"}
+  set dv  [expr {1.0*($omax-$omin)/($npts-1)}]
+} else {
+  set dv 0
+}
+
+
+## prepare generator
+set gen   [DeviceRole $gen_dev ac_source]
+$gen set_ac $freq $volt $omin
+
+## prepare lock-in
+set gauge [DeviceRole $meas_dev gauge]
+$gauge set_range  $range
+$gauge set_tconst $tconst
+
+# prepare power supply
+set ps [DeviceRole $ps_dev dc_source]
+$ps set_volt $vcc
+
+# initial delay
+after [expr {int($del*1000)}]
+
+set offs $omin
+for {set i 0} {$i < $npts} {incr i} {
+
+  set offs [format "%.3f" $offs]
+  $gen set_ac $freq $volt $offs
+  after [expr {int($dt*1000)}]
+  set out [$gauge get]
+  set x [lindex $out 0]
+  set y [lindex $out 1]
+  set g [expr {sqrt($x**2+$y**2)/$gfact/$volt}]
+  puts "$freq $volt $vcc $offs $g $x $y"
+  set offs [expr $offs+$dv]
+}
+
+
