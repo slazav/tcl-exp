@@ -12,7 +12,6 @@ package require xBlt
 # -m -meas_dev  -- measurement device (default lockin0:XY)
 # -p -ps_dev    -- power supply device (default gen1)
 # -v -volt      -- voltage (default 0.01)
-# -o -offs      -- offset (default 0.0)
 # -F -freq      -- frequency (default 1e6)
 # -V -vcc       -- Vcc (default 4)
 # -O -omin      -- min offset (default -1)
@@ -29,7 +28,6 @@ set options [list \
 {-m -meas_dev} meas_dev {lockin0:XY}\
 {-p -ps_dev}   ps_dev   {gen1}\
 {-v -volt}     volt     {0.01}\
-{-o -offs}     offs     {0.0}\
 {-F -freq}     freq     {1e6}\
 {-V -vcc}      vcc      {0}\
 {-O -omin}     omin     {0}\
