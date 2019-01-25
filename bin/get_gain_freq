@@ -76,16 +76,18 @@ after [expr {int($del*1000)}]
 
 puts "# freq volt vcc gain x y"
 set f $fmin
+set f_set nan
 for {set i 0} {$i < $npts} {incr i} {
-
-  set f [format "%.0f" $f]
-  $gen set_ac_fast $f $volt $offs
-  after [expr {int($dt*1000)}]
-  set out [$gauge get]
-  set x [lindex $out 0]
-  set y [lindex $out 1]
-  set g [expr {sqrt($x**2+$y**2)/$gfact/$volt}]
-  puts "$f $volt $vcc $g $x $y"
+  if {$f_set != [format "%.3f" $f]} {
+    set f_set [format "%.0f" $f]
+    $gen set_ac_fast $f_set $volt $offs
+    after [expr {int($dt*1000)}]
+    set out [$gauge get]
+    set x [lindex $out 0]
+    set y [lindex $out 1]
+    set g [expr {sqrt($x**2+$y**2)/$gfact/$volt}]
+    puts "$f_set $volt $vcc $g $x $y"
+  }
   set f [expr {$log? $f*$dfk : $f+$df}]
 
 }

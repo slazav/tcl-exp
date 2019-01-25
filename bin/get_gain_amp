@@ -75,16 +75,18 @@ after [expr {int($del*1000)}]
 
 puts "# freq amp vcc offs gain x y"
 set amp $amin
+set amp_set nan
 for {set i 0} {$i < $npts} {incr i} {
-
-  set amp [format "%.3f" $amp]
-  $gen set_ac $freq $amp $offs
-  after [expr {int($dt*1000)}]
-  set out [$gauge get]
-  set x [lindex $out 0]
-  set y [lindex $out 1]
-  set g [expr {sqrt($x**2+$y**2)/$gfact/$amp}]
-  puts "$freq $amp $vcc $offs $g $x $y"
+  if {$amp_set != [format "%.3f" $amp]} {
+    set amp_set [format "%.3f" $amp]
+    $gen set_ac $freq $amp_set $offs
+    after [expr {int($dt*1000)}]
+    set out [$gauge get]
+    set x [lindex $out 0]
+    set y [lindex $out 1]
+    set g [expr {sqrt($x**2+$y**2)/$gfact/$amp}]
+    puts "$freq $amp_set $vcc $offs $g $x $y"
+  }
   set amp [expr {$log? $amp*$dvk : $amp+$dv}]
 }
 
