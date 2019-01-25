@@ -41,7 +41,7 @@ set options [list \
 {-g -gfactor}  gfact    {1}\
 ]
 
-xblt::parse_options "get_gain_vcc" $argv $options
+xblt::parse_options "get_gain_offs" $argv $options
 
 
 if {$npts <= 0} {error "$npts <= 0"}

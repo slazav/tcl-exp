@@ -35,7 +35,7 @@ set options [list \
 {-B -amax}     amax     {2}\
 {-G -fmax}     fmax     {2e6}\
 {-n}           npts     {21}\
-{-L}           log      {0}\
+{-L -log}      log      {0}\
 {-d -dt}       dt       {0.5}\
 {-D -del}      del      {2}\
 {-r -range}    range    {0.1}\
@@ -43,7 +43,7 @@ set options [list \
 {-g -gfactor}  gfact    {1}\
 ]
 
-xblt::parse_options "get_gain_vcc" $argv $options
+xblt::parse_options "get_gain_amp" $argv $options
 
 
 if {$npts <= 0} {error "$npts <= 0"}
