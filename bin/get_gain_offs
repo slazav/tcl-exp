@@ -70,6 +70,7 @@ $ps set_volt $vcc
 # initial delay
 after [expr {int($del*1000)}]
 
+puts "# freq volt vcc offs gain x y"
 set offs $omin
 for {set i 0} {$i < $npts} {incr i} {
 
