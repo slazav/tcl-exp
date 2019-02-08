@@ -84,6 +84,8 @@ itcl::class SweepController {
   variable min_i2 0;
   variable max_i  0;
   variable max_i2 0;
+  variable i_prec  1;
+  variable i_prec2 1;
 
   # Main loop control parameters
   variable rate     0; # rate
@@ -132,6 +134,7 @@ itcl::class SweepController {
     set dev1 [DeviceRole $ps_dev1 power_supply]
 #    $dev1 lock
     set min_i_step [expr [$dev1 cget -min_i_step]*abs($gain)]
+    set i_prec     [expr [$dev1 cget -i_prec]*abs($gain)]
     set max_i [expr [$dev1 cget -max_i]*$gain]
     set min_i [expr [$dev1 cget -min_i]*$gain]
     if {$gain < 0} {
@@ -146,6 +149,7 @@ itcl::class SweepController {
       set dev2 [DeviceRole $ps_dev2 power_supply]
 #      $dev2 lock
       set min_i_step2 [expr [$dev2 cget -min_i_step]*abs($gain)]
+      set i_prec2     [expr [$dev2 cget -i_prec]*abs($gain)]
       set max_i2 [expr [$dev2 cget -max_i]*$gain]
       set min_i2 [expr [$dev2 cget -min_i]*$gain]
       if {$antipar} {
@@ -291,12 +295,10 @@ itcl::class SweepController {
       set msg {}
     }
 
-    # stop ramping if the real current jumped outside the tolerance
+    # stop ramping if the real current jumped outside the i_prec parameter
     # or device status is wrong
-    set tolerance  [expr 100*$min_i_step]
-    set tolerance2 [expr 100*$min_i_step2]
-    if { abs($cm1-$cs1) > $tolerance ||\
-         abs($cm2-$cs2) > $tolerance2 || $st0} {
+    if { abs($cm1-$cs1) > $i_prec ||\
+         abs($cm2-$cs2) > $i_prec2 || $st0} {
       set cs1 $cm1
       set cs2 $cm2
       set rate 0
