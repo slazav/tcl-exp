@@ -59,6 +59,7 @@ if {$npts!=1} {
 ## prepare generator
 set gen   [DeviceRole $gen_dev ac_source]
 $gen set_ac $fmin $volt $offs
+$gen set_sync 1
 
 ## prepare lock-in
 set gauge [DeviceRole $meas_dev gauge]
@@ -82,7 +83,8 @@ for {set i 0} {$i < $npts} {incr i} {
     set out [$gauge get_auto]
     set x [lindex $out 0]
     set y [lindex $out 1]
-    set g [expr {sqrt($x**2+$y**2)/$gfact/$volt}]
+    if {$x eq NaN || $y eq NaN} { set g NaN }\
+    else {set g [expr {sqrt($x**2+$y**2)/$gfact/$volt}]}
     puts "$f_set $volt $vcc $g $x $y"
   }
   set f [expr {$log? $f*$dfk : $f+$df}]
