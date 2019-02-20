@@ -19,7 +19,6 @@ package require xBlt
 # -n2           -- number of points in gen2 sweep (default 11)
 # -d -dt        -- delay between samples  (default 0.5)
 # -D -del       -- initial delay (default 2)
-# -r -range     -- measurement range, V (default 0.1)
 # -t -tconst    -- measurement time constant, s (default 0.1)
 # -g -gfactor   -- gain factor, ratio of measured/set signal for direct connecton (default 1)
 
@@ -35,7 +34,6 @@ set options [list \
 {-n2}          npts2    {11}\
 {-d -dt}       dt       {0.5}\
 {-D -del}      del      {2}\
-{-r -range}    range    {0.1}\
 {-t -tconst}   tconst   {0.1}\
 {-g -gfactor}  gfact    {1}\
 ]
@@ -70,7 +68,6 @@ $gen2 set_volt $vmin
 
 ## prepare gauge
 set gauge [DeviceRole $meas_dev gauge]
-$gauge set_range  $range
 $gauge set_tconst $tconst
 
 # prepare power supply
@@ -91,7 +88,7 @@ for {set v2 $vmin} {$v2 < $vmax} {set v2 [expr {$v2+$dv2}]} {
     $gen1 set_volt $v1
 
     after [expr {int($dt*1000)}]
-    set out [$gauge get]
+    set out [$gauge get_auto]
     puts "$v1 $v2 $vcc $out"
   }
   puts ""

@@ -19,7 +19,6 @@ package require xBlt
 # -n            -- number of points (default 21)
 # -d -dt        -- delay between samples  (default 0.5)
 # -D -del       -- initial delay (default 2)
-# -r -range     -- measurement range, V (default 0.1)
 # -t -tconst    -- measurement time constant, s (default 0.1)
 # -g -gfactor   -- gain factor, ratio of measured/set signal for direct connecton (default 1)
 
@@ -36,7 +35,6 @@ set options [list \
 {-n}           npts     {21}\
 {-d -dt}       dt       {0.5}\
 {-D -del}      del      {2}\
-{-r -range}    range    {0.1}\
 {-t -tconst}   tconst   {0.1}\
 {-g -gfactor}  gfact    {1}\
 ]
@@ -60,7 +58,6 @@ $gen set_ac $freq $volt $omin
 
 ## prepare lock-in
 set gauge [DeviceRole $meas_dev gauge]
-$gauge set_range  $range
 $gauge set_tconst $tconst
 
 # prepare power supply
@@ -77,7 +74,7 @@ for {set i 0} {$i < $npts} {incr i} {
   set offs [format "%.3f" $offs]
   $gen set_ac $freq $volt $offs
   after [expr {int($dt*1000)}]
-  set out [$gauge get]
+  set out [$gauge get_auto]
   set x [lindex $out 0]
   set y [lindex $out 1]
   set g [expr {sqrt($x**2+$y**2)/$gfact/$volt}]
