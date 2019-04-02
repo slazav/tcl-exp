@@ -1,0 +1,43 @@
+#!/bin/sh
+# \
+exec wish "$0" -- "$@"
+
+set name "Prints data from Timeplot Tk window to stdout\n"
+
+set usage "usage: $argv0 timeplot_app
+parameters:
+ --list,-l  list Tcl interpeters
+ --help,-h  print this message"
+
+if { $argv == "--help" | $argv == "-h" | $argv == "" } { puts "$name\n$usage"; exit }
+
+
+
+if { $argv == "--list" | $argv == "-l" } {
+  puts "Tk winfo list (Tk app: 'window title'):"
+  set ws [winfo interps]
+  foreach w $ws { puts "  $w:\t'[send $w {wm title .}]'"}
+  exit
+}
+
+if { [llength $argv] > 1 } { error "Too many parameters" }
+set win $argv
+
+#if { [winfo name .] == $win } {error ""}
+if [catch {send $win {wm title .}}] {
+  error "Tk window '[lindex $win 0]' was not found"
+}
+if [catch {set plots [send $win { itcl::find objects -class TimePlot}]}] {
+  error "'[lindex $win 0]' doesn't contain Timeplot data "
+}
+
+set ts [exec date "+%Y-%m-%d %H:%M"]
+puts "# timeplot data from $win (title: '[send $win {wm title .}]')"
+puts "# $ts"
+
+foreach plot $plots {
+  puts "#\n# timeplot object: $plot"
+  puts [send $win "$plot get_data"]
+}
+
+exit
