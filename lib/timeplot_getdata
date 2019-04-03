@@ -2,36 +2,46 @@
 # \
 exec wish "$0" -- "$@"
 
-set name "Prints data from Timeplot Tk window to stdout\n"
-
-set usage "usage: $argv0 timeplot_app
+# Print usage information and exit
+proc usage {} {
+  global argv0
+  puts "$argv0 -- prints data from TimePlot in any running Tk window."
+  puts "usage: $argv0 <app>
 parameters:
- --list,-l  list Tcl interpeters
- --help,-h  print this message"
-
-if { $argv == "--help" | $argv == "-h" | $argv == "" } { puts "$name\n$usage"; exit }
-
-
-
-if { $argv == "--list" | $argv == "-l" } {
-  puts "Tk winfo list (Tk app: 'window title'):"
-  set ws [winfo interps]
-  foreach w $ws { puts "  $w:\t'[send $w {wm title .}]'"}
+  --list,-l -- List Tcl interpeters with TimePlot object.
+  --help,-h -- Print this message."
   exit
 }
 
+# Test if Tk app exists and contains TimePlot instance
+# Return list of all timeplot objects
+proc get_plots {win} {
+  if [catch {send $win {wm title .}}] {
+    error "Tk window '$win' was not found"
+  }
+  if [catch {set plots [send $win { itcl::find objects -class TimePlot}]}] {
+    error "Window '$win' doesn't contain Timeplot data "
+  }
+  return $plots
+}
+
+######
+if { $argv == "--help" | $argv == "-h" | $argv == "" } { usage }
+if { $argv == "--list" | $argv == "-l" } {
+  puts "Tk winfo list (Tk app: 'window title'):"
+  foreach win [winfo interps] {
+    if {[catch {get_plots $win}]} {continue}
+    puts "  $win:\t'[send $win {wm title .}]'"
+  }
+  exit
+}
+
+######
 if { [llength $argv] > 1 } { error "Too many parameters" }
-set win $argv
+set win [lindex $argv 0]
+set plots [get_plots $win]
 
-#if { [winfo name .] == $win } {error ""}
-if [catch {send $win {wm title .}}] {
-  error "Tk window '[lindex $win 0]' was not found"
-}
-if [catch {set plots [send $win { itcl::find objects -class TimePlot}]}] {
-  error "'[lindex $win 0]' doesn't contain Timeplot data "
-}
-
-set ts [exec date "+%Y-%m-%d %H:%M"]
+set ts [clock format [clock seconds] -format "%Y-%m-%d %H:%M"]
 puts "# timeplot data from $win (title: '[send $win {wm title .}]')"
 puts "# $ts"
 
