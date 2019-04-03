@@ -342,4 +342,16 @@ itcl::class TimePlot {
   method get_tvec  {} { return "$this:T" }
   method get_dvec  {i} { return "$this:D$i" }
   method get_graph {} { return $graph }
+  method get_data {} {
+      set Tlength ["$this:T" length]
+      set data "# time,s  "
+      append data $names
+      for {set i 0} {$i < $Tlength} {incr i} {
+        append data "\n" ["$this:T" index $i]
+        for {set n 0} {$n < $ncols} {incr n} {
+          append data " "  ["$this:D0" index $i]
+        }
+      }
+    return $data
+  }
 }
