@@ -1,0 +1,97 @@
+#!/usr/bin/tclsh
+
+package require DeviceRole 1.1
+package require xBlt
+
+## script for measuring amplifier DC response
+## with a 2-channel generator, power supply and a DC-gauge.
+
+## set all parameters from cmdline
+#
+# -g -gen1_dev   -- generator device (default gen0:1)
+# -h -gen2_dev   -- generator device (default gen0:2)
+# -m -meas_dev  -- measurement device (default mult0)
+# -p -ps_dev    -- power supply device (default gen1)
+# -v -vmin      -- min input voltage (default -0.5)
+# -w -vmax      -- max input voltage (default 0.5)
+# -V -vcc       -- Vcc (default 0)
+# -n1           -- number of points in gen1 sweep (default 21)
+# -n2           -- number of points in gen2 sweep (default 11)
+# -d -dt        -- delay between samples  (default 0.5)
+# -D -del       -- initial delay (default 2)
+# -t -tconst    -- measurement time constant, s (default 0.1)
+# -g -gfactor   -- gain factor, ratio of measured/set signal for direct connecton (default 1)
+
+set options [list \
+{-g -gen1_dev}  gen1_dev  {gen0:1}\
+{-h -gen2_dev}  gen2_dev  {gen0:2}\
+{-m -meas_dev} meas_dev {mult0}\
+{-p -ps_dev}   ps_dev   {gen1}\
+{-v -vmin}     vmin     {-0.5}\
+{-w -vmax}     vmax     {0.5}\
+{-V -vcc}      vcc      {3}\
+{-n1}          npts1    {21}\
+{-n2}          npts2    {11}\
+{-d -dt}       dt       {0.5}\
+{-D -del}      del      {2}\
+{-t -tconst}   tconst   {0.1}\
+{-g -gfactor}  gfact    {1}\
+]
+
+xblt::parse_options "get_gain_dc" $argv $options
+
+
+if {$npts1 <= 0} {error "$npts1 <= 0"}
+if {$npts2 <= 0} {error "$npts2 <= 0"}
+
+if {$npts1!=1} {
+  if {$vmax <= $vmin} {error "$vmax <= $vmin"}
+  set dv1  [expr {1.0*($vmax-$vmin)/($npts1-1)}]
+} else {
+  set dv1 0
+}
+
+if {$npts1!=1} {
+  if {$vmax <= $vmin} {error "$vmax <= $vmin"}
+  set dv2  [expr {1.0*($vmax-$vmin)/($npts2-1)}]
+} else {
+  set dv2 0
+}
+
+
+## prepare generators
+set gen1   [DeviceRole $gen1_dev dc_source]
+$gen1 set_volt $vmin
+
+set gen2   [DeviceRole $gen2_dev dc_source]
+$gen2 set_volt $vmin
+
+## prepare gauge
+set gauge [DeviceRole $meas_dev gauge]
+$gauge set_tconst $tconst
+
+# prepare power supply
+set ps [DeviceRole $ps_dev dc_source]
+$ps set_volt $vcc
+
+# initial delay
+after [expr {int($del*1000)}]
+
+for {set v2 $vmin} {$v2 < $vmax} {set v2 [expr {$v2+$dv2}]} {
+
+  set v2 [format "%.3f" $v2]
+  $gen2 set_volt $v2
+
+
+  for {set v1 $vmin} {$v1 < $vmax} {set v1 [expr {$v1+$dv1}]} {
+    set v1 [format "%.3f" $v1]
+    $gen1 set_volt $v1
+
+    after [expr {int($dt*1000)}]
+    set out [$gauge get_auto]
+    puts "$v1 $v2 $vcc $out"
+  }
+  puts ""
+}
+
+

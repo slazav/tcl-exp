@@ -20,8 +20,8 @@ package require xBlt
 # -L -log       -- logarithmic step (default 0)
 # -d -dt        -- delay between samples  (default 0.5)
 # -D -del       -- initial delay (default 2)
-# -r -range     -- measurement range, V (default 0.1)
 # -t -tconst    -- measurement time constant, s (default 0.1)
+# -g -gfactor   -- gain factor, ratio of measured/set signal for direct connecton (default 1)
 
 set options [list \
 {-g -gen_dev}  gen_dev  {gen0:1}\
@@ -37,8 +37,8 @@ set options [list \
 {-L -log}      log      {0}\
 {-d -dt}       dt       {0.5}\
 {-D -del}      del      {2}\
-{-r -range}    range    {0.1}\
 {-t -tconst}   tconst   {0.1}\
+{-g -gfactor}  gfact    {1}\
 ]
 
 xblt::parse_options "get_gain_vcc" $argv $options
@@ -59,10 +59,10 @@ if {$npts!=1} {
 ## prepare generator
 set gen   [DeviceRole $gen_dev ac_source]
 $gen set_ac $freq $volt $offs
+$gen set_sync 1
 
 ## prepare lock-in
 set gauge [DeviceRole $meas_dev gauge]
-$gauge set_range  $range
 $gauge set_tconst $tconst
 
 # prepare power supply
@@ -72,16 +72,18 @@ $ps set_volt $vmin
 # initial delay
 after [expr {int($del*1000)}]
 
+puts "# freq volt vcc gain x y"
 set vcc $vmin
 for {set i 0} {$i < $npts} {incr i} {
 
   set vcc [format "%.3f" $vcc]
   $ps set_volt $vcc
   after [expr {int($dt*1000)}]
-  set out [$gauge get]
+  set out [$gauge get_auto]
   set x [lindex $out 0]
   set y [lindex $out 1]
-  set g [expr {sqrt($x**2+$y**2)*sqrt(8)/$volt}]
+  if {$x eq NaN || $y eq NaN} { set g NaN }\
+  else {set g [expr {sqrt($x**2+$y**2)/$gfact/$volt}]}
   puts "$freq $volt $vcc $g $x $y"
   set vcc [expr {$log? $vcc*$dvk : $vcc+$dv}]
 }

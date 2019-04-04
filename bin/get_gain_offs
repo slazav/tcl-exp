@@ -3,8 +3,8 @@
 package require DeviceRole 1.1
 package require xBlt
 
-## script for measuring frequency response
-## with a generator and a lock-in amp.
+## script for measuring amplifier gain as a function of offset
+## with a generator, power supply and a lock-in amp.
 
 ## set all parameters from cmdline
 #
@@ -12,53 +12,49 @@ package require xBlt
 # -m -meas_dev  -- measurement device (default lockin0:XY)
 # -p -ps_dev    -- power supply device (default gen1)
 # -v -volt      -- voltage (default 0.01)
-# -o -offs      -- offset (default 0.0)
-# -V -vcc       -- Vcc  (default 3)
-# -F -fmin      -- min frequency (default 23e3)
-# -G -fmax      -- max frequency (default 2e6)
-# -n            -- number of points (default 100)
-# -L -log       -- logarithmic step (default 1)
+# -F -freq      -- frequency (default 1e6)
+# -V -vcc       -- Vcc (default 4)
+# -O -omin      -- min offset (default -1)
+# -P -omax      -- max offset (default 1)
+# -n            -- number of points (default 21)
 # -d -dt        -- delay between samples  (default 0.5)
 # -D -del       -- initial delay (default 2)
 # -t -tconst    -- measurement time constant, s (default 0.1)
 # -g -gfactor   -- gain factor, ratio of measured/set signal for direct connecton (default 1)
-#  (for lockin -g 1/sqrt(8), for osc -g 1/sqrt(2) )
 
 set options [list \
 {-g -gen_dev}  gen_dev  {gen0:1}\
 {-m -meas_dev} meas_dev {lockin0:XY}\
 {-p -ps_dev}   ps_dev   {gen1}\
 {-v -volt}     volt     {0.01}\
-{-o -offs}     offs     {0.0}\
-{-V -vcc}      vcc      {3.0}\
-{-F -fmin}     fmin     {25e3}\
+{-F -freq}     freq     {1e6}\
+{-V -vcc}      vcc      {0}\
+{-O -omin}     omin     {0}\
+{-P -omax}     omax     {5}\
 {-G -fmax}     fmax     {2e6}\
-{-n}           npts     {100}\
-{-L -log}      log      {1}\
+{-n}           npts     {21}\
 {-d -dt}       dt       {0.5}\
 {-D -del}      del      {2}\
 {-t -tconst}   tconst   {0.1}\
 {-g -gfactor}  gfact    {1}\
 ]
 
-xblt::parse_options "get_gain_freq" $argv $options
+xblt::parse_options "get_gain_offs" $argv $options
 
 
 if {$npts <= 0} {error "$npts <= 0"}
 
 if {$npts!=1} {
-  if {$fmax <= $fmin} {error "$fmax <= $fmin"}
-  set df  [expr {1.0*($fmax-$fmin)/($npts-1)}]
-  set dfk [expr {pow(1.0*$fmax/$fmin, 1.0/($npts-1))}]
+  if {$omax <= $omin} {error "$omax <= $omin"}
+  set dv  [expr {1.0*($omax-$omin)/($npts-1)}]
 } else {
-  set df  0
-  set dfk 1
+  set dv 0
 }
 
 
 ## prepare generator
 set gen   [DeviceRole $gen_dev ac_source]
-$gen set_ac $fmin $volt $offs
+$gen set_ac $freq $volt $omin
 $gen set_sync 1
 
 ## prepare lock-in
@@ -72,21 +68,20 @@ $ps set_volt $vcc
 # initial delay
 after [expr {int($del*1000)}]
 
-puts "# freq volt vcc gain x y"
-set f $fmin
-set f_set nan
+puts "# freq volt vcc offs gain x y"
+set offs $omin
 for {set i 0} {$i < $npts} {incr i} {
-  if {$f_set != [format "%.3f" $f]} {
-    set f_set [format "%.0f" $f]
-    $gen set_ac_fast $f_set $volt $offs
-    after [expr {int($dt*1000)}]
-    set out [$gauge get_auto]
-    set x [lindex $out 0]
-    set y [lindex $out 1]
-    if {$x eq NaN || $y eq NaN} { set g NaN }\
-    else {set g [expr {sqrt($x**2+$y**2)/$gfact/$volt}]}
-    puts "$f_set $volt $vcc $g $x $y"
-  }
-  set f [expr {$log? $f*$dfk : $f+$df}]
 
+  set offs [format "%.3f" $offs]
+  $gen set_ac $freq $volt $offs
+  after [expr {int($dt*1000)}]
+  set out [$gauge get_auto]
+  set x [lindex $out 0]
+  set y [lindex $out 1]
+  if {$x eq NaN || $y eq NaN} { set g NaN }\
+  else {set g [expr {sqrt($x**2+$y**2)/$gfact/$volt}]}
+  puts "$freq $volt $vcc $offs $g $x $y"
+  set offs [expr $offs+$dv]
 }
+
+
