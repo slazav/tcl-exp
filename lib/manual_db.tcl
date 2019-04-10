@@ -40,6 +40,7 @@ itcl::class manual_db {
     label $root.text_l -text "Text:" -width 12 -anchor w
     entry $root.text -textvariable [itcl::scope text]
     grid  $root.text_l $root.text -sticky we
+    grid columnconfigure $root 1 -weight 1
   }
 
   # Default function for getting data
