@@ -38,7 +38,8 @@ itcl::class manual_db {
   variable tstamp;
   variable listbox
 
-  variable lst; # data list
+  variable lst;  # text list
+  variable data; # data list
 
   ##########################################################
 
@@ -164,6 +165,7 @@ itcl::class manual_db {
       if {$i < [$listbox size]} {$listbox delete $i}
       $listbox insert $i "$ts $v"
       set lst($i) $t
+      set data($i) $r
       set t "$t-"; # it will be passed to $dbdev command
     }
     itcl::delete object $dbdev
@@ -209,20 +211,13 @@ itcl::class manual_db {
     on_reset
   }
 
-
   method on_sel {w} {
-    # update time and text from the database
+    puts stderr "on_sel $w"
     set i [$w curselection]
-
     if {$i=={}} { return }
-
     if {$i!=0} {
       set t $lst($i)
-
-      Device $dbdev
-      set r [lindex [$dbdev cmd get_prev $dbname $t] 0]
-      itcl::delete object $dbdev
-
+      set r $data($i)
       set t [lindex $r 0]
       $func_set [lrange $r 1 end]
       set tstamp [clock format [expr int($t)] -format "%Y-%m-%d %H:%M:%S"]
