@@ -1,6 +1,4 @@
-#!/bin/sh
-# \
-exec wish "$0" -- "$@"
+#!/usr/bin/wish
 
 # Print usage information and exit
 proc usage {} {
@@ -15,12 +13,12 @@ parameters:
 
 # Test if Tk app exists and contains TimePlot instance
 # Return list of all timeplot objects
-proc get_plots {win} {
-  if [catch {send $win {wm title .}}] {
-    error "Tk window '$win' was not found"
+proc get_plots {app} {
+  if [catch {send $app {wm title .}}] {
+    error "Tk application '$app' not found"
   }
-  if [catch {set plots [send $win { itcl::find objects -class TimePlot}]}] {
-    error "Window '$win' doesn't contain Timeplot data "
+  if [catch {set plots [send $app { itcl::find objects -class TimePlot}]}] {
+    error "Application '$app' doesn't contain Timeplot data"
   }
   return $plots
 }
@@ -28,26 +26,26 @@ proc get_plots {win} {
 ######
 if { $argv == "--help" | $argv == "-h" | $argv == "" } { usage }
 if { $argv == "--list" | $argv == "-l" } {
-  puts "Tk winfo list (Tk app: 'window title'):"
-  foreach win [winfo interps] {
-    if {[catch {get_plots $win}]} {continue}
-    puts "  $win:\t'[send $win {wm title .}]'"
+  puts "# Finding TimePlot applications:"
+  foreach app [winfo interps] {
+    if {[catch {get_plots $app}]} {continue}
+    puts "$app"
   }
   exit
 }
 
 ######
 if { [llength $argv] > 1 } { error "Too many parameters" }
-set win [lindex $argv 0]
-set plots [get_plots $win]
+set app [lindex $argv 0]
+set plots [get_plots $app]
 
 set ts [clock format [clock seconds] -format "%Y-%m-%d %H:%M"]
-puts "# timeplot data from $win (title: '[send $win {wm title .}]')"
+puts "# TimePlot data from '$app'"
 puts "# $ts"
 
 foreach plot $plots {
-  puts "#\n# timeplot object: $plot"
-  puts [send $win "$plot get_data"]
+  puts "#\n# TimePlot object: $plot"
+  puts [send $app "$plot get_data"]
 }
 
 exit
