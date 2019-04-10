@@ -1,4 +1,11 @@
 ## Manual DB interface
+##
+## Manually insert some data to graphene database.
+## By default works with text databases, but can be also used
+## for any numerical values. Then three methods should be redefined:
+## - func_mkint <root> -- creats a form for values in <root> tk widget
+## - func_get          -- extracts data from the form
+## - func_set <data>   -- fills the form from data
 #############################################################
 ## Arguments for constructor:
 # -dbdev  -- database device
@@ -11,7 +18,8 @@
 #                (takes data list as argument, returns nothing)
 # -func_fmt   -- function for formatting text version of the data
 #                (takes data list as argument, returns a string representation of the data)
-# -num   -- number of records to show
+# -num        -- number of records to show
+# -list_size  -- list size (it will be a scrollbar if list_size < num)
 
 package require itcl
 package require xBlt
@@ -26,7 +34,9 @@ itcl::class manual_db {
   variable func_set;
   variable func_fmt;
   variable num;
+  variable list_size;
   variable tstamp;
+  variable listbox
 
   variable lst; # data list
 
@@ -73,6 +83,7 @@ itcl::class manual_db {
       {-func_set}   func_set   func_set_text\
       {-func_fmt}   func_fmt   func_fmt_text\
       {-num}        num        10\
+      {-list_size}  list_size  10\
     ]
     xblt::parse_options "manual_db" $args $options
 
@@ -102,11 +113,23 @@ itcl::class manual_db {
     button .f1.del_btn -text "Delete"  -command "$this on_del" -width 6 -state disabled
     grid .f1.new_btn .f1.mod_btn .f1.del_btn -sticky ew
 
-    ## recent comment list
-    listbox .lb -selectmode browse -height $num -width 70 -exportselection 0
-    grid .lb -columnspan 3 -sticky we
-    bind .lb <<ListboxSelect>> "$this on_sel %W"
-    .lb insert 0 "<add new>"
+    ## list with database records
+    if {$num > $list_size} {
+      frame .l
+      listbox .l.lb -selectmode browse -height $list_size -width 70 -exportselection 0\
+                    -yscrollcommand ".l.sb set"
+      scrollbar .l.sb -command ".l.lb yview"
+      grid .l.lb .l.sb -sticky we
+      grid .l -columnspan 3 -sticky we
+      set listbox .l.lb
+    }\
+    else {
+      listbox .lb -selectmode browse -height $list_size -width 70 -exportselection 0
+      grid .lb -columnspan 3 -sticky we
+      set listbox .lb
+    }
+    $listbox insert 0 "<add new>"
+    bind $listbox <<ListboxSelect>> "$this on_sel %W"
 
     ## button frame2
     frame .f2
@@ -138,8 +161,8 @@ itcl::class manual_db {
       set t [lindex $r 0]
       set v [$func_fmt [lrange $r 1 end]]
       set ts [clock format [expr int($t)] -format "%Y-%m-%d %H:%M:%S"]
-      if {$i < [.lb size]} {.lb delete $i}
-      .lb insert $i "$ts $v"
+      if {$i < [$listbox size]} {$listbox delete $i}
+      $listbox insert $i "$ts $v"
       set lst($i) $t
       set t "$t-"; # it will be passed to $dbdev command
     }
@@ -147,9 +170,9 @@ itcl::class manual_db {
 
     # reset it to <add new> entry
     #  Note: on_sel opens the DB
-    .lb selection set 0
-    .lb activate 0
-    on_sel .lb
+    $listbox selection set 0
+    $listbox activate 0
+    on_sel $listbox
   }
 
   method on_add {} {
@@ -163,28 +186,26 @@ itcl::class manual_db {
   }
 
   method on_mod {} {
-    set i [.lb curselection]
+    set i [$listbox curselection]
     set t $lst($i)
     set nt [exec date -d "$tstamp" +%s]
     Device $dbdev
     $dbdev cmd del $dbname $t
     $dbdev cmd put $dbname $nt [$func_get]
     itcl::delete object $dbdev
-    .lb delete $i
+    $listbox delete $i
     on_reset
   }
 
   method on_del {} {
-    set i [.lb curselection]
-    .lb selection set 0
-    .lb activate 0
-    .lb delete $i
+    set i [$listbox curselection]
+    $listbox selection set 0
+    $listbox activate 0
+    $listbox delete $i
     set t $lst($i)
-
     Device $dbdev
     $dbdev cmd del $dbname $t
     itcl::delete object $dbdev
-
     on_reset
   }
 
