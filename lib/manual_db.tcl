@@ -50,7 +50,7 @@ itcl::class manual_db {
 
   # Default function for setting data
   method func_set_text {data} {
-    set text [lindex $data 0]
+    set text $data
   }
 
   # Default function for setting data
