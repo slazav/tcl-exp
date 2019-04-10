@@ -79,22 +79,23 @@ itcl::class manual_db {
     # make interface
     ## title
     label .name  -text "Add comments to $dbname" -font {-size 12} -anchor w
-    grid .name -columnspan 2 -sticky w
+    grid .name -columnspan 3 -sticky w
     grid columnconfigure . 1 -weight 1
 
     ## timestamp entry
-    label .tstamp_l  -text "Timestamp:" -width 12 -anchor w
-    entry .tstamp    -textvariable [itcl::scope tstamp]
-    grid  .tstamp_l .tstamp -sticky we
+    label  .tstamp_l  -text "Timestamp:" -width 12 -anchor w
+    entry  .tstamp    -textvariable [itcl::scope tstamp]
+    button .tstamp_b  -text "Update" -command "$this on_update_time" -width 6
+    grid   .tstamp_l .tstamp .tstamp_b -sticky we
 
     ## data entry
     frame .data
     $func_mkint .data
-    grid .data -columnspan 2 -sticky w
+    grid .data -columnspan 3 -sticky we
 
     ## button frame1
     frame .f1
-    grid .f1 -columnspan 2 -sticky ew
+    grid .f1 -columnspan 3 -sticky we
 
     button .f1.new_btn -text "Add new" -command "$this on_add" -width 6
     button .f1.mod_btn -text "Modify"  -command "$this on_mod" -width 6 -state disabled
@@ -103,13 +104,13 @@ itcl::class manual_db {
 
     ## recent comment list
     listbox .lb -selectmode browse -height $num -width 70 -exportselection 0
-    grid .lb -columnspan 2 -sticky we
+    grid .lb -columnspan 3 -sticky we
     bind .lb <<ListboxSelect>> "$this on_sel %W"
     .lb insert 0 "<add new>"
 
     ## button frame2
     frame .f2
-    grid .f2 -columnspan 2 -sticky ew
+    grid .f2 -columnspan 3 -sticky ew
 
     #button .f2.l_btn -text "<"        -command on_l -width 6  -state disabled
     button .f2.res_btn -text "Reread"  -command "$this on_reset" -width 6
@@ -121,6 +122,10 @@ itcl::class manual_db {
 
   ##########################################################
   #### button actions
+
+  method on_update_time {} {
+    set tstamp [clock format [clock seconds] -format "%Y-%m-%d %H:%M:%S"]
+  }
 
   ## reread data
   method on_reset {} {
