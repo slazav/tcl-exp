@@ -95,8 +95,7 @@ proc do_meas {} {
   $pars(osc_dev) cmd wait
 
   # Overload check
-  set re "s/^\\s+chan: *$pars(chan) .*(1|0)\$/\\1/p"
-  if {[exec sed -r -n -e $re $sigfile] == 1} {set overload "OVERLOAD"}\
+  if {[$pars(osc_dev) cmd filter -f overload -c 0 $sigfile]} {set overload "OVERLOAD"}\
   else {set overload {}}
 
   ## load FFT
@@ -107,13 +106,13 @@ proc do_meas {} {
   if {$pars(fmin) != {}} {set fpars2 "$fpars2 -F $pars(fmin)"}
   if {$pars(fmax) != {}} {set fpars2 "$fpars2 -G $pars(fmax)"}
   if {$pars(tmin) != {}} {set fpars1 "$fpars1 -T $pars(tmin)"}
-  set data [exec sig_filter {*}$fpars1 $sigfile {*}$fpars2]
+  set data [$pars(osc_dev) cmd filter {*}$fpars1 $sigfile {*}$fpars2]
 
   fftx set {}
   ffty set {}
-  foreach {x y} $data {
-    fftx append $x
-    ffty append $y
+  foreach v $data {
+    fftx append [lindex $v 0]
+    ffty append [lindex $v 1]
   }
 
   ffty expr {sqrt(ffty)*1e9}
