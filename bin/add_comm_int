@@ -1,9 +1,10 @@
 #!/usr/bin/wish
 
-package require Exp
+#package require Exp
+source ../exp_tcl/manual_db.tcl
 
 manual_db #auto\
  -dbdev  db_exp\
- -dbname drydemag_comments\
- -num 10\
+ -dbname muki_comments\
+ -num 20\
 
