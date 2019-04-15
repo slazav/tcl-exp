@@ -17,7 +17,7 @@ Local scripts for my computer
 %prep
 %setup -q
 
-%build
+%install
 mkdir -p %buildroot%_bindir %buildroot%_datadir/octave/site/m
 mkdir -p %buildroot/%_tcldatadir/Exp
 %__install bin/*    %buildroot%_bindir
