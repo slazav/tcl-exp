@@ -78,7 +78,7 @@ set f_set nan
 for {set i 0} {$i < $npts} {incr i} {
   if {$f_set != [format "%.3f" $f]} {
     set f_set [format "%.0f" $f]
-    $gen set_ac_fast $f_set $volt $offs
+    $gen set_ac $f_set $volt $offs
     after [expr {int($dt*1000)}]
     set out [$gauge get_auto]
     set x [lindex $out 0]
