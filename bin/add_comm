@@ -1,0 +1,32 @@
+#!/usr/bin/wish
+
+package require Exp
+
+##########################################################################
+## read parameters from configuration file
+
+set default_pars {
+  name         {Default}  {program name}
+  db_dev       {}         {database device}
+  db_name      {}         {database name}
+  num          20         {number of records to edit}
+  list_size    10         {list size}
+}
+
+if {[llength $argv]>0 } {
+  read_conf [lindex $argv 0] pars $default_pars
+}\
+else {
+  foreach {name def title} $default_pars { set pars($name) $def }
+}
+
+tk appname "add_comm: $pars(name)"
+
+##########################################################################
+
+manual_db #auto\
+ -dbdev  $pars(db_dev)\
+ -dbname $pars(db_name)\
+ -num $pars(num)\
+ -list_size $pars(list_size)
+

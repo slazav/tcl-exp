@@ -1,0 +1,7 @@
+# configuration for add_comm script (muki cryostat)
+
+name         {Muki comments} # program name}
+db_dev       db_exp          # database device}
+db_name      muki_comments   # database name}
+num          20              # number of records to edit}
+list_size    10              # list size}
