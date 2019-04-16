@@ -221,6 +221,7 @@ itcl::class Monitor {
   ## Stop the measurement
   method stop {} {
     set onoff 0
+    set_checkbox_color $root.ctl.meas
     if {!$is_opened} {return}
     if {$loop_handle != {}} {
       after cancel $loop_handle; $this main_loop
@@ -228,7 +229,7 @@ itcl::class Monitor {
   }
 
   #########################
-  ## close devces and exit
+  ## close devices and exit
   method do_exit {} {
     if {!$is_opened} {exit}
     set exit_fl 1
