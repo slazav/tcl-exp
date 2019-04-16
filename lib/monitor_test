@@ -1,0 +1,7 @@
+#!/usr/bin/wish
+
+source ./monitor.tcl
+
+Monitor m .m -name {Monitor test} -period 10
+pack .m -expand 1 -fill both -anchor n
+wm protocol . WM_DELETE_WINDOW { m do_exit }
