@@ -151,9 +151,8 @@ itcl::class Monitor {
       set_status "Starting the measurement, opening devices..."
       run_cmd $func_start
       if {$last_err != {}} {
-        set onoff 0
         set is_opened 0
-        set_checkbox_color $root.ctl.meas
+        onoff_btn 0
         set_status "Error while starting: $last_err" red
         return
       }
@@ -184,6 +183,29 @@ itcl::class Monitor {
     }
     # Set up the next iteration
     set loop_handle [after $dt $this main_loop]
+  }
+
+  #########################
+  ## Do start and stop (useful if in the beginning we want to
+  ## open devices and collect some information)
+  method startstop {} {
+    if {$is_opened} {return}
+    set is_opened 1
+    set_status "Checking devices..."
+    run_cmd $func_start
+    if {$last_err != {}} {
+      set is_opened 0
+      onoff_btn 0
+      set_status "Error while starting: $last_err" red
+      return
+    }
+    run_cmd $func_stop
+    if {$last_err != {}} {
+      set_status "Error while stopping: $last_err" red
+    } else {
+      set_status {}
+    }
+    set is_opened 0
   }
 
   #########################
@@ -231,6 +253,7 @@ itcl::class Monitor {
     onoff_btn 1
     main_loop
   }
+
   #########################
   ## Stop the measurement
   method stop {} {
@@ -255,6 +278,7 @@ itcl::class Monitor {
     restart
     stop
   }
+
 
   #########################
   # This one is called when one changes period setting
