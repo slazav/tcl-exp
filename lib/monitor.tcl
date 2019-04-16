@@ -37,6 +37,7 @@ itcl::class Monitor {
   ## Configuration parameters. Defaults are set in the constructor
   variable name;       # program name
   variable period;     # period setting (sec)
+  variable dt;         # actual value (ms)
 
   #########################
   ## User-supplied functions.
@@ -72,6 +73,7 @@ itcl::class Monitor {
       -func_mkint    func_mkint   def_func_mkint\
     ]
     xblt::parse_options "monitor" $args $options
+    apply_period
 
     ######
     ## interface
@@ -97,11 +99,11 @@ itcl::class Monitor {
     label       $root.ctl.per_l -padx 10 -text "period (sec):"
     entry       $root.ctl.per_v -width 6 -textvariable [itcl::scope period]\
                 -vcmd "$this validate_period %W %s %P" -validate {key}
+    bind $root.ctl.per_v <Return> "$this apply_period"
+
     pack $root.ctl.meas $root.ctl.single -side left -padx 3
     pack $root.ctl.per_v $root.ctl.per_l -side right
     pack $root.ctl -anchor s -expand 0 -fill x -padx 0
-
-    trace add variable [itcl::scope period] write "$this on_period_change"
 
     ## status line on the bottom
     frame $root.st -borderwidth 1 -relief sunken
@@ -172,13 +174,13 @@ itcl::class Monitor {
     # Do the measurement
     set_status "Measuring..."
     run_cmd $func_meas
+
     if {$last_err == {}} {
-      set_status "Waiting for the next measurement..."
+      set_status "Waiting for the next measurement ([expr $dt/1000.0] s)..."
     } else {
       set_status "Error: $last_err" red
     }
     # Set up the next iteration
-    set dt [expr {int($period*1000)}]
     set loop_handle [after $dt $this main_loop]
   }
 
@@ -235,7 +237,7 @@ itcl::class Monitor {
     set exit_fl 1
     stop
   }
-  
+
   #########################
   ## Run a single measurement:
   method measure {} {
@@ -245,7 +247,12 @@ itcl::class Monitor {
 
   #########################
   # This one is called when one changes period setting
-  method on_period_change {args} {
+  method apply_period {args} {
+    if {[regexp {^[0-9.]+$} $period]} {
+      set dt [expr {int($period*1000)}]
+    } else {
+      set period [expr {$dt/1000.}]
+    }
     # if measurement is not running do nothing
     if {!$onoff} return
     restart
