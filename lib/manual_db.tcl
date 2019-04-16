@@ -112,7 +112,9 @@ itcl::class manual_db {
     button .f1.new_btn -text "Add new" -command "$this on_add" -width 6
     button .f1.mod_btn -text "Modify"  -command "$this on_mod" -width 6 -state disabled
     button .f1.del_btn -text "Delete"  -command "$this on_del" -width 6 -state disabled
-    grid .f1.new_btn .f1.mod_btn .f1.del_btn -sticky ew
+    button .f1.res_btn -text "Reread"  -command "$this on_reset" -width 6
+    grid .f1.new_btn .f1.mod_btn .f1.del_btn x .f1.res_btn -sticky ew
+    grid columnconfigure .f1 3 -weight 1
 
     ## list with database records
     if {$num > $list_size} {
@@ -132,15 +134,14 @@ itcl::class manual_db {
     $listbox insert 0 "<add new>"
     bind $listbox <<ListboxSelect>> "$this on_sel %W"
 
-    ## button frame2
-    frame .f2
-    grid .f2 -columnspan 3 -sticky ew
-
-    #button .f2.l_btn -text "<"        -command on_l -width 6  -state disabled
-    button .f2.res_btn -text "Reread"  -command "$this on_reset" -width 6
-    #button .f2.r_btn -text ">"        -command on_r -width 6  -state disabled
-    #grid .f2.l_btn .f2.res_btn .f2.r_btn
-    grid .f2.res_btn
+#    ## button frame2
+#    frame .f2
+#    grid .f2 -columnspan 3 -sticky ew
+#    #button .f2.l_btn -text "<"        -command on_l -width 6  -state disabled
+#    button .f2.res_btn -text "Reread"  -command "$this on_reset" -width 6
+#    #button .f2.r_btn -text ">"        -command on_r -width 6  -state disabled
+#    #grid .f2.l_btn .f2.res_btn .f2.r_btn
+#    grid .f2.res_btn
     on_reset
   }
 
@@ -153,6 +154,7 @@ itcl::class manual_db {
 
   ## reread data
   method on_reset {} {
+    if {$dbdev == {}} {return}
     Device $dbdev
     # update listbox
     set t {}
@@ -168,7 +170,7 @@ itcl::class manual_db {
       set data($i) $r
       set t "$t-"; # it will be passed to $dbdev command
     }
-    itcl::delete object $dbdev
+    DeviceDelete [namespace current]::$dbdev
 
     # reset it to <add new> entry
     #  Note: on_sel opens the DB
@@ -178,28 +180,31 @@ itcl::class manual_db {
   }
 
   method on_add {} {
+    if {$dbdev == {}} {return}
     set v [$func_get]
     if {$v=={} || $tstamp=={}} return
     set nt [exec date -d "$tstamp" +%s]
     Device $dbdev
     $dbdev cmd put $dbname $nt $v
-    itcl::delete object $dbdev
+    DeviceDelete [namespace current]::$dbdev
     on_reset
   }
 
   method on_mod {} {
+    if {$dbdev == {}} {return}
     set i [$listbox curselection]
     set t $lst($i)
     set nt [exec date -d "$tstamp" +%s]
     Device $dbdev
     $dbdev cmd del $dbname $t
     $dbdev cmd put $dbname $nt [$func_get]
-    itcl::delete object $dbdev
+    DeviceDelete [namespace current]::$dbdev
     $listbox delete $i
     on_reset
   }
 
   method on_del {} {
+    if {$dbdev == {}} {return}
     set i [$listbox curselection]
     $listbox selection set 0
     $listbox activate 0
@@ -207,12 +212,11 @@ itcl::class manual_db {
     set t $lst($i)
     Device $dbdev
     $dbdev cmd del $dbname $t
-    itcl::delete object $dbdev
+    DeviceDelete [namespace current]::$dbdev
     on_reset
   }
 
   method on_sel {w} {
-    puts stderr "on_sel $w"
     set i [$w curselection]
     if {$i=={}} { return }
     if {$i!=0} {
