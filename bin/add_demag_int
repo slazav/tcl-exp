@@ -1,5 +1,9 @@
 #!/usr/bin/wish
 
+# Script which I used to save demagnetization parameters
+# (current, destination, rate) for DryDemag.
+# manual_db class is used
+
 package require Exp
 
 set v1 0
