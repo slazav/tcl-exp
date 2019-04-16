@@ -92,9 +92,11 @@ itcl::class Monitor {
 
     # control frame
     frame $root.ctl
-    checkbutton $root.ctl.meas -text "run" -selectcolor "red" -bd 1 -relief raised\
+    checkbutton $root.ctl.meas -text "run" -selectcolor "red"\
+      -bd 1 -relief raised -width 6\
       -variable [itcl::scope onoff] -command "$this on_onoff"
-    button $root.ctl.single -text "single" -pady 0 -padx 2 -bd 1 -relief raised\
+    button $root.ctl.single -text "single"\
+      -pady 0 -padx 2 -bd 1 -relief raised -width 6\
                 -command "$this measure"
     label       $root.ctl.per_l -padx 10 -text "period (sec):"
     entry       $root.ctl.per_v -width 6 -textvariable [itcl::scope period]\
@@ -192,8 +194,19 @@ itcl::class Monitor {
   }
 
   #########################
-  method on_onoff {} {
+  ## Low-level method for switching on/off button.
+  ## If you want to switch the measurements
+  ## use restart/stop/measure methods
+  method onoff_btn {v} {
+    set onoff $v
     set_checkbox_color $root.ctl.meas
+    $root.ctl.meas configure -text [expr $v?"stop":"start"]
+  }
+
+  #########################
+  ## method run when on/off button is pressed
+  method on_onoff {} {
+    onoff_btn $onoff
     # Run measurement loop if button was pressed and
     # measurement is not running (remember that user can press the button
     # faster then period setting)
@@ -215,15 +228,13 @@ itcl::class Monitor {
     if {$loop_handle != {}} { after cancel $loop_handle; }
 
     # Start measurement:
-    set onoff 1
-    set_checkbox_color $root.ctl.meas
+    onoff_btn 1
     main_loop
   }
   #########################
   ## Stop the measurement
   method stop {} {
-    set onoff 0
-    set_checkbox_color $root.ctl.meas
+    onoff_btn 0
     if {!$is_opened} {return}
     if {$loop_handle != {}} {
       after cancel $loop_handle; $this main_loop
