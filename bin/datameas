@@ -1,151 +1,144 @@
-#!/bin/sh
-# \
-exec wish "$0" "$@"
+#!/usr/bin/wish
 
-## Interface for gauge devices
-
-package require Device 1.3
 package require DeviceRole
-package require Exp
+package require Exp;  # timeplot, monitor
 
-set default_pars [list \
-name           {Default}              {program title}\
-dev            {}                     {gauge device}\
-db_dev         {}                     {db device}\
-db             {}                     {database name}\
-dt             1                      {default time step, s}\
-ncols          3                      {number of data columns}\
-maxt           100000                 {max number of data points}\
-names          {D1 D2 D3}             {data names}\
-plots_x        {time D1 D2 D3}         {plots_x}\
-plots_y        {{} {} {}}             {plots_y}\
-symbols        {}                     {symbols}\
-zstyles        {x x xy}               {zstyles}\
-use_comm       1                      {use_comm} \
-use_marker     1                      {use_marker} \
-dataconv       {}                     {input data convertion} \
-]
+##########################################################################
+## read parameters from configuration file
+
+set default_pars {
+  name         {Default}  {program name}
+  period       {1.0}      {measurement period}
+  onoff        0          {inital state of main switch}
+  save         0          {inital state of save switch}
+  gauge_dev    {TEST}     {gauge device}
+  db_dev       {}         {database device}
+  db_name      {}         {database name}
+  tpos         0.5        {timestamp position: 0-beginning of measurement, 1-end of measuremen}
+
+  data_title   {Data:}    {data title in the interface}
+  time_title   {Time:}    {time title in the interface}
+  tfmt         {%H:%M:%S} {time format string for the interface}
+  dfmt         {%.3f}     {data format string for the interface}
+
+  plot_ncols   1          {number of columns in the plot}
+  plot_maxt    600        {max time span in the plot}
+  plot_maxn    0          {max number of points in the plot}
+  plot_names   {data}     {column names}
+  plot_titles  {}         {column titles}
+  plot_colors  {}         {column colors}
+  plot_hides   {}         {column hides}
+  plot_logs    {}         {column log scales}
+  plot_symbols {}         {symbols}
+  plot_ssizes  {}         {symbol sizes}
+  plot_fmts    {}         {column format settings}
+  plot_comm    0          {use comment in the plot}
+  plot_marker  0          {use marker in the plot}
+  plots_x      {time}     {x data for plots}
+  plots_y      {{}}       {y data for plots}
+  plots_zst    {}         {zoom styles for plots}
+}
 
 if {[llength $argv]>0 } {
   read_conf [lindex $argv 0] pars $default_pars
-  set def_conf 0
-  set meas?  1
 }\
 else {
-  foreach {name def title} $default_pars { set pars($name) $def}
-  set def_conf 1
-  set meas? 0
-}
-set db     $pars(db)
-set db_dev $pars(db_dev)
-set dt     $pars(dt)
-
-
-wm title . "$argv0: $pars(name)"
-
-# Configure time plot
-TimePlot pl .pl\
-  -ncols      $pars(ncols)\
-  -maxt       $pars(maxt)\
-  -names      $pars(names)\
-  -plots_x    $pars(plots_x)\
-  -plots_y    $pars(plots_y)\
-  -symbols    $pars(symbols)\
-  -zstyles    $pars(zstyles)\
-  -use_comm   $pars(use_comm)\
-  -use_marker $pars(use_marker)
-pack .pl -fill both -expand y
-
-
-proc dtChanged { W old new} { 
-  if {[regexp {^[0-9.]*$} $new]} { return 1 }
-  set $::dt $old
-  return 0
+  foreach {name def title} $default_pars { set pars($name) $def }
 }
 
-label .pl.dtl -text "  dt, s:"
-entry .pl.dt  -textvariable dt -width 8 -vcmd {dtChanged %W %s %P} -validate {key}
-pack  .pl.dtl -side left -padx 5
-pack  .pl.dt  -side left
+tk appname "datameas: $pars(name)"
 
-frame       .run
-checkbutton .run.noDB  -text "don't save to database"   -command setcolor  -variable ::noDB
-checkbutton .run.meas? -text "running"                  -command dev_state -variable ::meas?
+##########################################################################
+##########################################################################
+set D0  {};  # current data
+set Df  {};  # formatted data (see -dfmt option)
+set T0  {};  # current time (seconds)
+set Tf  {};  # current formatted time (-tfmt option)
+set dev {};  # gauge device handler
 
-pack .run -fill x
-pack .run.noDB -side left  -pady 5 -padx 5
-pack .run.meas? -side right
+##########################################################################
+##########################################################################
+## functions for the monitor class
 
-
-
-proc set_dtms args {
-  if {[regexp {^[0\.]*$} $::dt]} return
-  set ::dtms [expr {int($::dt*1000)}]
-  after cancel add_trig
-  add_trig
-}
-trace add variable dt write "set_dtms"
-set trig 1
-set dtms [expr {int($::dt*1000)}]
-
-
-proc open_dev  {} { set ::dev [DeviceRole $::pars(dev) gauge] }
-proc open_db   {} { Device $::pars(db_dev) }
-
-set do_meas_do_close 0
-proc close_dev  {} { itcl::delete object $::dev }
-proc close_db   {} { itcl::delete object $::pars(db_dev) }
-proc close_devs {} { if {$::safe_stop} { close_dev; close_db } { set ::do_meas_do_close 1 } }
-
-
-if {!$def_conf} {open_dev; open_db}
-
-proc dev_state {} {
-  if ${::meas?} {open_db; open_dev} {close_devs}
+# Open devices
+proc func_start {} {
+  global pars dev
+  if {$pars(gauge_dev)!={}} {set dev [DeviceRole $pars(gauge_dev) gauge]}
+  if {$pars(db_dev)!={}} { Device $pars(db_dev) }
 }
 
-
-set safe_stop 1
-proc do_meas {} {
-    set t [expr [clock milliseconds]/1000.0]
-    set ::safe_stop 0
-    set data [$::dev get]
-    pl add_data [list $t {*}$data]
-    if { !$::noDB } { $::db_dev cmd "put $::db $t $data" }
-    set ::safe_stop 1
-    if {$::do_meas_do_close} {close_devs}
-    if {$::stop} exit
+# Close devices
+proc func_stop {} {
+  global pars dev
+  if {$pars(gauge_dev)!={}} { DeviceRoleDelete $dev }
+  if {$pars(db_dev)!={}} { DeviceDelete $pars(db_dev) }
 }
 
-proc main {} {
-  tkwait variable trig
-  if ${::meas?} do_meas
-  main
+# Do a single measurement, return data
+proc func_meas {} {
+  global pars dev D0 Df T0 Tf
+  if {$dev=={}} return
+  set t1 [clock microseconds]
+  if {[catch {set D0 [$dev get]}]} { error }
+  set t2 [clock microseconds]
+
+  # calculate timestamp
+  set T0 [expr {($t1 + ($t2-$t1)*$pars(tpos))/1e6}]
+
+  # format data and time for the interface
+  if {$pars(dfmt) != {}} { set Df [format $pars(dfmt) {*}$D0] }\
+  else {set Df $D0}
+  set Tf [clock format [expr int($T0)] -format $pars(tfmt)]
+
+  # append data to timeplot
+  time_plot add_data "$T0 $D0"
+
+  # put data to database
+  if {$pars(db_dev)!={} && $pars(save)} {
+    $pars(db_dev) cmd put $pars(db_name) $T0 $D0 }
 }
 
+# Build GUI frame in <root> (user-supplied function)
+proc func_mkint {w} {
+  global pars
+  frame $w.data
+  label $w.data.tl -text $pars(time_title)
+  label $w.data.vl -text $pars(data_title)
+  label $w.data.t -fg darkgreen -font {-size 12} -textvariable Tf
+  label $w.data.v -fg darkgreen -font {-size 12} -textvariable Df
+  checkbutton $w.data.save -text "save to DB" -selectcolor "red" -bd 1 -relief raised\
+    -variable $pars(save) -command {$m set_checkbox_color $w.data.save}
+  pack $w.data.tl $w.data.t $w.data.vl $w.data.v -side left
+  if {$pars(db_dev) != {}} {pack $w.data.save -side right}
+  pack $w.data -anchor w -expand 1 -fill x -padx 10
 
-proc add_trig {} {
-  set ::trig 1
-  after $::dtms add_trig
-}
+  set Tf [clock format [clock seconds] -format $pars(tfmt)]
 
-proc setcolor {} {
- set c [expr { $::noDB? "red":"gray85" }]
- .run.noDB configure -background $c
-}
-
-set stop 0
-proc do_safe_stop {} {
-  if {$::safe_stop} {exit} { set ::stop 1 }
-  exit
-}
-
-wm protocol . WM_DELETE_WINDOW {
-  puts "quitting.."
-  do_safe_stop
+  TimePlot time_plot $w.tplot\
+   -ncols      $pars(plot_ncols)\
+   -maxt       $pars(plot_maxt)\
+   -colors     $pars(plot_colors)\
+   -titles     $pars(plot_titles)\
+   -names      $pars(plot_names)\
+   -hides      $pars(plot_hides)\
+   -logs       $pars(plot_logs)\
+   -symbols    $pars(plot_symbols)\
+   -ssizes     $pars(plot_ssizes)\
+   -fmts       $pars(plot_fmts)\
+   -plots_x    $pars(plots_x)\
+   -plots_y    $pars(plots_y)\
+   -zstyles    $pars(plots_zst)\
+   -use_comm   $pars(plot_comm)\
+   -use_marker $pars(plot_marker)
+  pack $w.tplot -fill both -expand 1
 }
 
 
-add_trig
-main
-
+##########################################################################
+##########################################################################
+## create the monitor class
+Monitor m .m -name $pars(name) -period $pars(period) -onoff $pars(onoff)\
+  -func_start func_start -func_stop func_stop\
+  -func_meas func_meas -func_mkint func_mkint
+pack .m
+wm protocol . WM_DELETE_WINDOW { m do_exit }

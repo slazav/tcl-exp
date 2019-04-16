@@ -1,0 +1,19 @@
+# configuration for test leak detector
+
+name            {mult3:pt100}     # program title
+period          1                 # measurement period
+onoff           0                 # inital state of main switch
+save            0                 # inital state of save switch
+gauge_dev       mult3:R2          # gauge device
+db_dev          {}                # database device
+db_name         {}                # database name
+tpos            1                 # timestamp position: 0-beginning of measurement, 1-end of measuremen}
+
+# timeplot parameters
+plot_ncols          1
+plot_maxt           10000
+plot_names          {R}          # data names
+plots_x             {time}
+plots_y             {{}}
+plot_symbols        {circle}
+plots_zst           {x}

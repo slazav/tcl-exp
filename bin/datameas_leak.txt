@@ -1,0 +1,19 @@
+# configuration for test leak detector
+
+name           {leak detector}    # program title
+period         {1.0}              # measurement period
+onoff           0                 # inital state of main switch
+save            0                 # inital state of save switch
+gauge_dev       leak_ag           # gauge device
+db_dev          db_exp            # database device
+db_name         leak_test         # database name
+tpos            0.5               # timestamp position: 0-beginning of measurement, 1-end of measuremen}
+
+# timeplot parameters
+plot_ncols          3
+plot_maxt           10000
+plot_names          {leak_rate Pin Pout}         # data names
+plots_x             {time}
+plots_y             {{}}
+plot_symbols        {}
+plots_zst           {x}
