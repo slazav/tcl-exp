@@ -24,7 +24,7 @@ itcl::class Monitor {
   variable onoff;          # on/off switch
   variable is_opened 0;    # are devices opened
   variable exit_fl 0;      # set to 1 to exit the program
-  variable loop_handle {};
+  variable loop_handle {}; # non-empty only while waiting for next measurement
   variable root;           # tk root widget
   variable last_err {};
   # default function handlers
