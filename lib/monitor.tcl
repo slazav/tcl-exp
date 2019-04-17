@@ -140,7 +140,7 @@ itcl::class Monitor {
 
   ##########################
   # Dialog with full text of the status line
-  # (called from a button)
+  # (called when pressing on the status line)
   method show_status { } {
     toplevel .log; #Make the window
 
@@ -155,6 +155,20 @@ itcl::class Monitor {
     pack .log.text -expand 1 -fill both
 
     .log.text insert end $status_text
+
+    # highklite some words with colors
+    foreach patt {"Error:" "invoked from within" "while executing"}\
+            col {"red" "green" "green"} {
+      set t 0.0
+      set cnt 0
+      while {1} {
+        set t [.log.text search -exact -count cnt $patt "$t + $cnt chars" end]
+        if {$t == {}} {break}
+        .log.text tag add t$t $t "$t + $cnt chars"
+        .log.text tag configure t$t -foreground $col
+      }
+    }
+
   }
 
   ##########################
