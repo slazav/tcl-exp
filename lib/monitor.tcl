@@ -321,6 +321,7 @@ itcl::class Monitor {
   method measure {} {
     restart
     stop
+    if {$::errorInfo != {}} {set_status {}}
   }
 
 
