@@ -20,13 +20,12 @@ package require xBlt; # options
 
 itcl::class Monitor {
 
-  variable status_line;    # text in the status line
+  variable status_text {}; # full text in the status line
   variable onoff;          # on/off switch
   variable is_opened 0;    # are devices opened
   variable exit_fl 0;      # set to 1 to exit the program
   variable loop_handle {}; # non-empty only while waiting for next measurement
   variable root;           # tk root widget
-  variable last_err {};
   # default function handlers
   variable func_start;
   variable func_stop;
@@ -109,37 +108,56 @@ itcl::class Monitor {
 
     ## status line on the bottom
     frame $root.st -borderwidth 1 -relief sunken
-    label $root.st.text -textvariable [itcl::scope status_line]
-    pack $root.st.text -side left -padx 2
-    pack $root.st  -anchor s -expand 0 -fill x
+    label $root.st.text -height 1 
+    bind $root.st.text <ButtonPress> "$this show_status"
+    grid $root.st.text
+
+    pack $root.st  -anchor s -expand 1 -fill x
   }
 
+  # validate function for the period field
   method validate_period { W old new} {
     if {[regexp {^[0-9.]*$} $new]} { return 1 }
     set $period $old
     return 0
   }
 
-
   ##########################
   ## set status line and update interface
   method set_status {msg {col black}} {
-    set status_line $msg
-    $root.st.text configure -fg $col
+    set L $root.st.text; # the label widget
+    set status_text $msg
+    # We want to cut one line of the text
+    set n [string first "\n" $msg]
+    if {$n>0} {
+      $L configure -text [string range $msg 0 [expr $n-1]]
+    } else {
+      $L configure -text $msg
+    }
+    $L configure -fg $col
     update idletasks
+  }
+
+  ##########################
+  # Dialog with full text of the status line
+  # (called from a button)
+  method show_status { } {
+    toplevel .top; #Make the window
+    #Put things in it
+    text .top.txt 
+    .top.txt insert end $status_text
+    # An option to close the window.
+    button .top.btn -text "Close" -command { destroy .top }
+    #Pack everything
+    pack .top.txt .top.btn
   }
 
   ##########################
   ## run a command, catch error
   ## return 1 (success) or 0 (fail)
   method run_cmd {cmd} {
+    set ::errorInfo {}
     if {![catch {set ret [$cmd]}]} {return $ret}
-    set e $::errorInfo
-    if {$e == {}} {return {}}
-    set n [string first "\n" $e]
-    if {$n>0} { set e [string range $e 0 [expr $n-1]]}
-    set last_err $e
-    return {}
   }
 
   ##########################
@@ -150,22 +168,20 @@ itcl::class Monitor {
       set is_opened 1
       set_status "Starting the measurement, opening devices..."
       run_cmd $func_start
-      if {$last_err != {}} {
+      if {$::errorInfo != {}} {
         set is_opened 0
         onoff_btn 0
-        set_status "Error while starting: $last_err" red
+        set_status "Error while starting: $::errorInfo" red
         return
       }
     }
 
     # Close devices and return if checkbox was switched
     if {!$onoff || $exit_fl} {
-      set_status "Stopping the measurement, closing devices..."
+      # stop do not modify status to keep previous message if any
       run_cmd $func_stop
-      if {$last_err != {}} {
-        set_status "Error while stopping: $last_err" red
-      } else {
-        set_status {}
+      if {$::errorInfo != {}} {
+        set_status "Error while stopping: $::errorInfo" red
       }
       set is_opened 0
       if {$exit_fl} {exit}
@@ -176,10 +192,10 @@ itcl::class Monitor {
     set_status "Measuring..."
     run_cmd $func_meas
 
-    if {$last_err == {}} {
+    if {$::errorInfo == {}} {
       set_status "Waiting for the next measurement ([expr $dt/1000.0] s)..."
     } else {
-      set_status "Error: $last_err" red
+      set_status "Error: $::errorInfo" red
     }
     # Set up the next iteration
     set loop_handle [after $dt $this main_loop]
@@ -193,17 +209,16 @@ itcl::class Monitor {
     set is_opened 1
     set_status "Checking devices..."
     run_cmd $func_start
-    if {$last_err != {}} {
+    if {$::errorInfo != {}} {
       set is_opened 0
       onoff_btn 0
-      set_status "Error while starting: $last_err" red
+      set_status "Error while starting: $::errorInfo" red
       return
     }
+    # stop do not modify status to keep previous message if any
     run_cmd $func_stop
-    if {$last_err != {}} {
-      set_status "Error while stopping: $last_err" red
-    } else {
-      set_status {}
+    if {$::errorInfo != {}} {
+      set_status "Error while stopping: $::errorInfo" red
     }
     set is_opened 0
   }
