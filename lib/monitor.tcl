@@ -142,14 +142,19 @@ itcl::class Monitor {
   # Dialog with full text of the status line
   # (called from a button)
   method show_status { } {
-    toplevel .top; #Make the window
-    #Put things in it
-    text .top.txt 
-    .top.txt insert end $status_text
-    # An option to close the window.
-    button .top.btn -text "Close" -command { destroy .top }
-    #Pack everything
-    pack .top.txt .top.btn
+    toplevel .log; #Make the window
+
+    text .log.text -wrap char -width 80 -height 20\
+       -yscrollcommand {.log.yscroll set}
+    scrollbar .log.yscroll -orient vertical \
+        -command [list .log.text yview]
+    button .log.btn -text "Close" -command { destroy .log }
+
+    pack .log.btn -expand 0 -fill x -side bottom
+    pack .log.yscroll -expand 0 -fill y -side right
+    pack .log.text -expand 1 -fill both
+
+    .log.text insert end $status_text
   }
 
   ##########################
