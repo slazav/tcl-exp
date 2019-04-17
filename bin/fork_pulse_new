@@ -195,18 +195,18 @@ proc func_meas {} {
   set NP [expr {int(1.0*$t1/$dt)}]; # pretigger sample count
   set N  [expr {int(1.0*$t2/$dt)}]; # sample count
 
-  if {$pars(navr)<1 || $pars(navr)>65536} {
-    error "bad number of averages: $pars(navr)"
+  if {$apars(navr)<1 || $apars(navr)>65536} {
+    error "bad number of averages: $apars(navr)"
   }
-  if {$pars(navr)> 1} {$pars(osc_dev) cmd avr_start}
+  if {$apars(navr)> 1} {$apars(osc_dev) cmd avr_start}
 
-  if {$pars(navr) == 1} {set fname $apars(sigfile)} else {set fname "-"}
-  for {set iavr 0} {$iavr<$pars(navr)} {incr iavr} {
+  if {$apars(navr) == 1} {set fname $apars(sigfile)} else {set fname "-"}
+  for {set iavr 0} {$iavr<$apars(navr)} {incr iavr} {
     $pars(osc_dev) cmd block A $NP $N $dt $fname
     $pars(gen_dev) write *TRG
     $pars(osc_dev) cmd wait
   }
-  if {$pars(navr)>1} {
+  if {$apars(navr)>1} {
     $pars(osc_dev) cmd avr_save $apars(sigfile)
     $pars(osc_dev) cmd avr_stop
   }
