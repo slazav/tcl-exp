@@ -122,7 +122,7 @@ itcl::class manual_db {
       listbox .l.lb -selectmode browse -height $list_size -width 70 -exportselection 0\
                     -yscrollcommand ".l.sb set"
       scrollbar .l.sb -command ".l.lb yview"
-      grid .l.lb .l.sb -sticky we
+      grid .l.lb .l.sb -sticky wens
       grid .l -columnspan 3 -sticky we
       set listbox .l.lb
     }\
