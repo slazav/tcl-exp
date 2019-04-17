@@ -238,15 +238,17 @@ itcl::class Monitor {
     run_cmd $func_start
     if {$::errorInfo != {}} {
       set is_opened 0
-      onoff_btn 0
       set_status "Error while starting: $::errorInfo" red
       return
     }
     # stop do not modify status to keep previous message if any
     run_cmd $func_stop
     if {$::errorInfo != {}} {
+      set is_opened 0
       set_status "Error while stopping: $::errorInfo" red
+      return
     }
+    set_status {}
     set is_opened 0
   }
 
