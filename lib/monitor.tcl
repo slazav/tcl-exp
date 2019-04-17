@@ -179,8 +179,12 @@ itcl::class Monitor {
   ## run a command, catch error
   ## return 1 (success) or 0 (fail)
   method run_cmd {cmd} {
-    set ::errorInfo {}
-    if {![catch {set ret [$cmd]}]} {return $ret}
+    if {![catch {set ret [$cmd]}]} {
+      # Note that non-zero ::errorInfo can come
+      # from some catched errors inside $cmd
+      set ::errorInfo {}
+      return $ret
+    }
   }
 
   ##########################
