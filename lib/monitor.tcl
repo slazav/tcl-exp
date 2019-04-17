@@ -142,6 +142,10 @@ itcl::class Monitor {
   # Dialog with full text of the status line
   # (called when pressing on the status line)
   method show_status { } {
+    if {[winfo exists .log]} {
+      raise .log
+      return
+    }
     toplevel .log; #Make the window
 
     text .log.text -wrap char -width 80 -height 20\
