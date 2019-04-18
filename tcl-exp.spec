@@ -22,7 +22,7 @@ mkdir -p %buildroot%_bindir %buildroot%_datadir/octave/site/m
 mkdir -p %buildroot/%_tcldatadir/Exp
 %__install bin/*    %buildroot%_bindir
 %__install octave/* %buildroot%_datadir/octave/site/m
-%__install exp/*    %buildroot%_bindir
+%__install $(find exp -maxdepth 1 -type f -perm 755) %buildroot%_bindir
 %__install exp_tcl/*.tcl %buildroot/%_tcldatadir/Exp
 
 %files
