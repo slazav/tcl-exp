@@ -19,7 +19,7 @@ set default_pars {
   data_title   {Data:}    {data title in the interface}
   time_title   {Time:}    {time title in the interface}
   tfmt         {%H:%M:%S} {time format string for the interface}
-  dfmt         {%.3f}     {data format string for the interface}
+  dfmt         {%.3e}     {data format string for the interface}
   data_convs   {{}}       {data conversion}
 
   plot_ncols   1          {number of columns in the plot}
