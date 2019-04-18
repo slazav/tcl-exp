@@ -1,3 +1,4 @@
+#!/usr/bin/sweeper
 # configuration for the main solenoid
 
 name     {Main magnet}          # program title

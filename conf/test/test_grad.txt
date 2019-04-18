@@ -1,3 +1,4 @@
+#!/usr/bin/sweeper
 # configuration for heat switch
 
 name     {Gradient coil}        # program title
