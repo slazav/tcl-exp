@@ -22,7 +22,7 @@ package require xBlt
 # -c -chan     -- channel (default A), only single channel is supported now
 
 set options [list \
-{-O -osc_dev}  osc_dev  {osc0}\
+{-O -osc_dev}  osc_dev  {osc2}\
 {-s -scale}    scale    {0.05}\
 {-d -dt}       dt       {5e-8}\
 {-N -nsamp}    nsamp    {10e6}\
@@ -92,7 +92,7 @@ vys expr vys/$avr
 
 exec rm -f -- $pref
 
-puts "# freq [Hz]  noise density [V^2/Hz]"
+puts "# freq \[Hz\]  noise density \[V^2/Hz\]"
 for {set i 0} {$i<[vx length]} {incr i} {
   puts "$vx($i) $vys($i)"
 }
