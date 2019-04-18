@@ -3,7 +3,7 @@
 package require DeviceRole 1.2
 package require xBlt
 
-## script for setting ac source
+## script for setting AC source from the command line
 
 ## set all parameters from cmdline
 #
