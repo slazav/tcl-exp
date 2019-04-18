@@ -302,10 +302,15 @@ itcl::class Monitor {
   ## Stop the measurement
   method stop {} {
     onoff_btn 0
-    if {!$is_opened} {return}
-    if {$loop_handle != {}} {
-      after cancel $loop_handle; $this main_loop
+    if {!$is_opened} {
+      if {$::errorInfo == {}} {set_status {}}
+      return
     }
+    if {$loop_handle != {}} {
+      after cancel $loop_handle;
+      $this main_loop
+    }
+    if {$::errorInfo == {}} {set_status {}}
   }
 
   #########################
@@ -321,7 +326,6 @@ itcl::class Monitor {
   method measure {} {
     restart
     stop
-    if {$::errorInfo != {}} {set_status {}}
   }
 
 
