@@ -20,8 +20,8 @@ set default_pars {
   time_title   {Time:}    {time title in the interface}
   tfmt         {%H:%M:%S} {time format string for the interface}
   dfmt         {%.3e}     {data format string for the interface}
-  data_convs   {{}}       {data conversion}
-
+  data_convs   {}         {data conversion for each data column - list of expr\
+                           statements with $x variable (like {{$x*2} {sin($x)}} etc.) }
   plot_ncols   1          {number of columns in the plot}
   plot_maxt    600        {max time span in the plot}
   plot_maxn    0          {max number of points in the plot}
@@ -46,12 +46,6 @@ if {[llength $argv]>0 } {
 else {
   foreach {name def title} $default_pars { set pars($name) $def }
 }
-set i 0
-foreach conv $pars(data_convs) {
-  if {$conv == {}} {set conv x}
-  lset pars(data_convs) $i [string map "x {\[lindex \$D0 $i\]}" $conv]
-  incr i
-}
 
 tk appname "datameas: $pars(name)"
 
@@ -66,6 +60,21 @@ set dev {};  # gauge device handler
 ##########################################################################
 ##########################################################################
 ## functions for the monitor class
+
+# PT 100 conversion function
+# see PROJ/2018-ThermBox/calibration/Cal/pl_pt1000
+proc PT100 {x} {
+  set x [expr $x*10]; # pt100->pt1000
+  if {$x < 9}    {return NaN}
+  if {$x > 1300} {return NaN}
+  set a 37.0249
+  set b 0.211506
+  set c 3.11259e-05
+  set d -4.44629e-12
+  set e 57.7821
+  set f -4.866
+  expr {$a + $b*$x + $c*$x**2 + $d*$x**4 - $e/sqrt($x+$f)}
+}
 
 # Open devices
 proc func_start {} {
@@ -91,7 +100,8 @@ proc func_meas {} {
 
   # convert data with data_convs
   set i 0
-  foreach D $D0 conv $pars(data_convs) {
+  foreach x $D0 conv $pars(data_convs) {
+    if {$conv == {}} {continue}
     lset D0 $i [expr $conv]
     incr i
   }
