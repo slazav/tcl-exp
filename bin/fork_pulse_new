@@ -315,8 +315,6 @@ proc func_meas {} {
 # v - entry var name
 # t - entry title
 
-set label_width 20
-
 proc mk_entry {w v t} {
   if {[regexp {^pars(.*)$} $v]} { global pars}\
   else {global $v}
@@ -338,14 +336,6 @@ proc mk_combo {w v t} {
   ttk::combobox $w -width 9 -textvariable $v
   label ${w}_l -text $t
   grid ${w}_l ${w} -sticky nw
-}
-## empty space with fixed width
-proc mk_empty {w} {
-  global label_width
-  label ${w}_l
-  set ww [font measure [${w}_l cget -font] n]
-  canvas $w -height 1 -width [expr $ww*$label_width]
-  grid $w -sticky nw
 }
 ##########################################################################
 ##########################################################################
@@ -472,14 +462,13 @@ proc mk_pars_frame {root} {
   set w $root.pp
   labelframe $w -text {generator parameters}\
                 -font {-weight bold} -padx 5 -pady 5
-  foreach {v title} {
-        fre "Frequency, Hz"
-        amp "Amplitude, V"
-        cyc "Cycles"
+  foreach {cmd v title} {
+        mk_entry fre "Frequency, Hz"
+        mk_entry amp "Amplitude, V"
+        mk_entry cyc "Cycles"
         } {
-    mk_entry $w.${v} pars($v) $title
+    $cmd $w.${v} pars($v) $title
   }
-  mk_empty $w.e
   grid $w -sticky ew -padx 5 -row 1 -column 1
 
 
@@ -488,17 +477,16 @@ proc mk_pars_frame {root} {
   set w $root.op
   labelframe $w -text {oscilloscope parameters}\
                 -font {-weight bold} -padx 5 -pady 5
-  foreach {v title} {
-        time "Record time, s"
-        tpre "Pretrigger, %"
-        fstart "Fit starting time, s"
-        rate "Sampling rate, Hz"
+  foreach {cmd v title} {
+        mk_entry time   "Record time, s"
+        mk_entry tpre   "Pretrigger, %"
+        mk_entry fstart "Fit starting time, s"
+        mk_entry rate   "Sampling rate, Hz"
+        mk_combo sc     "Range, V"
         } {
-    mk_entry $w.${v} pars($v) $title
+    $cmd $w.${v} pars($v) $title
   }
-  mk_empty $w.e
-  mk_combo $w.sc pars(sc) "Range, V"
-  set ::osc_sc_w $w.sc; # save it for open function which will update values
+  set ::osc_sc_w $w.sc; # save $w.sc widget path for open function which will update values
   grid $w -sticky ew -padx 5 -row 2 -column 1
 
   #######################
@@ -506,10 +494,10 @@ proc mk_pars_frame {root} {
   set w $root.av
   labelframe $w -text {averaging}\
                 -font {-weight bold} -padx 5 -pady 5
-  foreach {v title} {
-        navr "Number of averages"
+  foreach {cmd v title} {
+        mk_entry navr "Number of averages"
         } {
-    mk_entry $w.${v} pars($v) $title
+    $cmd $w.${v} pars($v) $title
   }
   grid $w -sticky ew -padx 5 -row 3 -column 1
 
@@ -519,24 +507,19 @@ proc mk_pars_frame {root} {
   labelframe $w -text {auto adjustments}\
                 -font {-weight bold} -padx 5 -pady 5
 
-  mk_check $w.fadj pars(fadj) "Adjust frequency"
-  foreach {v title} {
-        fmin "min value, Hz"
-        fmax "max value, Hz"
+  foreach {cmd v title} {
+        mk_check fadj "Adjust frequency"
+        mk_entry fmin "min value, Hz"
+        mk_entry fmax "max value, Hz"
+        mk_check tadj "Adjust record time"
+        mk_entry tmin "min value, s"
+        mk_entry tmax "max value, s"
+        mk_entry tx   "factor"
+        mk_check sadj "Adjust sampling rate"
+        mk_check radj "Adjust oscilloscope range"
         } {
-    mk_entry $w.${v} pars($v) $title
+    $cmd $w.${v} pars($v) $title
   }
-  mk_check $w.tadj pars(tadj) "Adjust record time"
-  foreach {v title} {
-        tmin "min value, s"
-        tmax "max value, s"
-        tx   "factor"
-        } {
-    mk_entry $w.${v} pars($v) $title
-  }
-  mk_check $w.sadj pars(sadj) "Adjust sampling rate"
-  mk_check $w.radj pars(radj) "Adjust oscilloscope range"
-  mk_empty $w.e
   grid $w -sticky ns -padx 5  -row 1 -column 2 -rowspan 2
 
   #######################
