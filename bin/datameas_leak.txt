@@ -8,6 +8,7 @@ gauge_dev       leak_ag           # gauge device
 db_dev          db_exp            # database device
 db_name         leak_test         # database name
 tpos            0.5               # timestamp position: 0-beginning of measurement, 1-end of measuremen}
+data_convs      {{} {} {}}
 
 # timeplot parameters
 plot_ncols          3

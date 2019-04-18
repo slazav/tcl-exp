@@ -20,6 +20,7 @@ set default_pars {
   time_title   {Time:}    {time title in the interface}
   tfmt         {%H:%M:%S} {time format string for the interface}
   dfmt         {%.3f}     {data format string for the interface}
+  data_convs   {{}}       {data conversion}
 
   plot_ncols   1          {number of columns in the plot}
   plot_maxt    600        {max time span in the plot}
@@ -44,6 +45,12 @@ if {[llength $argv]>0 } {
 }\
 else {
   foreach {name def title} $default_pars { set pars($name) $def }
+}
+set i 0
+foreach conv $pars(data_convs) {
+  if {$conv == {}} {set conv x}
+  lset pars(data_convs) $i [string map "x {\[lindex \$D0 $i\]}" $conv]
+  incr i
 }
 
 tk appname "datameas: $pars(name)"
@@ -81,6 +88,13 @@ proc func_meas {} {
   set t1 [clock microseconds]
   if {[catch {set D0 [$dev get]}]} { error }
   set t2 [clock microseconds]
+
+  # convert data with data_convs
+  set i 0
+  foreach D $D0 conv $pars(data_convs) {
+    lset D0 $i [expr $conv]
+    incr i
+  }
 
   # calculate timestamp
   set T0 [expr {($t1 + ($t2-$t1)*$pars(tpos))/1e6}]

@@ -5,6 +5,7 @@ dev            TESTleak_ag_vs      # virtual leak detector device
 db_dev         db_test             # db device
 db             {test_leakTEST}     # database name
 dt             1                   # default time step, s
+data_convs     {{} {} {}}
 
 # timeplot parameters
 ncols          3
