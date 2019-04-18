@@ -1,0 +1,18 @@
+# configuration for monitoring cell pressure
+
+name           {Leak detector}         # program title
+leak_dev       leak_ag                 # gauge device
+db_dev         db_exp                  # db device
+db             {leak_test}             # database name
+dt             1                       # default time step
+
+# timeplot parameters
+ncols          3
+maxt           100000
+names          {leak_rate TP_press X}  # data names
+plots_x        {time X D1 D2}
+plots_y        {{} {D1 D2} D2 {}}
+symbols        {}
+zstyles        {x x xy}
+use_comm       1
+use_marker     1

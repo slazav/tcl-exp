@@ -1,0 +1,11 @@
+# configuration for monitoring cell pressure
+
+name           {Leak detector} # program title
+gauge_dev      mult2:DCV         # gauge device
+db_dev         db_exp            # db device
+db             {drydemag_leak}  # database name
+units          V               # value units
+dt             1                 # default time step
+
+cal            {} # calibration function
+

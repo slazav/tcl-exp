@@ -1,0 +1,38 @@
+# configuration for the main solenoid
+
+name     {Main coil}            # program title
+ps_dev      ps0:1H              # 1st power supply device
+ps_dev2     ps0:2L              # 2nd power supply device
+antipar      0                  # anti-parallel connection
+gauge_dev   dosc1:lockin:XY     # measure device
+ovp           5                 # overvoltage protection, V
+ramp_tstep    0.5               # ramping time step
+idle_tstep    0.5               # idle time step
+
+c_units     mA                  # current units
+r_units     mA/s                # rate units
+maxI          1250              # max current, mA
+minI          0                 # min current, mA
+max_rate      10                # max rate, mA/s
+def_rate      1                 # default rate, mA/s
+skip         0                  # do not write points if current was not set
+db       db_exp                 # db device
+db_val   muki_sweep_main        # database for sweeper values
+db_ann   muki_sweep_main_a      # database for sweeper annotations
+db_comm  {}                     # database for high-level comments
+
+interface_type  nmr    # interface control type: nmr, grad, hs
+plot_ncols    6        # number of columns in the plot
+plot_maxt     3600     # max time span in the plot
+plot_maxn     0        # max number of points in the plot
+plot_names    {Imeas Iset V R X Y}  # column names
+plot_titles   {}        # column titles
+plot_colors   {red magenta darkcyan brown darkgreen blue}       # column colors
+plot_hides    {1 0 1 1 0 0}  # column hides
+plot_logs     {}       # column log scales
+plot_fmts     {}       # column format settings
+plot_comm     1        # use comment in the plot
+plot_marker   1        # use marker in the plot
+plots_x    {time Iset X}  # x data for plots
+plots_y    {{} {} Y}   # y data for plots
+plots_zst  {x x xy}    # zoom styles for plots

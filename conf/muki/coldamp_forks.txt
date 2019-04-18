@@ -1,0 +1,12 @@
+# Configuration file for heater program.
+# Power supply for fork cold amplifiers.
+
+name       {Forks coldamp}
+volt_dev    pst7
+v_units     V
+max_volt    5
+
+db_dev      db_exp
+db_val      muki_coldamp_forks
+mon_int     600
+

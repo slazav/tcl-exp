@@ -1,0 +1,20 @@
+# configuration for test leak detector
+
+name            {mult5:pt100}     # program title
+period          1                 # measurement period
+onoff           0                 # inital state of main switch
+save            0                 # inital state of save switch
+gauge_dev       mult5:R2          # gauge device
+db_dev          {db_exp}          # database device
+db_name         {leak_test_TK}    # database name
+tpos            1                 # timestamp position: 0-beginning of measurement, 1-end of measuremen}
+dfmt            {%.3e}            # data format in the interface
+data_convs      {{[PT100 $x]}}    ## https://techoverflow.net/2016/01/02/accurate-calculation-of-pt100pt1000-temperature-from-resistance/
+# timeplot parameters
+plot_ncols          1
+plot_maxt           10000
+plot_names          {T,K}          # data names
+plots_x             {time}
+plots_y             {{}}
+plot_symbols        {circle}
+plots_zst           {x}

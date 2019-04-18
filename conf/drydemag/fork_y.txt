@@ -1,0 +1,34 @@
+name         Fork0  # program title
+
+amp  10    # pulse voltage
+fre  25900 # pulse frequency
+cyc  10    # pulse count
+
+time 0.005 # record time
+tpre 5.0   # pretrigger percent
+rate 1e6   # record sampling rate
+sc   0.05  # oscilloscope range
+
+fadj 0     # adjust frequency
+fmin 10000 # min value
+fmax 40000 # max value
+tadj 0     # adjust time
+tmin 0.001  # min value
+tmax 200   # max value
+tx   5     # time factor
+radj 0     # adjust range
+sadj 0     # adjust sampling rate
+
+del  5.0  # delay between measurements, s
+meas 0     # repeat measurements
+
+osc_dev    osc1 # oscilloscope device
+gen_dev    gen1 # generator device
+db_dev     {db_exp} # database device (can be empty)
+db_val     {fork_y} # database name for numerical values
+db_par     {forkp_y} # database name for measurement parameters
+
+plot_maxn        0 # number of points visible on the plot
+plot_maxt     3600 # time span of the time plot
+sigfile  "/tmp/fork_vz_sig.dat"    # signal file
+

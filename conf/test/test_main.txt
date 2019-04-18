@@ -4,7 +4,7 @@ name     {Main magnet}          # program title
 ps_dev      TEST                # 1st power supply device
 ps_dev2     {}                  # 2nd power supply device
 antipar      0                  # anti-parallel connection
-gauge_dev   lockin1:XY          # measure device
+gauge_dev   TEST:R2             # measure device
 ovp           5                 # overvoltage protection, V
 ramp_tstep    0.5               # ramping time step
 idle_tstep    0.5               # idle time step

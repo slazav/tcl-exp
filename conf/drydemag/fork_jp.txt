@@ -1,0 +1,34 @@
+name         Fork0  # program title
+
+amp  10    # pulse voltage
+fre  32768 # pulse frequency
+cyc  10    # pulse count
+
+time 5     # record time
+tpre 5.0   # pretrigger percent
+rate 1e5   # record sampling rate
+sc   1     # oscilloscope range
+
+fadj 1     # adjust frequency
+fmin 32000 # min value
+fmax 33000 # max value
+tadj 1     # adjust time
+tmin 0.01  # min value
+tmax 200   # max value
+tx   5     # time factor
+radj 0     # adjust range
+sadj 1     # adjust sampling rate
+
+del  10.0  # delay between measurements, s
+meas 0     # repeat measurements
+
+osc_dev    osc0 # oscilloscope device
+gen_dev    gen1 # generator device
+db_dev     {db_exp} # database device (can be empty)
+db_val     {drydemag_fork_jp} # database name for numerical values
+db_par     {drydemag_forkp_jp} # database name for measurement parameters
+
+plot_maxn        0 # number of points visible on the plot
+plot_maxt     3600 # time span of the time plot
+sigfile  "/tmp/fork_jp_sig.dat"    # signal file
+

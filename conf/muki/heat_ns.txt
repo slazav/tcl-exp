@@ -1,0 +1,13 @@
+# Configuration file for heater program.
+# Nuclear stage heater.
+
+name       {NS heater}
+volt_dev   pst6
+resistance 10000
+gain       0.0956
+v_units    mV
+p_units    nW
+max_volt   30
+db_dev     db_exp
+db_val     muki_heater_ns
+mon_int    600

@@ -1,0 +1,30 @@
+Some (probably old) version of configuration files for
+experiments on Muki cryostat in 2019.
+
+Up to date version lives on the experimantal computer.
+
+             program       config             database         devices
+===========================================================================
+fork1        fork_pulse    fork_muki1.txt     muki_fork1          gen1 osc1
+                                              muki_fork1p
+fork2        fork_pulse    fork_muki2.txt     muki_fork2          gen2 osc2
+                                              muki_fork2p
+ns heater    heater        heat_ns.txt        muki_heater_ns      pst6
+coldampForks heater        coldamp_forks.txt  muki_coldamp_forks  pst7
+coldampNMR   heater        coldamp_nmr.txt    muki_coldamp_nmr    pst8
+comments     add_comm      add_comm_muki.txt  muki_comments       -
+
+Main coil    sweeper       sweep_main.txt    muki_sweep_main      ps0:1H ps0:2L ( lockin1:XY or dosc1:lockin:XY )
+                                             muki_sweep_main_a
+Grad coil    sweeper       sweep_grad.txt    muki_sweep_grad      ps0:3L:P45
+                                             muki_sweep_grad_a
+Quad coil    sweeper       sweep_quad.txt    muki_sweep_quad      ps0:4L:P67
+                                             muki_sweep_quad_a
+
+NMR setup    nmr_meas      -                 muki_nmr_lockin
+                                             muki_nmr_gen
+                                             muki_nmr_cal
+                                             muki_nmr_res
+                                             muki_nmr_q
+
+noise        noise_int     -                  -                   osc1,osc2,dosc1
