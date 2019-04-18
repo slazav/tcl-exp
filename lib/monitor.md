@@ -21,7 +21,7 @@ All func_* functions can throw errors, return values are ignored.
 Useful methods:
 
 * `set_status {msg {col black}}` -- set status-line message with color `col`.
-* `method restart {}` -- restart the measurement
+* `restart {}` -- (re)start the measurement
 * `stop {}` -- stop the measurement
+* `single {}` -- do a single measurements
 * `do_exit {}` -- close devices and exit
-* `measure {}` -- do a single measurements
