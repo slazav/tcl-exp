@@ -1,0 +1,65 @@
+#!/usr/bin/wish
+
+source ./widgets.tcl
+
+##########################################################
+# Define some default parameters and put into pars array.
+# Reading of the config file can be also implemented using
+# read_conf.tcl
+
+set default_pars {
+  par1  {1}  {parameter 1}
+  par2  {1}  {parameter 2}
+  par3  {1}  {parameter 3}
+  par4  {1}  {parameter 4}
+  par5  {1}  {parameter 5}
+  par6  {1}  {parameter 6}
+  par7  {1}  {parameter 7}
+  par8  {1}  {parameter 8}
+  par9  {1}  {parameter 9}
+  par10 {1}  {parameter 10}
+}
+
+foreach {name def title} $default_pars { set pars($name) $def }
+foreach {name def title} $default_pars { set ptitle($name) $title }
+
+##########################################################
+# build the interface
+
+## a simple form with all confiruration values:
+proc mkint {root} {
+  global pars ptitle
+  foreach {cmd v} {
+        mk_entry par1
+        mk_entry par2
+        mk_check par3
+        mk_combo par4
+        mk_entry par5
+        mk_entry par6
+        mk_entry par7
+        mk_check par8
+        mk_check par9
+        mk_check par10
+        } {
+    $cmd $root.${v} pars($v) $ptitle($v)
+  }
+}
+
+## Pack this form inside a frame; fill the combobox with values
+frame .pars
+mkint .pars
+.pars.par4 configure -values {1 2 3}
+
+## set bgcolor of the configuration frame:
+widget_bg .pars wheat
+
+## make a switch for disabling the frame:
+frame .sw
+checkbutton .sw.sw -variable onoff -text "On/Off" -command do_onoff
+pack .sw.sw
+proc do_onoff {} {
+  widget_state .pars [expr {$::onoff? "normal":"disabled"}]
+}
+set onoff 1
+
+pack .pars .sw
