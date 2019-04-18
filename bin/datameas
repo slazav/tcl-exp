@@ -107,7 +107,7 @@ proc func_mkint {w} {
   label $w.data.t -fg darkgreen -font {-size 12} -textvariable Tf
   label $w.data.v -fg darkgreen -font {-size 12} -textvariable Df
   checkbutton $w.data.save -text "save to DB" -selectcolor "red" -bd 1 -relief raised\
-    -variable $pars(save) -command {$m set_checkbox_color $w.data.save}
+    -variable $pars(save) -command {set_checkbox_color $w.data.save}
   pack $w.data.tl $w.data.t $w.data.vl $w.data.v -side left
   if {$pars(db_dev) != {}} {pack $w.data.save -side right}
   pack $w.data -anchor w -expand 1 -fill x -padx 10
@@ -133,6 +133,11 @@ proc func_mkint {w} {
   pack $w.tplot -fill both -expand 1
 }
 
+#########################
+proc set_checkbox_color {cb} {
+  set v [set [$cb cget -variable]]
+  $cb configure -selectcolor [expr $v?"green":"red"]
+}
 
 ##########################################################################
 ##########################################################################

@@ -7,6 +7,7 @@ set err1 0
 # redefine measure commend
 proc meas {} {
   puts "Measure"
+  after 1000
   if {$::err1} {error "can't measure: error checkbox is set!\
       It should be a really long error message to test how is it\
       displayed in the status line of the program..."}
@@ -23,7 +24,7 @@ proc mkint {w} {
 Monitor m .m -name {Monitor test} -period 10\
   -func_meas meas -func_mkint mkint
 
-pack .m -expand 1 -fill both -anchor n
+pack .m -expand 1 -fill both
 wm protocol . WM_DELETE_WINDOW { m do_exit }
 wm geometry . 300x100
 

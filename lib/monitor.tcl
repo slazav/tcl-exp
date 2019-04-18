@@ -72,7 +72,6 @@ itcl::class Monitor {
       -func_mkint    func_mkint   def_func_mkint\
     ]
     xblt::parse_options "monitor" $args $options
-    apply_period
 
     ######
     ## interface
@@ -82,37 +81,45 @@ itcl::class Monitor {
     frame $root.n
     label $root.n.name -text "$name" -font {-size 14}
     pack $root.n.name -side left -padx 10
-    pack $root.n -anchor w -expand 0 -side top
 
     # user frame
     frame $root.u
     $func_mkint $root.u
-    pack $root.u -expand 1 -fill both -anchor w
 
     # control frame
     frame $root.ctl
-    checkbutton $root.ctl.meas -text "run" -selectcolor "red"\
-      -bd 1 -relief raised -width 6\
-      -variable [itcl::scope onoff] -command "$this on_onoff"
+    button $root.ctl.restart -text "(re)start"\
+      -pady 0 -padx 2 -bd 1 -relief raised\
+      -command "$this restart"
     button $root.ctl.single -text "single"\
-      -pady 0 -padx 2 -bd 1 -relief raised -width 6\
-                -command "$this measure"
+      -pady 0 -padx 2 -bd 1 -relief raised\
+      -command "$this single"
+    button $root.ctl.stop -text "stop"\
+      -pady 0 -padx 2 -bd 1 -relief raised\
+      -command "$this stop"
     label       $root.ctl.per_l -padx 10 -text "period (sec):"
     entry       $root.ctl.per_v -width 6 -textvariable [itcl::scope period]\
                 -vcmd "$this validate_period %W %s %P" -validate {key}
-    bind $root.ctl.per_v <Return> "$this apply_period"
 
-    pack $root.ctl.meas $root.ctl.single -side left -padx 3
+    pack $root.ctl.restart $root.ctl.single $root.ctl.stop -side left -padx 3
     pack $root.ctl.per_v $root.ctl.per_l -side right
-    pack $root.ctl -anchor s -expand 0 -fill x -padx 0
 
     ## status line on the bottom
     frame $root.st -borderwidth 1 -relief sunken
+    canvas $root.st.lamp -width 10 -height 10
     label $root.st.text -height 1 
     bind $root.st.text <ButtonPress> "$this show_status"
-    grid $root.st.text
+    grid $root.st.lamp $root.st.text -sticky w -padx 3
+    grid columnconfigure $root.st 1 -weight 1
 
-    pack $root.st  -anchor s -expand 1 -fill x
+    grid $root.n   -sticky we
+    grid $root.u   -sticky wens
+    grid $root.ctl -sticky we
+    grid $root.st  -sticky we
+    grid rowconfigure $root 1 -weight 1
+    grid columnconfigure $root 0 -weight 1
+
+    onoff_btn 0
   }
 
   # validate function for the period field
@@ -219,12 +226,17 @@ itcl::class Monitor {
     set_status "Measuring..."
     run_cmd $func_meas
 
+    # Set up the next iteration
+    if {[regexp {^[0-9.]+$} $period]} {
+      set dt [expr {int($period*1000)}]
+    } else {
+      set period [expr {$dt/1000.}]
+    }
     if {$::errorInfo == {}} {
       set_status "Waiting for the next measurement ([expr $dt/1000.0] s)..."
     } else {
       set_status "Error: $::errorInfo" red
     }
-    # Set up the next iteration
     set loop_handle [after $dt $this main_loop]
   }
 
@@ -253,20 +265,17 @@ itcl::class Monitor {
   }
 
   #########################
-  method set_checkbox_color {cb} {
-    set v [set [$cb cget -variable]]
-    $cb configure -selectcolor [expr $v?"green":"red"]
-#	    $cb configure -text [expr $v?"stop":"start"]
-  }
-
-  #########################
   ## Low-level method for switching on/off button.
   ## If you want to switch the measurements
-  ## use restart/stop/measure methods
+  ## use restart/stop/single methods
   method onoff_btn {v} {
     set onoff $v
-    set_checkbox_color $root.ctl.meas
-    $root.ctl.meas configure -text [expr $v?"stop":"start"]
+    $root.st.lamp delete r
+    if {$onoff} {
+      $root.st.lamp create polygon 1 1 10 5 1 10 -fill "green" -tags r
+    } else {
+      $root.st.lamp create polygon 1 1 1 10 10 10 10 1 -fill "red" -tags r
+    }
   }
 
   #########################
@@ -302,15 +311,19 @@ itcl::class Monitor {
   ## Stop the measurement
   method stop {} {
     onoff_btn 0
-    if {!$is_opened} {
-      if {$::errorInfo == {}} {set_status {}}
-      return
-    }
+    if {$::errorInfo == {}} {set_status {}}
+    if {!$is_opened} { return }
     if {$loop_handle != {}} {
       after cancel $loop_handle;
       $this main_loop
     }
-    if {$::errorInfo == {}} {set_status {}}
+  }
+
+  #########################
+  ## Run a single measurement:
+  method single {} {
+    restart
+    stop
   }
 
   #########################
@@ -319,27 +332,6 @@ itcl::class Monitor {
     if {!$is_opened} {exit}
     set exit_fl 1
     stop
-  }
-
-  #########################
-  ## Run a single measurement:
-  method measure {} {
-    restart
-    stop
-  }
-
-
-  #########################
-  # This one is called when one changes period setting
-  method apply_period {args} {
-    if {[regexp {^[0-9.]+$} $period]} {
-      set dt [expr {int($period*1000)}]
-    } else {
-      set period [expr {$dt/1000.}]
-    }
-    # if measurement is not running do nothing
-    if {!$onoff} return
-    restart
   }
 
 }
