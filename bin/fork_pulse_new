@@ -307,39 +307,6 @@ proc func_meas {} {
   }
 }
 
-##########################################################################
-##########################################################################
-## Create entry/checkbutton/combobox and pack it into a
-## simple grid.
-# w - entry widget name
-# v - entry var name
-# t - entry title
-
-proc mk_entry {w v t} {
-  if {[regexp {^pars(.*)$} $v]} { global pars}\
-  else {global $v}
-  entry $w -textvariable $v -width 12
-  label ${w}_l -text $t
-  grid ${w}_l ${w} -sticky nw
-}
-## Same for checkbutton
-proc mk_check {w v t} {
-  if {[regexp {^pars(.*)$} $v]} { global pars}\
-  else {global $v}
-  checkbutton $w -text $t -variable $v
-  grid $w -sticky nw -columnspan 2
-}
-## Same for combobox
-proc mk_combo {w v t} {
-  if {[regexp {^pars(.*)$} $v]} { global pars}\
-  else {global $v}
-  ttk::combobox $w -width 9 -textvariable $v
-  label ${w}_l -text $t
-  grid ${w}_l ${w} -sticky nw
-}
-##########################################################################
-##########################################################################
-
 ##################################################
 ## measurement frame
 
