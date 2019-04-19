@@ -25,3 +25,5 @@ Useful methods:
 * `stop {}` -- stop the measurement
 * `single {}` -- do a single measurements
 * `do_exit {}` -- close devices and exit
+* `startstop {}` -- Do start and stop without any measurement
+  (useful if in the beginning we want to open devices and collect some information)
