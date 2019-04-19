@@ -6,9 +6,18 @@
 ## Create entry/checkbutton/combobox and pack it into a
 ## simple grid. This can be used for making configuration forms.
 ## It came from fork_pulse program.
-# w - entry widget name
-# v - entry var name
-# t - entry title
+# w - widget name
+# v - var name
+# t - title
+
+proc mk_label {w v t} {
+  if {[regexp {^pars(.*)$} $v]} { global pars}\
+  else {global $v}
+  label $w -textvariable $v -width 12\
+    -bd 1 -relief sunken -anchor w -fg #505050
+  label ${w}_l -text $t
+  grid ${w}_l ${w} -sticky nw
+}
 
 proc mk_entry {w v t} {
   if {[regexp {^pars(.*)$} $v]} { global pars}\
