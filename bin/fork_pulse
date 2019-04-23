@@ -1,17 +1,17 @@
 #!/usr/bin/wish
 
-## Interface for pulse fork measurements
-
-package require Device 1.2
-package require xBlt 3
+package require DeviceRole
+package require Exp;  # timeplot, monitor
 package require SigLoad
-package require Exp
 
-######################################################
-### Read parameters from configuration file
+##########################################################################
+## read parameters from configuration file
 
 set default_pars {
-  name        {Default} {program title}
+  name         {Default}  {program name}
+  period       {1.0}      {measurement period}
+  onoff        0          {inital state of main switch}
+  save         0          {inital state of save switch}
 
   amp  10    {pulse voltage}
   fre  32768 {pulse frequency}
@@ -45,6 +45,11 @@ set default_pars {
   db_val     {} {database name for numerical values}
   db_par     {} {database name for measurement parameters}
 
+  gauge_dev    {TEST}     {gauge device}
+  db_dev       {}         {database device}
+  db_name      {}         {database name}
+  tpos         0.5        {timestamp position: 0-beginning of measurement, 1-end of measuremen}
+
   plot_maxn     0 {number of points visible on the plot}
   plot_maxt  3600 {time span of the time plot}
   sigfile  "/tmp/fork_sig.dat" {signal file}
@@ -57,8 +62,14 @@ else {
   foreach {name def title} $default_pars { set pars($name) $def }
 }
 
-# After setting generator, oscilloscope or auto adjustment parameters
-# use on_pars_apply to apply settings!
+tk appname "fork_pulse: $pars(name)"
+
+##########################################################################
+##########################################################################
+## In the interface and for real settings we use two copies of the
+## parameter array: pars and apars
+## After setting generator, oscilloscope or auto adjustment parameters
+## use on_pars_apply to apply settings!
 
 proc on_pars_reset {} {
   global pars apars
@@ -70,20 +81,15 @@ proc on_pars_apply {} {
   set need_setup 1
 }
 
+on_pars_apply
 
-# measurement parameters
-set st   "Opening devices..."; # status line
-
-
-##################################################
-
-# pulse parameters:
-
+##########################################################################
+##########################################################################
 set range_values {}; # possible values for oscilloscope range (will be autodetected later)
 set need_setup 1;    # do we want to update device settings before measurements?
-
-##################################################
-
+set gen {};          # generator device handler
+set frame {};        # GUI frame (comes from Monitor)
+set osc_sc_w {};     # Oscilloscope scale widget. Used in open function to update values.
 
 # measured values
 set time 0;  # system time
@@ -104,155 +110,61 @@ blt::vector create sig_ym2
 blt::vector create fft_x
 blt::vector create fft_y
 
-##################################################
+##########################################################################
+##########################################################################
+## functions for the monitor class
 
-## Create entry/checkbutton/combobox and pack it into a
-## simple grid.
-# w - entry widget name
-# v - entry var name
-# t - entry title
-
-set label_width 20
-
-proc mk_entry {w v t} {
-  if {[regexp {^pars(.*)$} $v]} { global pars}\
-  else {global $v}
-  entry $w -textvariable $v -width 12
-  label ${w}_l -text $t
-  grid ${w}_l ${w} -sticky nw
-}
-## Same for checkbutton
-proc mk_check {w v t} {
-  if {[regexp {^pars(.*)$} $v]} { global pars}\
-  else {global $v}
-  checkbutton $w -text $t -variable $v
-  grid $w -sticky nw -columnspan 2
-}
-## Same for combobox
-proc mk_combo {w v t} {
-  if {[regexp {^pars(.*)$} $v]} { global pars}\
-  else {global $v}
-  ttk::combobox $w -width 9 -textvariable $v
-  label ${w}_l -text $t
-  grid ${w}_l ${w} -sticky nw
-}
-## empty space with fixed width
-proc mk_empty {w} {
-  global label_width
-  label ${w}_l
-  set ww [font measure [${w}_l cget -font] n]
-  canvas $w -height 1 -width [expr $ww*$label_width]
-  grid $w -sticky nw
-}
-
-##################################################
-# open devices if needed and update range list
-proc dev_open {} {
-  global pars need_setup
+# Open devices
+proc func_start {} {
+  global pars
 
   # open osc_dev
   if {$pars(osc_dev) == {} } { error "osc_dev is empty" }
-  if {![itcl::is object $pars(osc_dev)]} {
-    Device $pars(osc_dev)
-    $pars(osc_dev) lock
-    if {! [regexp {^pico_rec} {*}[$pars(osc_dev) cmd *idn?]] } {
-      error "unsupported osc device (pico_rec program is needed)"}
-  }
+  Device $pars(osc_dev)
+  $pars(osc_dev) lock
+  if {! [regexp {^pico_rec} {*}[$pars(osc_dev) cmd *idn?]] } {
+    error "unsupported osc device (pico_rec program is needed)"}
 
   # open gen_dev
   if {$pars(gen_dev) == {} } { error "gen_dev is empty" }
-  if {![itcl::is object $pars(gen_dev)]} {
-    Device $pars(gen_dev)
-    $pars(gen_dev) lock
-    set id [$pars(gen_dev) cmd *idn?]
-    if {![regexp {,33511B,} $id] && ![regexp {,33509B,} $id] && ![regexp {,33220A,} $id] } {
-      error "unsupported gen device (agilent 33509B or 33511B is needed)"}
-  }
+  set ::gen [DeviceRole $pars(gen_dev) burst_source]
+  $::gen lock
 
   # Open db_dev
-  if {$pars(db_dev) != {} && ![itcl::is object $pars(db_dev)]} {
+  if {$pars(db_dev) != {}} {
     Device $pars(db_dev)
     if {! [regexp {^Graphene database} {*}[$pars(db_dev) cmd *idn?]]} {
      error "unsupported db device (graphene is needed)"}
   }
 
   set range_values [lindex [$pars(osc_dev) cmd ranges A] 0]
-  .tabs.pars.op.sc configure -values $range_values
-  set need_setup 1
+  $::osc_sc_w configure -values $range_values
+  set ::need_setup 1
 }
 
-##################################################
-# close device if needed
-proc dev_close {} {
+# Close devices
+proc func_stop {} {
   global pars
 
-  if {[itcl::is object $pars(gen_dev)]} {
-    $pars(gen_dev) unlock
-    itcl::delete object $pars(gen_dev)
-  }
-  if {[itcl::is object $pars(osc_dev)]} {
-    $pars(osc_dev) unlock
-    itcl::delete object $pars(osc_dev)
-  }
-  if {$pars(db_dev) != {} && [itcl::is object $pars(db_dev)]} {
-    itcl::delete object $pars(db_dev)
+  $::gen unlock
+  DeviceRoleDelete $::gen
+
+  $pars(osc_dev) unlock
+  DeviceDelete $pars(osc_dev)
+
+  if {$pars(db_dev) != {}} {
+    DeviceDelete $pars(db_dev)
   }
 }
 
-##################################################
-## pulse function
-
-## version with error handling:
-proc do_pulse_e {} {
-  if {[catch {do_pulse}]} {
-    set_state error
-    return
-  }
-}
-
-
-proc do_pulse {} {
-  global st
+# Do a single measurement, return data
+proc func_meas {} {
   global pars apars
   global time amp rtau fre
-  global need_setup
-
-  # open devices if needed
-  dev_open
 
   # setup
-  if {$need_setup} {
-    set st "Setting parameters..."
-
-    ## Generator setup:
-    ## Burst mode with BUS trigger.
-
-    if {[$pars(gen_dev) cmd "OUTP:SYNC?"] != "1"}\
-      {$pars(gen_dev) cmd "OUTP:SYNC ON"}
-
-    if {[$pars(gen_dev) cmd "BURST:STATE?"] != "1"}\
-      {$pars(gen_dev) cmd "BURST:STATE on"}
-
-    if {[$pars(gen_dev) cmd "FUNC?"] != "SIN"}\
-      {$pars(gen_dev) cmd "FUNC SIN"}
-
-    if {[$pars(gen_dev) cmd "BURST:MODE?"] != "TRIG"}\
-      {$pars(gen_dev) cmd "BURST:MODE TRIG"}
-
-    if {[$pars(gen_dev) cmd "TRIG:SOURCE?"] != "BUS"}\
-      {$pars(gen_dev) cmd "TRIG:SOURCE BUS"}
-
-    if {[$pars(gen_dev) cmd "BURST:NCYC?"] != $apars(cyc)}\
-      {$pars(gen_dev) cmd BURST:NCYC $apars(cyc)}
-
-    if {[$pars(gen_dev) cmd "FREQ?"] != $apars(fre)}\
-      {$pars(gen_dev) cmd "FREQ $apars(fre)"}
-
-    if {[$pars(gen_dev) cmd "VOLT?"] != $apars(amp)}\
-      {$pars(gen_dev) cmd "VOLT $apars(amp)"}
-
-    if {[$pars(gen_dev) cmd "OUTP?"] != "1"}\
-      {$pars(gen_dev) cmd "OUTP ON"}
+  if {$::need_setup} {
+    $::gen set_burst $apars(fre) $apars(amp) $apars(cyc)
 
     ## Oscilloscope setup:
     ## A - signal, B - trigger
@@ -270,9 +182,8 @@ proc do_pulse {} {
         $pars(db_dev) cmd sync
       }
     }
-    set need_setup 0
+    set ::need_setup 0
   }
-  set st "Measuring..."
 
   set t0 [clock milliseconds]
   if ($apars(tpre)<0)   { set apars(tpre) 0 }
@@ -284,23 +195,27 @@ proc do_pulse {} {
   set NP [expr {int(1.0*$t1/$dt)}]; # pretigger sample count
   set N  [expr {int(1.0*$t2/$dt)}]; # sample count
 
-  if {$pars(navr)<1 || $pars(navr)>65536} {
-    error "bad number of averages: $pars(navr)"
+  if {$apars(navr)<1 || $apars(navr)>65536} {
+    error "bad number of averages: $apars(navr)"
   }
-  if {$pars(navr)> 1} {$pars(osc_dev) cmd avr_start}
+  if {$apars(navr)> 1} {
+    set fname "-"
+    $apars(osc_dev) cmd avr_start
+  }\
+  else {
+    set fname $apars(sigfile)
+    $pars(osc_dev) cmd avr_stop
+  }
 
-  if {$pars(navr) == 1} {set fname $pars(sigfile)} else {set fname "-"}
-  for {set iavr 0} {$iavr<$pars(navr)} {incr iavr} {
+  for {set iavr 0} {$iavr<$apars(navr)} {incr iavr} {
     $pars(osc_dev) cmd block A $NP $N $dt $fname
     $pars(gen_dev) write *TRG
     $pars(osc_dev) cmd wait
   }
-  if {$pars(navr)>1} {
-    $pars(osc_dev) cmd avr_save $pars(sigfile)
-    $pars(osc_dev) cmd avr_stop
-  }
+  if {$apars(navr)>1} { $pars(osc_dev) cmd avr_save $apars(sigfile) }
 
-  set ret [exec sig_filter -T $apars(fstart) -f fitn $pars(sigfile) -N $pars(nforks) -F $apars(fmin) -G $apars(fmax) ]
+  set ret [exec sig_filter -T $apars(fstart) -f fitn $apars(sigfile)\
+           -N $pars(nforks) -F $apars(fmin) -G $apars(fmax) ]
   set ret [split $ret "\n"]
 
 
@@ -327,7 +242,7 @@ proc do_pulse {} {
   pl add_data $data
 
   ## load signal
-  set ncols [sig_load sig $pars(sigfile)]
+  set ncols [sig_load sig $apars(sigfile)]
 
   global sig_x
   set min 0
@@ -335,9 +250,8 @@ proc do_pulse {} {
   sig_xm seq $min $max [expr {($max-$min)/500}]
   sig_ym1 expr {0.5*1e-3*$amp(0)*exp(-sig_xm*$rtau(0))}
   sig_ym2 expr -sig_ym1
-
   ## load FFT
-  set ret [exec sig_filter  -T $apars(fstart) -f fft_pow $pars(sigfile) -N 10000 -l]
+  set ret [exec sig_filter  -T $apars(fstart) -f fft_pow $apars(sigfile) -N 10000 -l]
   fft_x set {}
   fft_y set {}
   foreach l [split $ret "\n"] {
@@ -394,100 +308,63 @@ proc do_pulse {} {
       set  pars(rate) $r
     }
   }
-
-  ## set up the next measurement if needed
-  set t1 [clock milliseconds]
-  set dt [expr int(1000*$pars(del)-$t1+$t0)]
-  if {$dt<0} {set dt 0}
-
-  # stop measurements
-  if {! $pars(meas)} {
-    dev_close
-    set_state ready
-    return
-  }
-
-  set st "Waiting for the next measurement..."
-  after [expr $dt] do_pulse_e
 }
 
-##################################################
-proc set_state {s} {
-  global st pars
-  set run_btn .meas.m.run
-  set stop_btn .stop
+##########################################################################
+##########################################################################
+## Create entry/checkbutton/combobox and pack it into a
+## simple grid.
+# w - entry widget name
+# v - entry var name
+# t - entry title
 
-  if {$s == "wait"} { # stop button pressed, but measurement is running
-    set pars(meas) 0
-    $run_btn configure -state disabled -text "..." -command ""
-    set st "Waiting for devices..."
-    return
-  }
-  if {$s == "ready"} { # ready for measurements
-    set pars(meas) 0
-    set st "Ready"
-    $run_btn configure -state normal -text "Run" -command "set_state busy; do_pulse_e"
-    return
-  }
-  if {$s == "error"} { # error happened but ready for measurements
-    set e $::errorInfo
-    set n [string first "\n" $e]
-    if {n>0} { set e [string range $e 0 [expr $n-1]]}
-    set st "Error: $e"
-    dev_close
-    $run_btn configure -state normal -text "Run" -command "set_state busy; do_pulse_e"
-    return
-  }
-  if {$s == "busy"} { # measurement started
-    $run_btn configure -state normal -text "Stop" -command {set_state wait}
-    set st "Measuring..."
-    return
-  }
-  error "unknown state"
+proc mk_entry {w v t} {
+  if {[regexp {^pars(.*)$} $v]} { global pars}\
+  else {global $v}
+  entry $w -textvariable $v -width 12
+  label ${w}_l -text $t
+  grid ${w}_l ${w} -sticky nw
 }
+## Same for checkbutton
+proc mk_check {w v t} {
+  if {[regexp {^pars(.*)$} $v]} { global pars}\
+  else {global $v}
+  checkbutton $w -text $t -variable $v
+  grid $w -sticky nw -columnspan 2
+}
+## Same for combobox
+proc mk_combo {w v t} {
+  if {[regexp {^pars(.*)$} $v]} { global pars}\
+  else {global $v}
+  ttk::combobox $w -width 9 -textvariable $v
+  label ${w}_l -text $t
+  grid ${w}_l ${w} -sticky nw
+}
+##########################################################################
+##########################################################################
 
 ##################################################
 ## measurement frame
 
 proc mk_meas_frame {root} {
   frame $root
-  label $root.name  -text "$::pars(name)" -font {-size 12} -anchor w
-
-  frame $root.res
-  labelframe $root.res.amp -text "Amplitude, mV: "
+  labelframe $root.amp -text "Amplitude, mV: "
   for {set i 0} {$i<$::pars(nforks)} {incr i} {
-    label $root.res.amp.val$i -textvariable amp($i)  -font {-size 15} -text 0
-    pack $root.res.amp.val$i
+    label $root.amp.val$i -textvariable amp($i)  -font {-size 15} -text 0
+    pack $root.amp.val$i
   }
-
-  labelframe $root.res.rtau -text "1/Tau, 1/s: "
+  labelframe $root.rtau -text "1/Tau, 1/s: "
   for {set i 0} {$i<$::pars(nforks)} {incr i} {
-    label $root.res.rtau.val$i -textvariable rtau($i)  -font {-size 15} -text 0
-    pack $root.res.rtau.val$i
+    label $root.rtau.val$i -textvariable rtau($i)  -font {-size 15} -text 0
+    pack $root.rtau.val$i
   }
-
-  labelframe $root.res.fre -text "Frequency, Hz: "
+  labelframe $root.fre -text "Frequency, Hz: "
   for {set i 0} {$i<$::pars(nforks)} {incr i} {
-    label $root.res.fre.val$i -textvariable fre($i) -font {-size 15} -text 0
-
-    pack $root.res.fre.val$i
+    label $root.fre.val$i -textvariable fre($i) -font {-size 15} -text 0
+    pack $root.fre.val$i
   }
-
-  pack $root.res.amp $root.res.rtau $root.res.fre\
+  pack $root.amp $root.rtau $root.fre\
     -side left -fill x -expand 1
-
-  frame $root.m
-  label       $root.m.avrl -text "Number of averages:"
-  entry       $root.m.avrv -textvariable pars(navr) -width 6
-  checkbutton $root.m.meas -text "Repeat measurements with period" -variable pars(meas)
-  label       $root.m.dll -text "sec"
-  entry       $root.m.del -textvariable pars(del) -width 7
-  button      $root.m.run
-  pack   $root.m.run $root.m.dll $root.m.del $root.m.meas\
-         $root.m.avrv $root.m.avrl -side right
-
-  pack $root.name $root.res $root.m -fill x -expand 1
-  set_state wait
 }
 
 ##################################################
@@ -519,10 +396,8 @@ proc mk_splot_frame {root} {
   $pwid axis configure y -title {Amplitude, V}
 }
 
-
 ##################################################
 ## fft frame
-
 proc mk_fft_frame {root} {
   frame $root
 
@@ -550,7 +425,6 @@ proc mk_fft_frame {root} {
 
 ##################################################
 ## time plot frame
-
 proc mk_tplot_frame {root} {
   global pars
   frame $root
@@ -579,7 +453,6 @@ proc mk_tplot_frame {root} {
   pack $graph -fill both -expand 1
 }
 
-
 ##################################################
 ## parameters frame
 
@@ -592,15 +465,14 @@ proc mk_pars_frame {root} {
   set w $root.pp
   labelframe $w -text {generator parameters}\
                 -font {-weight bold} -padx 5 -pady 5
-  foreach {v title} {
-        fre "Frequency, Hz"
-        amp "Amplitude, V"
-        cyc "Cycles"
+  foreach {cmd v title} {
+        mk_entry fre "Frequency, Hz"
+        mk_entry amp "Amplitude, V"
+        mk_entry cyc "Cycles"
         } {
-    mk_entry $w.${v} pars($v) $title
+    $cmd $w.${v} pars($v) $title
   }
-  mk_empty $w.e
-  grid $w -sticky ew -padx 5 -row 1 -column 1 -sticky ns
+  grid $w -sticky ew -padx 5 -row 1 -column 1
 
 
   #######################
@@ -608,18 +480,29 @@ proc mk_pars_frame {root} {
   set w $root.op
   labelframe $w -text {oscilloscope parameters}\
                 -font {-weight bold} -padx 5 -pady 5
-  foreach {v title} {
-        time "Record time, s"
-        tpre "Pretrigger, %"
-        fstart "Fit starting time, s"
-        rate "Sampling rate, Hz"
+  foreach {cmd v title} {
+        mk_entry time   "Record time, s"
+        mk_entry tpre   "Pretrigger, %"
+        mk_entry fstart "Fit starting time, s"
+        mk_entry rate   "Sampling rate, Hz"
+        mk_combo sc     "Range, V"
         } {
-    mk_entry $w.${v} pars($v) $title
+    $cmd $w.${v} pars($v) $title
   }
-  mk_empty $w.e
-  mk_combo $w.sc pars(sc) "Range, V"
-  grid $w -sticky ew -padx 5 -row 2 -column 1 -sticky ns
+  set ::osc_sc_w $w.sc; # save $w.sc widget path for open function which will update values
+  grid $w -sticky ew -padx 5 -row 2 -column 1
 
+  #######################
+  ## avr parameters
+  set w $root.av
+  labelframe $w -text {averaging}\
+                -font {-weight bold} -padx 5 -pady 5
+  foreach {cmd v title} {
+        mk_entry navr "Number of averages"
+        } {
+    $cmd $w.${v} pars($v) $title
+  }
+  grid $w -sticky ew -padx 5 -row 3 -column 1
 
   #######################
   ## auto
@@ -627,83 +510,65 @@ proc mk_pars_frame {root} {
   labelframe $w -text {auto adjustments}\
                 -font {-weight bold} -padx 5 -pady 5
 
-  mk_check $w.fadj pars(fadj) "Adjust frequency"
-  foreach {v title} {
-        fmin "min value, Hz"
-        fmax "max value, Hz"
+  foreach {cmd v title} {
+        mk_check fadj "Adjust frequency"
+        mk_entry fmin "min value, Hz"
+        mk_entry fmax "max value, Hz"
+        mk_check tadj "Adjust record time"
+        mk_entry tmin "min value, s"
+        mk_entry tmax "max value, s"
+        mk_entry tx   "factor"
+        mk_check sadj "Adjust sampling rate"
+        mk_check radj "Adjust oscilloscope range"
         } {
-    mk_entry $w.${v} pars($v) $title
+    $cmd $w.${v} pars($v) $title
   }
-  mk_check $w.tadj pars(tadj) "Adjust record time"
-  foreach {v title} {
-        tmin "min value, s"
-        tmax "max value, s"
-        tx   "factor"
-        } {
-    mk_entry $w.${v} pars($v) $title
-  }
-  mk_check $w.sadj pars(sadj) "Adjust sampling rate"
-  mk_check $w.radj pars(radj) "Adjust oscilloscope range"
-  mk_empty $w.e
-  grid $w -sticky ew -padx 5  -row 1 -column 2 -rowspan 2 -sticky ns
+  grid $w -sticky ns -padx 5  -row 1 -column 2 -rowspan 2
 
+  #######################
+  ## buttons
   frame $root.btn
   button $root.btn.reset -text "Reset"  -command on_pars_reset
   button $root.btn.apply -text "Apply"  -command on_pars_apply
   grid $root.btn.reset $root.btn.apply  -padx 20 -pady 5
   grid $root.btn -row 3 -column 2 -sticky n
-
 }
-
-
-
 
 ##################################################
 # rest of the interface
 
-mk_meas_frame {.meas}
-pack .meas -fill x -expand 1
+proc func_mkint {w} {
+  mk_meas_frame $w.meas
+  pack $w.meas -fill x -expand 1
 
-blt::tabset .tabs -side top
+  blt::tabset $w.tabs -side top
 
-mk_splot_frame {.tabs.splot}
-mk_fft_frame   {.tabs.fft}
-mk_tplot_frame {.tabs.tplot}
-mk_pars_frame  {.tabs.pars}
+  mk_splot_frame $w.tabs.splot
+  mk_fft_frame   $w.tabs.fft
+  mk_tplot_frame $w.tabs.tplot
+  mk_pars_frame  $w.tabs.pars
 
-## tabset
-.tabs insert end splot -window .tabs.splot\
-   -anchor n -text "Signal plot" -fill both
-.tabs insert end fft -window .tabs.fft\
-   -anchor n -text "FFT plot" -fill both
-.tabs insert end tplot -window .tabs.tplot\
-   -anchor n -text "Time plot" -fill both
-.tabs insert end pars -window .tabs.pars\
-   -anchor n -text "Parameters" -fill both
+  ## tabset
+  $w.tabs insert end splot -window $w.tabs.splot\
+     -anchor n -text "Signal plot" -fill both
+  $w.tabs insert end fft -window $w.tabs.fft\
+     -anchor n -text "FFT plot" -fill both
+  $w.tabs insert end tplot -window $w.tabs.tplot\
+     -anchor n -text "Time plot" -fill both
+  $w.tabs insert end pars -window $w.tabs.pars\
+     -anchor n -text "Parameters" -fill both
 
-pack .tabs -fill both -expand 1
-
-## status line on the bottom
-label .st -textvariable st
-button .exit -text "Exit" -command exit
-pack .exit -side left -padx 10
-pack .st   -side left -padx 10 -fill x
-
-##################################################
-
-update
-after idle {
-  on_pars_apply
-
-  # Open device,
-  # fill ocilloscope range combobox with values
-  if {[catch {dev_open}]} {
-    set_state error
-  }\
-  else {
-    dev_close
-    set_state ready
-  }
+  pack $w.tabs -fill both -expand 1
 }
 
+##########################################################################
+##########################################################################
+## create the monitor class
+Monitor m .m -name $pars(name) -period $pars(period) -onoff $pars(onoff)\
+  -func_start func_start -func_stop func_stop\
+  -func_meas func_meas -func_mkint func_mkint
+
+pack .m
+m startstop; # check devices, update osc range setting
+wm protocol . WM_DELETE_WINDOW { m do_exit }
 
