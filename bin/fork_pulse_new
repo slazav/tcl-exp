@@ -198,18 +198,21 @@ proc func_meas {} {
   if {$apars(navr)<1 || $apars(navr)>65536} {
     error "bad number of averages: $apars(navr)"
   }
-  if {$apars(navr)> 1} {$apars(osc_dev) cmd avr_start}
+  if {$apars(navr)> 1} {
+    set fname "-"
+    $apars(osc_dev) cmd avr_start
+  }\
+  else {
+    set fname $apars(sigfile)
+    $pars(osc_dev) cmd avr_stop
+  }
 
-  if {$apars(navr) == 1} {set fname $apars(sigfile)} else {set fname "-"}
   for {set iavr 0} {$iavr<$apars(navr)} {incr iavr} {
     $pars(osc_dev) cmd block A $NP $N $dt $fname
     $pars(gen_dev) write *TRG
     $pars(osc_dev) cmd wait
   }
-  if {$apars(navr)>1} {
-    $pars(osc_dev) cmd avr_save $apars(sigfile)
-    $pars(osc_dev) cmd avr_stop
-  }
+  if {$apars(navr)>1} { $pars(osc_dev) cmd avr_save $apars(sigfile) }
 
   set ret [exec sig_filter -T $apars(fstart) -f fitn $apars(sigfile)\
            -N $pars(nforks) -F $apars(fmin) -G $apars(fmax) ]
