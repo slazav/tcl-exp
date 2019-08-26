@@ -349,7 +349,7 @@ itcl::class TimePlot {
       for {set i 0} {$i < $Tlength} {incr i} {
         append data "\n" ["$this:T" index $i]
         for {set n 0} {$n < $ncols} {incr n} {
-          append data " "  ["$this:D0" index $i]
+          append data " "  ["$this:D$n" index $i]
         }
       }
     return $data
