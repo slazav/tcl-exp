@@ -37,25 +37,6 @@ foreach {name def title} $par_list { set pars($name) $def }
 set state 0
 
 ##########################################################
-proc widget_disable {widget} {
-  if {[lsearch {Frame Labelframe Graph Menu Scrollbar} [winfo class $widget]] == -1} {
-    $widget configure -state disabled }
-  foreach ch [winfo children $widget] {
-    widget_disable $ch
-  }
-}
-proc widget_enable {widget}  {
-  if {[lsearch {Frame Labelframe Graph Menu Scrollbar} [winfo class $widget]] == -1} {
-    $widget configure -state normal }
-  foreach ch [winfo children $widget] { widget_enable $ch }
-}
-
-proc widget_bg {widget bg} {
-  foreach ch [winfo children $widget] { $ch configure -background $bg }
-  $widget configure -background $bg
-}
-
-##########################################################
 # lock-in interface
 itcl::class LockinInt {
 
@@ -101,7 +82,7 @@ itcl::class LockinInt {
     grid $widget.status $widget.ubtn -padx 3 -pady 3
 
     widget_bg $widget #E0E0F0
-    widget_disable $widget
+    widget_state $widget disabled
   }
 
   method get_widget {} {return $widget}
@@ -110,14 +91,14 @@ itcl::class LockinInt {
   method on {} {
     if {$dev == {}} { set dev [DeviceRole $dev_name gauge] }
     update
-    widget_enable $widget
+    widget_state $widget normal
   }
 
   # release opened devices
   method off {} {
     if {$dev != {}} { itcl::delete object $dev }
     set dev {}
-    widget_disable $widget
+    widget_state $widget disabled
   }
 
   # write settings to lock-in device
@@ -297,7 +278,7 @@ itcl::class GenInt {
     grid $widget.cal_btn $widget.adj_btn -padx 5 -pady 2 -sticky e
 
     widget_bg $widget #F0E0E0
-    widget_disable $widget
+    widget_state $widget disabled
   }
 
   method get_widget {} {return $widget}
@@ -314,12 +295,12 @@ itcl::class GenInt {
     $dev cmd FREQ:COUP ON
     $dev cmd OUTP:SYNC:SOUR 1
     update
-    widget_enable $widget
+    widget_state $widget normal
   }
 
   method off {} {
     if {[info command $dev] != {}} { itcl::delete object $dev }
-    widget_disable $widget
+    widget_state $widget disabled
   }
 
   # write settings to generator device
@@ -399,7 +380,7 @@ itcl::class GenInt {
     set range [$lockin_int get_range]
     # read actual generator values
     update
-    widget_disable $widget
+    widget_state $widget disabled
 
     # calibrate excitation:
     switch_exc  1
@@ -450,7 +431,7 @@ itcl::class GenInt {
 #    after 500 $this adjust_comp
 
     # enable buttons
-    widget_enable $widget
+    widget_state $widget normal
   }
 
   # adjust compensation using old calibration
@@ -545,7 +526,7 @@ itcl::class FreqInt {
       -plots_x {Freq X}\
       -plots_y {{}   Y}
     grid $widget.setfre_pl -columnspan 2
-    widget_disable $widget
+    widget_state $widget disabled
 
     # create vectors for fit results
     blt::vector create fitx fity
@@ -554,10 +535,10 @@ itcl::class FreqInt {
   method get_widget {} {return $widget}
 
   method on {} {
-    widget_enable $widget
+    widget_state $widget normal
   }
   method off {} {
-    widget_disable $widget
+    widget_state $widget disabled
   }
 
   variable run_of {}; # old frequency
@@ -583,7 +564,7 @@ itcl::class FreqInt {
     set run_npt $npt
     set run_i   0
     after cancel $run_handler
-    widget_disable [gen_int get_widget]
+    widget_state [gen_int get_widget] disabled
     setfre_plot clear
     $gen_int switch_exc  1
     $gen_int switch_comp 0
@@ -618,7 +599,7 @@ itcl::class FreqInt {
   method stop {} {
     after cancel $run_handler
     set run_npt 0
-    widget_enable [gen_int get_widget]
+    widget_state [gen_int get_widget] normal
     if {$run_of != {}} {$gen_int configure -fre $run_of}
     $gen_int apply_exc
     $gen_int switch_comp 1
