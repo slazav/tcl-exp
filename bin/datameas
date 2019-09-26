@@ -15,6 +15,7 @@ set default_pars {
   db_dev       {}         {database device}
   db_name      {}         {database name}
   tpos         0.5        {timestamp position: 0-beginning of measurement, 1-end of measuremen}
+  tconv        0          {ms, time shift between samples in 1 step}
 
   data_title   {Data:}    {data title in the interface}
   time_title   {Time:}    {time title in the interface}
@@ -104,7 +105,16 @@ proc func_meas {} {
 
   # put data to database
   if {$pars(db_dev)!={} && $pars(save)} {
-    $pars(db_dev) cmd put $pars(db_name) $T0 $D0 }
+    if { [llength $pars(db_name)]==1 } {
+      $pars(db_dev) cmd put $pars(db_name) $T0 $D0
+    } else {
+      set i 0
+      foreach db $pars(db_name) d $D0 {
+        $pars(db_dev) cmd put $db [expr $T0+$i*$pars(tconv)] $d
+        incr i
+      }
+    }
+  }
 }
 
 # Build GUI frame in <root> (user-supplied function)
