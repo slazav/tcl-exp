@@ -31,7 +31,7 @@ proc mkint {root} {
   global pars ptitle
   foreach {cmd v} {
         mk_entry par1
-        mk_entry par2
+        mk_label par2
         mk_check par3
         mk_combo par4
         mk_entry par5
