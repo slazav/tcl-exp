@@ -268,13 +268,26 @@ button .avr.save -text "Save" -command on_save
 grid .avr.save -sticky w
 
 proc on_save {} {
+  global pars
   set fname [tk_getSaveFile\
     -confirmoverwrite 1\
     -initialdir .\
   ]
   if {$fname eq ""} return
   set f [open $fname w]
-  puts $f {#Noise spectrum, written by noise_int program}
+  puts $f {# Noise spectrum, written by noise_int program}
+  puts $f "## $pars(osc_dev) $pars(chan)"
+  puts $f "## acquire signal"
+  puts $f "# scale\[V\]  $pars(scale)"
+  puts $f "# points    $pars(npts)"
+  puts $f "# dt\[s\]     $pars(dt)"
+  puts $f "# delay     $pars(delay)"
+  puts $f "## FFT"
+  puts $f "# points    $pars(nout)"
+  puts $f "# Fmin\[Hz\]  $pars(fmin)"
+  puts $f "# Fmax\[Hz\]  $pars(fmax)"
+  puts $f "# Tmin\[s\]   $pars(tmin)"
+  puts $f {#}
   puts $f {#f[Hz] -- V[nV/sqrt(Hz)]}
   for {set i 0} {$i<[avrx length]} {incr i} {
     puts $f "[avrx index $i] [avry index $i]"
