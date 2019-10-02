@@ -42,7 +42,7 @@ set sigfile "/tmp/noise_${pars(osc_dev)}.sig"
 set overload {};      # overload message?
 set avr -1;           # averaging count (-1 is off)
 set apply_flag 0;     # do we need to apply settings?
-set run_flag   1;     # do we need to run measurements?
+set run_flag   0;     # do we need to run measurements?
 set run_status 0;     # is the measurement running?
 
 ##################################################
