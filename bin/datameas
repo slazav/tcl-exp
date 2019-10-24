@@ -107,10 +107,12 @@ proc func_meas {} {
   if {$pars(db_dev)!={} && $pars(save)} {
     if { [llength $pars(db_name)]==1 } {
       $pars(db_dev) cmd put $pars(db_name) $T0 $D0
+      $pars(db_dev) cmd sync
     } else {
       set i 0
       foreach db $pars(db_name) d $D0 {
         $pars(db_dev) cmd put $db [expr $T0+$i*$pars(tconv)] $d
+        $pars(db_dev) cmd sync
         incr i
       }
     }
