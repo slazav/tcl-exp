@@ -126,6 +126,7 @@ proc set_limits {v1 v2} {
   set ::dest2 [expr [lindex $l 1]/$c_k]
 }
 proc get_limits {} {
+   global c_k
    set l [sweeper get_limits]
    set v1 [expr [lindex $l 0]/$c_k]
    set v2 [expr [lindex $l 1]/$c_k]
