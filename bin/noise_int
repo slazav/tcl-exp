@@ -30,6 +30,7 @@ set default_pars {
   tmin    {}    {tmin argument for sig silter}
   log     1     {Logscale frequency. In the plot axis AND in sig_filter }
   delay   100   {delay between measurements, ms}
+  blackman 0    {blackman window}
 }
 
 # pars - used in measurements, parsi - interface
@@ -102,6 +103,7 @@ proc do_meas {} {
   ## build filter parameters:
   set fpars1 "-f fft_pow"
   set fpars2 "-N $pars(nout)"
+  if {$pars(blackman) == 1} {set fpars2 "$fpars2 -B"}
   if {$pars(log) == 1}   {set fpars2 "$fpars2 -l"}
   if {$pars(fmin) != {}} {set fpars2 "$fpars2 -F $pars(fmin)"}
   if {$pars(fmax) != {}} {set fpars2 "$fpars2 -G $pars(fmax)"}
@@ -227,12 +229,14 @@ entry .fft.fmin -width 10 -textvariable parsi(fmin)
 entry .fft.fmax -width 10 -textvariable parsi(fmax)
 entry .fft.tmin -width 10 -textvariable parsi(tmin)
 checkbutton .fft.log -text "Log.Freq" -variable parsi(log)
+checkbutton .fft.bl  -text "Blackman win" -variable parsi(blackman)
 
 grid .fft.noutl .fft.nout -sticky ne -pady 1
 grid .fft.fminl .fft.fmin -sticky ne -pady 1
 grid .fft.fmaxl .fft.fmax -sticky ne -pady 1
 grid .fft.tminl .fft.tmin -sticky ne -pady 1
 grid .fft.log -columnspan 2 -pady 1 -sticky ne
+grid .fft.bl  -columnspan 2 -pady 1 -sticky ne
 
 ####################
 ## apply/reset buttons for acquire and fft frames
