@@ -1,0 +1,657 @@
+#!/usr/bin/wish
+
+package require Device
+package require Exp;  # timeplot, monitor
+package require itcl;
+
+##########################################################################
+## read parameters from configuration file
+
+set default_pars {
+  name         {Default}  {program name}
+  dev          {bridge}   {LakeShore device device}
+}
+
+if {[llength $argv]>0 } {
+  read_conf [lindex $argv 0] pars $default_pars
+}\
+else {
+  foreach {name def title} $default_pars { set pars($name) $def }
+}
+
+tk appname $pars(name)
+
+##########################################################################
+proc show_help {key} {
+  if {$key == {mon_src}} {
+    tk_messageBox -type ok -message "[join {\
+      {Source for monitor signal (rear-panel connector):}\
+      {Off: Output grounded to measurement common}\
+      {CS_NEG: AC voltage driving negative side of current source programming resistor}\
+      {CS_POS: AC voltage driving positive side of current source programming resistor}\
+      {VAD_DC: voltage into the AD converter}\
+      {VCM_NEG: AC voltage on the negative side of the differential input amplifier}\
+      {VCM_POS: AC voltage on the positive side of the differential input amplifier}\
+      {VDIF: AC voltage output of the differential input amplifier}\
+      {VMIX: Conditioned AC input voltage at input of the product detector}\
+    } \n\n]"
+  }
+  if {$key == {ch_status}} {
+    tk_messageBox -type ok -message "[join {\
+      {CS_OVL: Current source overload possibly caused by a broken current source lead.}\
+      {VCM_OVL: Common mode overload at the first amplifier stage of the voltage input.}\
+      {VDIF_OVL: Overload at the differential amplifier stage of the voltage input.}\
+      {VMIX_OVL: Overload at the mixer (phase sensitive detector) stage of the voltage input.}\
+      {R_OVER: Resistance range overload.}\
+      {R_UNDER: Resistance range underload (equivalent of R. OVER in the negative direction) normally a result of improper lead wiring.}\
+      {T_OVER: Measured resistance is outside of the temperature response curve on the high temperature end.}\
+      {T_UNDER: Measured resistance is outside of the temperature response curve on the low temperature end.}\
+    } \n\n]"
+  }
+}
+
+##########################################################################
+## Class which represents device-specific parameters and commands.
+## This class will me moved later to DeviceRole library.
+
+itcl::class LakeShore370AC {
+
+  variable dev; # device
+
+
+  ###################################
+  ## Some lists
+  ## Lists should depend on the bridge model and
+  ## on the switch option
+
+  # list of all channels (depends on the scanner option)
+  method chan_list {} { return [list \
+    1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16\
+  ]}
+
+  # channel excitation methods (voltage/current)
+  method exc_list {} { return [list\
+    {voltage} {current}\
+  ]}
+
+  # channel current excitation list (used if excitation method = current)
+  method volt_list {} { return [list\
+    {2.00 uV} {6.32 uV} {20.0 uV} {63.2 uV} {200.0 uV} {632 uV}\
+    {2.00 mV} {6.32 mV} {20.0 mV} {63.2 mV} {200.0 mV} {632 mV}\
+  ]}
+
+  # channel current excitation list (used if excitation method = voltage)
+  method curr_list {} { return [list\
+    {1.00 pA} {3.16 pA} {10.0 pA} {31.6 pA} {100 pA} {316 pA}\
+    {1.00 nA} {3.16 nA} {10.0 nA} {31.6 nA} {100 nA} {316 nA}\
+    {1.00 uA} {3.16 uA} {10.0 uA} {31.6 uA} {100 uA} {316 uA}\
+    {1.00 mA} {3.16 mA} {10.0 mA} {31.6 mA}\
+  ]}
+
+  # channel range settings
+  method res_list {} { return [list\
+    {2.00 mOhm} {6.32 mOhm} {20.0 mOhm} {63.2 mOhm} {200 mOhm} {632 mOhm}\
+    {2.00 Ohm}  {6.32 Ohm}  {20.0 Ohm}  {63.2 Ohm}  {200 Ohm}  {632 Ohm}\
+    {2.00 kOhm} {6.32 kOhm} {20.0 kOhm} {63.2 kOhm} {200 kOhm} {632 kOhm}\
+    {2.00 MOhm} {6.32 MOhm} {20.0 MOhm} {63.2 MOhm}\
+  ]}
+
+  # channel status flags -- short names
+  method ch_status_list {} { return [list\
+    {CS_OVL} {VCM_OVL} {VDIF_OVL} {VMIX_OVL}\
+    {R_OVER} {R_UNDER} {T_OVER} {T_UNDER}\
+  ]}
+
+  # alarm sources
+  method alarm_src_list {} { return [list\
+    {Kelvin} {Ohms} {Linear Data}\
+  ]}
+
+  # alarm latching setting
+  method alarm_latch_list {} { return [list\
+    {Non-latching} {latching}\
+  ]}
+
+  # monitor source flags -- short names
+  method mon_src_list {} { return [list\
+    {OFF} {CS_NEG} {CS_POS} {VAD}\
+    {VCM_NEG} {VCM_POS} {VDIFF} {VMIX}\
+  ]}
+
+  ###################################
+
+  # trim number, fix "octal" values (like 010)
+  method trim_num {n} {
+    set n [string trimright $n \r\n]
+    set n [string trimleft $n " 0"]
+    if {$n == {}} {return 0}
+    return [expr $n]
+  }
+
+  ###################################
+
+  constructor {d} { set dev $d }
+
+  ###################################
+  # device functions
+  method get_id {} {
+    return [string trimright [$dev cmd *IDN?] \r\n ]
+  }
+
+  method get_mon {} {
+    set v [$dev cmd MONITOR?]
+    return [lindex [mon_src_list] $v]
+  }
+
+  method set_mon {v} {
+    set vn [lsearch -exact [mon_src_list] $v]
+    if {$vn < 0} { error "set_mon: wrong setting: $v"}
+    $dev cmd "MONITOR $v"
+  }
+
+  method set_scan {ch auto} {
+    if {$ch < 1 || $ch > 16} {
+      error "set_scan: wrong autoscan setting: $auto"}
+    if {$auto != 0 && $auto != 1} {
+      error "set_scan: wrong autoscan setting: $auto"}
+    $dev cmd "SCAN $ch,$auto"
+  }
+
+  method get_scan {} {
+    set r [split [$dev cmd "SCAN?"] ,]
+    set ch   [trim_num [lindex $r 0]]
+    set auto [trim_num [lindex $r 1]]
+    return [list $ch $auto]
+  }
+
+  ###################################
+  # channel functions
+
+  # get resistance reading
+  method get_ch_res {chan} {
+    set r [$dev cmd RDGR? $chan]
+    return [expr $r]
+  }
+
+  # get temperature reading
+  method get_ch_temp {chan} {
+    set r [$dev cmd RDGK? $chan]
+    return [expr $r]
+  }
+
+  # get excitation power reading
+  method get_ch_pwr {chan} {
+    set r [$dev cmd RDGPWR? $chan]
+    return [expr $r]
+  }
+
+  # get channel status as a list of numbers
+  method get_ch_status {chan} {
+    set r [trim_num [$dev cmd RDGST? $chan]]
+    set ret {}
+    for {set i 0} {$i<8} {incr i} {
+      if {$r & (1<<$i)} {lappend ret $i } }
+    return $ret
+  }
+
+
+  # Get input channel parameters (INSET)
+  method get_ch_inp {chan} {
+    set r [split [$dev cmd INSET? $chan] ,]
+    set onoff   [trim_num [lindex $r 0]]
+    set dwell   [trim_num [lindex $r 1]]
+    set pause   [trim_num [lindex $r 2]]
+    set curve   [trim_num [lindex $r 3]]
+    set tempco  [trim_num [lindex $r 4]]
+    return [list $onoff $dwell $pause $curve $tempco]
+  }
+
+  method set_ch_inp {chan onoff dwell pause curve tempco} {
+    if {$onoff!=0 && $onoff!=1} {
+      error "set_ch_inp: wrong onoff setting: $onoff"}
+    if {$dwell < 1 || $dwell > 200} {
+      error "set_ch_inp: wrong dwell setting: $dwell"}
+    if {$pause < 3 || $pause > 200} {
+      error "set_ch_inp: wrong pause setting: $pause"}
+    if {$curve < 0 || $curve > 20} {
+      error "set_ch_inp: wrong curve setting: $curve"}
+    $dev cmd "INSET $chan, $onoff, $dwell, $pause, $curve, $tempco"
+  }
+
+
+  # Get channel range and excitation settings.
+  # Returns list with 5 elements:
+  #   mode excitation range autorange onoff
+  # Codes are converted to text names.
+  method get_ch_range {chan} {
+
+    set r [split [$dev cmd RDGRNG? $chan] ,]
+    set mod_n   [trim_num [lindex $r 0]]
+    set exc_n   [trim_num [lindex $r 1]]
+    set rng_n   [trim_num [lindex $r 2]]
+    set autorng [trim_num [lindex $r 3]]
+    set onoff   [trim_num [lindex $r 4]]
+
+    # convert from numbers to text values
+    set mod [lindex [exc_list] $mod_n]
+    if {$mod_n == 0} {
+      set exc [lindex [volt_list] $exc_n ]
+    } else {
+      set exc [lindex [curr_list] $exc_n ]
+    }
+    set rng [lindex [res_list] $rng_n]
+
+    return [list $mod $exc $rng $autorng $onoff]
+  }
+
+  # Set channel range and excitation settings.
+  method set_ch_range {chan exc_type exc_range res_range arange exc_on} {
+    set exc_type_n [lsearch -exact [exc_list] $exc_type]
+    set res_range_n [lsearch -exact [res_list] $res_range]
+
+    if {$exc_type_n == 0} {
+      set exc_range_n [lsearch -exact [volt_list] $exc_range]
+    } else {
+      set exc_range_n [lsearch -exact [curr_list] $exc_range]
+    }
+
+    if {$exc_type_n<0} {
+      error "set_ch_range: wrong exc_type setting: $exc_type"}
+    if {$exc_range_n<0} {
+      error "set_ch_range: wrong exc_range setting: $exc_range"}
+    if {$res_range_n<0} {
+      error "set_ch_range: wrong res_range setting: $res_range"}
+    if {$arange!=0 && $arange!=1} {
+      error "set_ch_range: wrong autorange setting: $arange"}
+    if {$exc_on!=0 && $exc_on!=1} {
+      error "set_ch_range: wrong exc_on setting: $exc_on"}
+    $dev cmd RDGRNG "$chan,$exc_type_n,$exc_range_n,$res_range_n,$arange,$exc_on"
+  }
+
+  # Get channel filter parameters.
+  # Returns list with 3 elements:
+  #   onoff settle_time window
+  method get_ch_filter {chan} {
+    set r [split [$dev cmd FILTER? $chan] ,]
+    set onoff   [trim_num [lindex $r 0]]
+    set settle  [trim_num [lindex $r 1]]
+    set window  [trim_num [lindex $r 2]]
+    return [list $onoff $settle $window]
+  }
+
+  # Set channel filter parameters.
+  method set_ch_filter {chan onoff settle window} {
+    if {$onoff != 0 && $onoff != 1} {
+      error "set_ch_filter: wrong onoff value: $onoff"}
+    if {$settle < 1 || $settle > 200} {
+      error "set_ch_filter: wrong settle value: $settle"}
+    if {$window < 1 || $window > 80} {
+      error "set_ch_filter: wrong window value: $window"}
+    $dev cmd FILTER "$chan, $onoff, $settle, $window"
+  }
+
+
+  # get channel alarm parameters
+  method get_ch_alarm_par {chan} {
+    set r [split [$dev cmd ALARM? $chan] ,]
+    set onoff   [expr [lindex $r 0]]
+    set src_n   [expr [lindex $r 1]]
+    set hval    [expr [lindex $r 2]]
+    set lval    [expr [lindex $r 3]]
+    set band    [expr [lindex $r 4]]
+    set latch_n [expr [lindex $r 5]]
+    # convert from numbers to text values
+    set src   [lindex [alarm_src_list] $src_n]
+    set latch [lindex [alarm_latch_list] $latch_n]
+    return [list $onoff $src $hval $lval $band $latch]
+  }
+
+  # get channel alarm status (two bool values for low and high boundary)
+  method get_ch_alarm_st {chan} {
+    set r [split [$dev cmd ALARMST? $chan] ,]
+    return $r
+  }
+
+}
+
+##########################################################################
+
+itcl::class DevPanel {
+  variable dev;
+  variable root;
+
+  variable id;
+  variable mon;
+
+#  variable ese;
+#  variable esr;
+#  variable opc;
+#  variable sre;
+#  variable stb;
+
+  constructor {r d} {
+    set dev $d
+    set root $r
+    frame $root
+
+    mk_label $root.id  [itcl::scope id]  "Device ID: "
+    mk_combo $root.mon [itcl::scope mon] "Monitor source: "
+
+    $root.mon  configure -values [$dev mon_src_list]
+    bind $root.mon_l <ButtonPress> "show_help mon_src"
+
+#        mk_label ese  "ESE"
+#        mk_label esr  "ESR"
+#        mk_label opc  "OPC"
+#        mk_label sre  "SRE"
+#        mk_label stb  "STB"
+  }
+
+  method read_pars {} {
+    set id  [$dev get_id]
+    set mon [$dev get_mon]
+
+#    # Status byte register
+#    set s [$dev cmd *ESE?]
+#    if { $s & (1<<7) } { puts "Ramp done"}
+#    if { $s & (1<<6) } { puts "SRQ" }
+#    if { $s & (1<<5) } { puts "ESB: status register set" }
+#    if { $s & (1<<4) } { puts "Error (8.6)" }
+#    if { $s & (1<<3) } { puts "Alarm" }
+#    if { $s & (1<<2) } { puts "Valid read" }
+#
+#    # Standard event status register
+#    set s [$dev cmd *ESR?]
+#    if { $s & (1<<7) } { puts "PON: power on"}
+#    if { $s & (1<<5) } { puts "CME: Command error"}
+#    if { $s & (1<<4) } { puts "EXE: Execution error"}
+#    if { $s & (1<<2) } { puts "QYE: Query error"}
+#    if { $s & (1<<0) } { puts "OPC: Operation complete"}
+#
+#    set opc [$dev cmd *OPC?]
+#    set sre [$dev cmd *SRE?]
+#    set stb [$dev cmd *STB?]
+  }
+
+};
+
+##########################################################################
+# panel for manipulating temperature calibration curves
+
+itcl::class CurvePanel {
+  variable dev;
+  variable root;
+
+  constructor {r d} {
+    set dev $d
+    set root $r
+    frame $root
+  }
+
+  method read_pars {} {
+  }
+}
+
+##########################################################################
+# scan panel
+
+itcl::class ScanPanel {
+  variable dev;
+  variable root;
+  variable ch;
+  variable auto;
+
+  constructor {r d} {
+    set dev $d
+    set root $r
+    frame $root
+
+    foreach ch [$dev chan_list] {
+      radiobutton $root.ch$ch -text $ch -variable [itcl::scope ch]\
+        -value $ch -command "$this do_scan"
+      grid $root.ch$ch -sticky w
+    }
+    checkbutton $root.scan -text "scan"\
+      -variable [itcl::scope auto] -command "$this do_scan"
+    grid $root.scan -sticky w -pady 5
+    set ch 1
+  }
+
+  method do_scan {} {
+    $dev set_scan $ch $auto
+  }
+
+  method read_pars {} {
+    set r [$dev get_scan]
+    set ch   [lindex $r 0]
+    set auto [lindex $r 1]
+  }
+
+}
+
+##########################################################################
+# panel for a single channel parameters
+
+itcl::class ChanPanel {
+  variable root;
+  variable dev;
+  variable chan;
+
+  # measured values and status
+  variable res  0; # resistance, Ohm
+  variable temp 0; # temperature, K
+  variable pwr  0; # power, W
+  variable status; # channel status (overloads)
+
+  # input settings
+  variable onoff {};
+  variable dwell {};
+  variable pause {};
+  variable curve {};
+  variable tempco {};
+
+  # range and excitation
+  variable exc_on {};
+  variable arange {};
+  variable exc_type  {};
+  variable exc_range {};
+  variable res_range {};
+
+  # filter
+  variable flt_on 0;
+  variable flt_time {}
+  variable flt_win  {}
+
+  ###################################
+  ## constructor: build the interface
+  constructor {r d c} {
+    set root $r
+    set dev  $d
+    set chan $c
+
+    ######
+    # channel panel consists of two parts: parameter panel and plot
+    frame $root
+    frame $root.pars
+    TimePlot pl$chan $root.plot\
+      -ncols 3\
+      -maxn 0\
+      -maxt 1000\
+      -names {res temp pwr}\
+      -plots_x {time}\
+      -plots_y {{}}\
+      -use_comm 0
+
+    grid columnconfigure $root 0 -weight 0
+    grid columnconfigure $root 1 -weight 1
+    grid rowconfigure    $root 0 -weight 1
+
+    grid $root.pars -column 0 -row 0 -sticky ewn
+    grid $root.plot -column 1 -row 0 -sticky ewsn
+
+
+    ######
+    # Measured values and status
+    set f [labelframe $root.pars.val -text "Measured values and status"]
+    pack $f -fill x -expand 1 -pady 2
+
+    mk_label $f.res  [itcl::scope res]  "Resistance, Ohm:"
+    mk_label $f.temp [itcl::scope temp] "Temperature, K:"
+    mk_label $f.pwr  [itcl::scope pwr]  "Power, W:"
+
+    label $f.status -textvariable [itcl::scope status] -fg red
+    grid $f.status -columnspan 2 -sticky nw
+    bind $f.status <ButtonPress> "show_help ch_status"
+
+    ######
+    # Input settings frame
+
+    set f [labelframe $root.pars.inp -text "Input settings"]
+    pack $f -fill x -expand 1 -pady 2
+    mk_check $f.arange [itcl::scope onoff] "channel ON/OFF"
+    mk_entry $f.dwell  [itcl::scope dwell] "Scanner dwell time, s: "
+    mk_entry $f.pause  [itcl::scope pause] "Pause time, s: "
+    mk_entry $f.curve  [itcl::scope curve] "Temperature curve: "
+
+    bind $f.dwell_l <ButtonPress> {
+     tk_messageBox -message "How long the value is measured in autoscan mode: 1..200s"}
+
+    bind $f.pause_l <ButtonPress> {
+     tk_messageBox -message "How long to wait after range or channel change before starting the measurement: 3..200s"}
+
+    bind $f.curve_l <ButtonPress> {
+     tk_messageBox -message "Thermometer calibration curve: 1..20. No curve: 0"}
+
+    ######
+    # Range and excitation settings
+
+    set f [labelframe $root.pars.exc -text "Range and excitation"]
+    pack $f -fill x -expand 1 -pady 2
+
+    mk_check $f.arange [itcl::scope arange] "autorange"
+    mk_combo $f.res_range [itcl::scope res_range] "Resistance range: "
+    mk_check $f.exc_on [itcl::scope exc_on] "excitation ON/OFF"
+    mk_combo $f.exc_type  [itcl::scope exc_type]  "Excitation type: "
+    mk_combo $f.exc_range [itcl::scope exc_range] "Excitation range: "
+
+    $f.exc_type  configure -values [$dev exc_list]
+    $f.exc_range configure -values [$dev volt_list]
+    $f.res_range configure -values [$dev res_list]
+
+    trace add variable [itcl::scope exc_type] write "$this set_exc_lists"
+
+    ######
+    # Filter settings
+
+    set f [labelframe $root.pars.flt -text "Filter"]
+    pack $f -fill x -expand 1 -pady 2
+    mk_check $f.onoff  [itcl::scope flt_on]   "filter ON/OFF"
+    mk_entry $f.settle [itcl::scope flt_time] "Settle time, s: "
+    mk_entry $f.window [itcl::scope flt_win]  "Window, \%: "
+
+    bind $f.window_l <ButtonPress> {
+     tk_messageBox -message "Window, \% of full scale. If signal goes out of the window filter is restarted."}
+
+    ######
+    # Write/Read buttons
+    set f [frame $root.pars.btn]
+    pack $f -fill x -expand 1 -pady 2
+
+    button $f.read  -text "Read"  -command "$this read_pars"
+    button $f.write -text "Write" -command "$this write_pars"
+    pack $f.read $f.write -anchor e -side right
+
+  }
+  ###################################
+
+  method set_exc_lists {args} {
+    if {$exc_type == {voltage}} {
+       $root.pars.exc.exc_range configure -values [$dev volt_list]
+    } else {
+       $root.pars.exc.exc_range configure -values [$dev curr_list]
+    }
+  }
+
+  ###################################
+
+  method read_pars {} {
+
+    # Measured values
+    set res [$dev get_ch_res  $chan]
+    set temp [$dev get_ch_temp $chan]
+    set pwr [$dev get_ch_pwr  $chan]
+
+    # status
+    set status {}
+    foreach s [$dev get_ch_status $chan] {
+      lappend status [lindex [$dev ch_status_list] $s]
+    }
+    set status [join $status { }]
+
+    # Input parameters
+    set r [$dev get_ch_inp $chan]
+    set onoff  [lindex $r 0]
+    set dwell  [lindex $r 1]
+    set pause  [lindex $r 2]
+    set curve  [lindex $r 3]
+    set tempco [lindex $r 4]
+
+    # Range and excitation
+    set r [$dev get_ch_range $chan]
+    set exc_type  [lindex $r 0]
+    set exc_range [lindex $r 1]
+    set res_range [lindex $r 2]
+    set arange    [lindex $r 3]
+    set exc_on    [lindex $r 4]
+
+    # Filter
+    set r [$dev get_ch_filter $chan]
+    set flt_on     [lindex $r 0]
+    set flt_time   [lindex $r 1]
+    set flt_win    [lindex $r 2]
+  }
+
+  method write_pars {} {
+    $dev set_ch_range  $chan $exc_type $exc_range $res_range $arange $exc_on
+    $dev set_ch_inp    $chan $onoff $dwell $pause $curve $tempco
+    $dev set_ch_filter $chan $flt_on $flt_time $flt_win
+    after 50
+    read_pars
+  }
+
+}
+
+
+##########################################################################
+
+Device $pars(dev)
+set br [LakeShore370AC br#auto $pars(dev)]
+
+
+ScanPanel sc_pan .scan $br
+pack .scan -fill y -expand 1 -side left
+
+blt::tabset .tabs -selectcommand {[.tabs get active] read_pars}
+pack .tabs -fill both -expand 1
+
+foreach ch [$br chan_list] {
+  ChanPanel ch_pan$ch .tabs.ch$ch $br $ch
+  .tabs insert end ch_pan$ch -window .tabs.ch$ch\
+     -anchor n -text $ch -fill both -padx 3 -pady 3
+}
+
+# device panel
+DevPanel dev_pan .tabs.dev $br
+.tabs insert end dev_pan -window .tabs.dev\
+   -anchor n -text Device -fill both -padx 3 -pady 3
+
+# curves panel
+CurvePanel crv_pan .tabs.crv $br
+.tabs insert end crv_pan -window .tabs.crv\
+   -anchor n -text Curves -fill both -padx 3 -pady 3
+
+# update visible panels
+ch_pan1 read_pars
+
+sc_pan read_pars
+
