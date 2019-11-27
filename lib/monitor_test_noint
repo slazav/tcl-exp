@@ -1,0 +1,25 @@
+#!/usr/bin/wish
+
+source ./monitor.tcl
+
+set err1 0
+
+# no interface
+
+# redefine measure commend
+proc meas {} {
+  puts "Measure"
+  after 300
+  if {$::err1} {error "can't measure: error checkbox is set!\
+      It should be a really long error message to test how is it\
+      displayed in the status line of the program..."}
+}
+
+Monitor m {} -name {Monitor test} -period 1\
+  -func_meas meas
+
+checkbutton .e1 -text "measurement error" -variable ::err1
+pack .e1 -anchor w
+
+wm protocol . WM_DELETE_WINDOW { m do_exit }
+m restart

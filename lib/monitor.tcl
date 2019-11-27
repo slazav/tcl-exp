@@ -25,7 +25,7 @@ itcl::class Monitor {
   variable is_opened 0;    # are devices opened
   variable exit_fl 0;      # set to 1 to exit the program
   variable loop_handle {}; # non-empty only while waiting for next measurement
-  variable root;           # tk root widget
+  variable root {};        # tk root widget
   # default function handlers
   variable func_start;
   variable func_stop;
@@ -73,10 +73,13 @@ itcl::class Monitor {
     ]
     xblt::parse_options "monitor" $args $options
 
+    # return if we do not need interface
+    set root $tkroot
+    if {$root == {}} return
+
     ######
     ## interface
     # title frame
-    set root $tkroot
     frame $root
     frame $root.n
     label $root.n.name -text "$name" -font {-size 14}
@@ -132,6 +135,7 @@ itcl::class Monitor {
   ##########################
   ## set status line and update interface
   method set_status {msg {col black}} {
+    if {$root == {}} return
     set L $root.st.text; # the label widget
     set status_text $msg
     # We want to cut one line of the text
@@ -270,6 +274,7 @@ itcl::class Monitor {
   ## use restart/stop/single methods
   method onoff_btn {v} {
     set onoff $v
+    if {$root == {}} return
     $root.st.lamp delete r
     if {$onoff} {
       $root.st.lamp create polygon 1 1 10 5 1 10 -fill "green" -tags r
