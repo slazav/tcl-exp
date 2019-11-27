@@ -1,14 +1,18 @@
 #!/usr/bin/wish
 
 package require Device
-package require Exp;  # timeplot, monitor
+#package require Exp;  # timeplot, monitor
 package require itcl;
+
+source ../exp_tcl/widgets.tcl
+source ../exp_tcl/timeplot.tcl
+source ../exp_tcl/monitor.tcl
 
 ##########################################################################
 ## read parameters from configuration file
 
 set default_pars {
-  name         {Default}  {program name}
+  name         {Resistance bridge}  {program name}
   dev          {bridge}   {LakeShore device device}
 }
 
@@ -20,35 +24,6 @@ else {
 }
 
 tk appname $pars(name)
-
-##########################################################################
-proc show_help {key} {
-  if {$key == {mon_src}} {
-    tk_messageBox -type ok -message "[join {\
-      {Source for monitor signal (rear-panel connector):}\
-      {Off: Output grounded to measurement common}\
-      {CS_NEG: AC voltage driving negative side of current source programming resistor}\
-      {CS_POS: AC voltage driving positive side of current source programming resistor}\
-      {VAD_DC: voltage into the AD converter}\
-      {VCM_NEG: AC voltage on the negative side of the differential input amplifier}\
-      {VCM_POS: AC voltage on the positive side of the differential input amplifier}\
-      {VDIF: AC voltage output of the differential input amplifier}\
-      {VMIX: Conditioned AC input voltage at input of the product detector}\
-    } \n\n]"
-  }
-  if {$key == {ch_status}} {
-    tk_messageBox -type ok -message "[join {\
-      {CS_OVL: Current source overload possibly caused by a broken current source lead.}\
-      {VCM_OVL: Common mode overload at the first amplifier stage of the voltage input.}\
-      {VDIF_OVL: Overload at the differential amplifier stage of the voltage input.}\
-      {VMIX_OVL: Overload at the mixer (phase sensitive detector) stage of the voltage input.}\
-      {R_OVER: Resistance range overload.}\
-      {R_UNDER: Resistance range underload (equivalent of R. OVER in the negative direction) normally a result of improper lead wiring.}\
-      {T_OVER: Measured resistance is outside of the temperature response curve on the high temperature end.}\
-      {T_UNDER: Measured resistance is outside of the temperature response curve on the low temperature end.}\
-    } \n\n]"
-  }
-}
 
 ##########################################################################
 ## Class which represents device-specific parameters and commands.
@@ -149,6 +124,10 @@ itcl::class LakeShore370AC {
     $dev cmd "MONITOR $v"
   }
 
+  method get_guard {} { return [expr {[$dev cmd GUARD?]}] }
+
+  method set_guard {v} { $dev cmd "GUARD [expr {$v? 1:0}]" }
+
   method set_scan {ch auto} {
     if {$ch < 1 || $ch > 16} {
       error "set_scan: wrong autoscan setting: $auto"}
@@ -163,6 +142,9 @@ itcl::class LakeShore370AC {
     set auto [trim_num [lindex $r 1]]
     return [list $ch $auto]
   }
+
+  # power-up self-test status
+  method get_tst {} { return [expr {[$dev cmd "*TST?"]}] }
 
   ###################################
   # channel functions
@@ -230,7 +212,7 @@ itcl::class LakeShore370AC {
     set exc_n   [trim_num [lindex $r 1]]
     set rng_n   [trim_num [lindex $r 2]]
     set autorng [trim_num [lindex $r 3]]
-    set onoff   [trim_num [lindex $r 4]]
+    set onoff   [expr ![lindex $r 4]]
 
     # convert from numbers to text values
     set mod [lindex [exc_list] $mod_n]
@@ -265,7 +247,7 @@ itcl::class LakeShore370AC {
       error "set_ch_range: wrong autorange setting: $arange"}
     if {$exc_on!=0 && $exc_on!=1} {
       error "set_ch_range: wrong exc_on setting: $exc_on"}
-    $dev cmd RDGRNG "$chan,$exc_type_n,$exc_range_n,$res_range_n,$arange,$exc_on"
+    $dev cmd RDGRNG "$chan,$exc_type_n,$exc_range_n,$res_range_n,$arange,[expr !$exc_on]"
   }
 
   # Get channel filter parameters.
@@ -322,6 +304,9 @@ itcl::class DevPanel {
 
   variable id;
   variable mon;
+  variable guard; # 0|1
+
+  variable tst;   # text: OK|FAIL
 
 #  variable ese;
 #  variable esr;
@@ -338,18 +323,46 @@ itcl::class DevPanel {
     mk_combo $root.mon [itcl::scope mon] "Monitor source: "
 
     $root.mon  configure -values [$dev mon_src_list]
-    bind $root.mon_l <ButtonPress> "show_help mon_src"
 
-#        mk_label ese  "ESE"
-#        mk_label esr  "ESR"
+    set help [join {\
+      {Source for monitor signal (rear-panel connector):}\
+      {Off: Output grounded to measurement common}\
+      {CS_NEG: AC voltage driving negative side of current source programming resistor}\
+      {CS_POS: AC voltage driving positive side of current source programming resistor}\
+      {VAD_DC: voltage into the AD converter}\
+      {VCM_NEG: AC voltage on the negative side of the differential input amplifier}\
+      {VCM_POS: AC voltage on the positive side of the differential input amplifier}\
+      {VDIF: AC voltage output of the differential input amplifier}\
+      {VMIX: Conditioned AC input voltage at input of the product detector}\
+    } \n\n]
+
+    bind $root.mon_l <ButtonPress> "tk_messageBox -type ok -message \"$help\""
+
+    mk_label $root.tst [itcl::scope tst] "Power-up self-test: "
+    mk_check $root.guard [itcl::scope guard] "Use Guard Drive"
+
+#    mk_label ese  "ESE"
+#    mk_label esr  "ESR"
 #        mk_label opc  "OPC"
 #        mk_label sre  "SRE"
 #        mk_label stb  "STB"
+
+    ######
+    # Write/Read buttons
+    set f [frame $root.btn]
+    grid $f -sticky w -pady 5
+
+    button $f.read  -text "Read"  -command "$this read_pars"
+    button $f.write -text "Write" -command "$this write_pars"
+    pack $f.read $f.write -anchor e -side right
   }
 
+  # re-read all parameters
   method read_pars {} {
     set id  [$dev get_id]
     set mon [$dev get_mon]
+    set tst [expr {[$dev get_tst] ? {FAIL}:{OK}}]
+    set guard [$dev get_tst]
 
 #    # Status byte register
 #    set s [$dev cmd *ESE?]
@@ -371,6 +384,13 @@ itcl::class DevPanel {
 #    set opc [$dev cmd *OPC?]
 #    set sre [$dev cmd *SRE?]
 #    set stb [$dev cmd *STB?]
+  }
+
+
+  # write parameters to the device
+  method write_pars {} {
+    $dev set_mon $mon
+    $dev set_guard $guard
   }
 
 };
@@ -408,23 +428,21 @@ itcl::class ScanPanel {
 
     foreach ch [$dev chan_list] {
       radiobutton $root.ch$ch -text $ch -variable [itcl::scope ch]\
-        -value $ch -command "$this do_scan"
+        -value $ch -command "$this switch"
       grid $root.ch$ch -sticky w
     }
-    checkbutton $root.scan -text "scan"\
-      -variable [itcl::scope auto] -command "$this do_scan"
-    grid $root.scan -sticky w -pady 5
+    mk_check $r.auto [itcl::scope auto] "scan"
     set ch 1
   }
 
-  method do_scan {} {
-    $dev set_scan $ch $auto
+  method switch {} {
+    global pan_ch$ch configure -onscan ""
+    $dev set_scan $ch 0
   }
 
+  # read device parameters
   method read_pars {} {
-    set r [$dev get_scan]
-    set ch   [lindex $r 0]
-    set auto [lindex $r 1]
+    set ch [lindex [$dev get_scan] 0]
   }
 
 }
@@ -442,6 +460,7 @@ itcl::class ChanPanel {
   variable temp 0; # temperature, K
   variable pwr  0; # power, W
   variable status; # channel status (overloads)
+  public variable onscan; # is channel scanned now (text!)
 
   # input settings
   variable onoff {};
@@ -452,7 +471,7 @@ itcl::class ChanPanel {
 
   # range and excitation
   variable exc_on {};
-  variable arange {};
+  variable arange 1;
   variable exc_type  {};
   variable exc_range {};
   variable res_range {};
@@ -478,8 +497,11 @@ itcl::class ChanPanel {
       -maxn 0\
       -maxt 1000\
       -names {res temp pwr}\
-      -plots_x {time}\
-      -plots_y {{}}\
+      -titles {Resistance Temperature Power}\
+      -plots_x {time pwr res}\
+      -plots_y {{} {res temp} temp}\
+      -zstyles {x xy xy}\
+      -symbols {circle circle circle}\
       -use_comm 0
 
     grid columnconfigure $root 0 -weight 0
@@ -495,13 +517,28 @@ itcl::class ChanPanel {
     set f [labelframe $root.pars.val -text "Measured values and status"]
     pack $f -fill x -expand 1 -pady 2
 
+    label $f.onscan -textvariable [itcl::scope onscan] -fg green
+    grid $f.onscan -columnspan 2 -sticky nw
+
     mk_label $f.res  [itcl::scope res]  "Resistance, Ohm:"
     mk_label $f.temp [itcl::scope temp] "Temperature, K:"
     mk_label $f.pwr  [itcl::scope pwr]  "Power, W:"
 
     label $f.status -textvariable [itcl::scope status] -fg red
     grid $f.status -columnspan 2 -sticky nw
-    bind $f.status <ButtonPress> "show_help ch_status"
+
+    set help [join {\
+      {CS_OVL: Current source overload possibly caused by a broken current source lead.}\
+      {VCM_OVL: Common mode overload at the first amplifier stage of the voltage input.}\
+      {VDIF_OVL: Overload at the differential amplifier stage of the voltage input.}\
+      {VMIX_OVL: Overload at the mixer (phase sensitive detector) stage of the voltage input.}\
+      {R_OVER: Resistance range overload.}\
+      {R_UNDER: Resistance range underload (equivalent of R. OVER in the negative direction) normally a result of improper lead wiring.}\
+      {T_OVER: Measured resistance is outside of the temperature response curve on the high temperature end.}\
+      {T_UNDER: Measured resistance is outside of the temperature response curve on the low temperature end.}\
+    } \n\n]
+
+    bind $f.status <ButtonPress> "tk_messageBox -type ok -message \"$help\""
 
     ######
     # Input settings frame
@@ -514,7 +551,7 @@ itcl::class ChanPanel {
     mk_entry $f.curve  [itcl::scope curve] "Temperature curve: "
 
     bind $f.dwell_l <ButtonPress> {
-     tk_messageBox -message "How long the value is measured in autoscan mode: 1..200s"}
+     tk_messageBox -message "How long the value is measured in autoscan mode: 1..200s. This time starts after pause and filter settle time."}
 
     bind $f.pause_l <ButtonPress> {
      tk_messageBox -message "How long to wait after range or channel change before starting the measurement: 3..200s"}
@@ -604,11 +641,46 @@ itcl::class ChanPanel {
     set arange    [lindex $r 3]
     set exc_on    [lindex $r 4]
 
+    $root.pars.exc.res_range configure -state [expr {$arange? {disabled}:{normal}}]
+
     # Filter
     set r [$dev get_ch_filter $chan]
     set flt_on     [lindex $r 0]
     set flt_time   [lindex $r 1]
     set flt_win    [lindex $r 2]
+
+    # Scan
+    set r [$dev get_scan]
+    set onscan [expr {[lindex $r 0] == $chan ? {Scanning...}:{}}]
+  }
+
+  # measurement
+  method measure {} {
+
+    # Measured values
+    set res [$dev get_ch_res  $chan]
+    set temp [$dev get_ch_temp $chan]
+    set pwr [$dev get_ch_pwr  $chan]
+
+    # status
+    set status {}
+    foreach s [$dev get_ch_status $chan] {
+      lappend status [lindex [$dev ch_status_list] $s]
+    }
+    set status [join $status { }]
+
+    if {$arange} {
+      set r [$dev get_ch_range $chan]
+      set res_range [lindex $r 2]
+    }
+
+    set onscan {Scanning...}
+
+    # do not save values if status has some errors
+    if {$status != {}} return
+
+    set tt [expr {[clock milliseconds]/1000.0}]
+    pl$chan add_data [list $tt $res $temp $pwr]
   }
 
   method write_pars {} {
@@ -619,6 +691,7 @@ itcl::class ChanPanel {
     read_pars
   }
 
+
 }
 
 
@@ -627,13 +700,28 @@ itcl::class ChanPanel {
 Device $pars(dev)
 set br [LakeShore370AC br#auto $pars(dev)]
 
+# scan panel
+set autoscan 0
+set chan [lindex [$br get_scan] 0]
 
-ScanPanel sc_pan .scan $br
-pack .scan -fill y -expand 1 -side left
+frame .scan
+foreach ch [$br chan_list] {
+  radiobutton .scan.ch$ch -text $ch -variable chan\
+    -value $ch -command "switch_chan $ch"
+  grid .scan.ch$ch -sticky w
+}
+mk_check .scan.auto autoscan "scan"
 
-blt::tabset .tabs -selectcommand {[.tabs get active] read_pars}
-pack .tabs -fill both -expand 1
+# tabset
+blt::tabset .tabs -selectcommand {[.tabs get select] read_pars}
 
+grid .scan -column 0 -row 0 -sticky ewn
+grid .tabs -column 1 -row 0 -sticky ewsn
+grid columnconfigure . 0 -weight 0
+grid columnconfigure . 1 -weight 1
+grid rowconfigure    . 0 -weight 1
+
+# build channel panels
 foreach ch [$br chan_list] {
   ChanPanel ch_pan$ch .tabs.ch$ch $br $ch
   .tabs insert end ch_pan$ch -window .tabs.ch$ch\
@@ -650,8 +738,48 @@ CurvePanel crv_pan .tabs.crv $br
 .tabs insert end crv_pan -window .tabs.crv\
    -anchor n -text Curves -fill both -padx 3 -pady 3
 
+# set autoscan to 0
+set r [$br get_scan]
+lset r 1 0
+$br set_scan {*}$r
+
 # update visible panels
 ch_pan1 read_pars
 
-sc_pan read_pars
+proc on_meas_e {} {
+  if {[catch on_meas]} {
+    ## TODO: statusline
+    puts "err: $::errorInfo"
+    return
+  }
+}
+
+proc on_meas {} {
+  # scanned channel
+  global br
+  set ch [lindex [$br get_scan] 0]
+
+  # current tab
+  set tab [.tabs get select]
+
+  global ch_pan$ch
+  ch_pan$ch measure
+}
+
+proc switch_chan {ch} {
+  global br chan
+  set old [lindex [$br get_scan] 0]
+  $br set_scan $ch 0
+  ch_pan$old configure -onscan ""
+}
+
+# monitor
+Monitor m {} -name $pars(name) -period 1\
+   -func_meas on_meas_e\
+   -func_start {} -func_stop {}
+
+m restart; # start measurements
+
+wm protocol . WM_DELETE_WINDOW { m do_exit }
+
 
