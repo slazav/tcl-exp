@@ -190,6 +190,7 @@ itcl::class Monitor {
   ## run a command, catch error
   ## return 1 (success) or 0 (fail)
   method run_cmd {cmd} {
+    if {$cmd == {}} return {}
     if {![catch {set ret [$cmd]}]} {
       # Note that non-zero ::errorInfo can come
       # from some catched errors inside $cmd
@@ -205,6 +206,7 @@ itcl::class Monitor {
     if {$onoff && !$is_opened} {
       set is_opened 1
       set_status "Starting the measurement, opening devices..."
+      set ::errorInfo {}
       run_cmd $func_start
       if {$::errorInfo != {}} {
         set is_opened 0
@@ -217,6 +219,7 @@ itcl::class Monitor {
     # Close devices and return if checkbox was switched
     if {!$onoff || $exit_fl} {
       # stop do not modify status to keep previous message if any
+      set ::errorInfo {}
       run_cmd $func_stop
       if {$::errorInfo != {}} {
         set_status "Error while stopping: $::errorInfo" red
@@ -228,6 +231,7 @@ itcl::class Monitor {
 
     # Do the measurement
     set_status "Measuring..."
+    set ::errorInfo {}
     run_cmd $func_meas
 
     # Set up the next iteration
