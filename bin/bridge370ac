@@ -7,12 +7,14 @@ package require itcl;
 source ../exp_tcl/widgets.tcl
 source ../exp_tcl/timeplot.tcl
 source ../exp_tcl/monitor.tcl
+source ../exp_tcl/statusbar.tcl
 
 ##########################################################################
 ## read parameters from configuration file
 
 set default_pars {
   name         {Resistance bridge}  {program name}
+  period       0.5        {measurement period, s}
   dev          {bridge}   {LakeShore device device}
 }
 
@@ -40,9 +42,7 @@ itcl::class LakeShore370AC {
   ## on the switch option
 
   # list of all channels (depends on the scanner option)
-  method chan_list {} { return [list \
-    1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16\
-  ]}
+  method nchan {} { return 16 }
 
   # channel excitation methods (voltage/current)
   method exc_list {} { return [list\
@@ -413,41 +413,6 @@ itcl::class CurvePanel {
 }
 
 ##########################################################################
-# scan panel
-
-itcl::class ScanPanel {
-  variable dev;
-  variable root;
-  variable ch;
-  variable auto;
-
-  constructor {r d} {
-    set dev $d
-    set root $r
-    frame $root
-
-    foreach ch [$dev chan_list] {
-      radiobutton $root.ch$ch -text $ch -variable [itcl::scope ch]\
-        -value $ch -command "$this switch"
-      grid $root.ch$ch -sticky w
-    }
-    mk_check $r.auto [itcl::scope auto] "scan"
-    set ch 1
-  }
-
-  method switch {} {
-    global pan_ch$ch configure -onscan ""
-    $dev set_scan $ch 0
-  }
-
-  # read device parameters
-  method read_pars {} {
-    set ch [lindex [$dev get_scan] 0]
-  }
-
-}
-
-##########################################################################
 # panel for a single channel parameters
 
 itcl::class ChanPanel {
@@ -460,12 +425,13 @@ itcl::class ChanPanel {
   variable temp 0; # temperature, K
   variable pwr  0; # power, W
   variable status; # channel status (overloads)
-  public variable onscan; # is channel scanned now (text!)
+  variable onscan; # is channel scanned now (text!)
+  variable timer {};  # autoscan timer
 
   # input settings
   variable onoff {};
-  variable dwell {};
-  variable pause {};
+  variable dwell 0;
+  variable pause 3;
   variable curve {};
   variable tempco {};
 
@@ -478,8 +444,11 @@ itcl::class ChanPanel {
 
   # filter
   variable flt_on 0;
-  variable flt_time {}
+  variable flt_time 1;
   variable flt_win  {}
+
+  # display
+  variable displ_name Resistance;
 
   ###################################
   ## constructor: build the interface
@@ -511,6 +480,12 @@ itcl::class ChanPanel {
     grid $root.pars -column 0 -row 0 -sticky ewn
     grid $root.plot -column 1 -row 0 -sticky ewsn
 
+    ######
+    # Display frame
+    set f [frame $root.pars.disp]
+    pack $f -fill x -expand 1 -pady 2
+    mk_combo $f.name [itcl::scope displ_name] "Display: "
+    $f.name configure -values {Resistance Temperature Power}
 
     ######
     # Measured values and status
@@ -559,6 +534,7 @@ itcl::class ChanPanel {
     bind $f.curve_l <ButtonPress> {
      tk_messageBox -message "Thermometer calibration curve: 1..20. No curve: 0"}
 
+
     ######
     # Range and excitation settings
 
@@ -598,6 +574,9 @@ itcl::class ChanPanel {
     button $f.write -text "Write" -command "$this write_pars"
     pack $f.read $f.write -anchor e -side right
 
+    ######
+    # update channel information
+    set onoff [lindex [$dev get_ch_inp $chan] 0]
   }
   ###################################
 
@@ -655,7 +634,8 @@ itcl::class ChanPanel {
   }
 
   # measurement
-  method measure {} {
+  # returns a list [value status color]
+  method measure {{autoscan 0}} {
 
     # Measured values
     set res [$dev get_ch_res  $chan]
@@ -669,18 +649,63 @@ itcl::class ChanPanel {
     }
     set status [join $status { }]
 
+    set old_range $res_range
     if {$arange} {
       set r [$dev get_ch_range $chan]
       set res_range [lindex $r 2]
     }
 
+    if {!$onoff} {return [list OFF OFF red]}
+
     set onscan {Scanning...}
 
-    # do not save values if status has some errors
-    if {$status != {}} return
+    # format display value:
+    if {$displ_name == "Resistance"} {
+      set val $res
+      if     {$res > 1e6}    {set val [format "%7g MOhm" [expr $res/1e6]]}\
+      elseif {$res > 1e3}    {set val [format "%7g kOhm" [expr $res/1e3]]}\
+      elseif {$res > 1 }     {set val "$res Ohm"}\
+      else                   {set val [format "%7g mOhm" [expr $res*1e3]]}
+    } elseif {$displ_name == "Temperature"} {
+      if     {$temp > 1}     {set val "$temp K"}\
+      else                   {set val [format "%7g mK" [expr $temp*1e3]]}
+    } elseif {$displ_name == "Power"} {
+      if     {$pwr > 1}      {set val "$pwr W"}\
+      elseif {$pwr > 1e-3}   {set val [format "%7g mW" [expr $pwr*1e3]]}\
+      elseif {$pwr > 1e-6}   {set val [format "%7g uW" [expr $pwr*1e6]]}\
+      elseif {$pwr > 1e-9}   {set val [format "%7g nW" [expr $pwr*1e9]]}\
+      elseif {$pwr > 1e-12}  {set val [format "%7g pW" [expr $pwr*1e12]]}\
+      else                   {set val [format "%7g fW" [expr $pwr*1e15]]}
+    }
+
+    # Wait before recording measurement value
+    set del $pause
+    if {$flt_on} {set del [expr $del+$flt_time]}
+    if {$autoscan} {set del [expr $del+$dwell]}
+
+    if {$timer == {} ||
+        $old_range != $res_range} {set timer [clock seconds]}
+
+    set dt [expr "$timer - [clock seconds] + $del"]
+
+    if {$dt>0} { return [list $val "Wait: ${dt}s" #606000] }
+
+
+    # Do not save values if status has some errors
+    if {$status != {}} {
+      set timer {}
+      return [list Error $status red]
+    }
 
     set tt [expr {[clock milliseconds]/1000.0}]
     pl$chan add_data [list $tt $res $temp $pwr]
+
+    return [list $val OK green]
+  }
+
+  method stop_meas {} {
+    set onscan {}
+    set timer {}
   }
 
   method write_pars {} {
@@ -689,44 +714,65 @@ itcl::class ChanPanel {
     $dev set_ch_filter $chan $flt_on $flt_time $flt_win
     after 50
     read_pars
+    stop_meas
   }
 
-
+  method is_on {} {return $onoff}
 }
 
+
+##########################################################################
+
+# disable non-working channels
+proc update_ch_states {} {
+  global br
+  for {set ch 1} {$ch <= [$br nchan]} {incr ch} {
+    set st [expr {[ch_pan$ch is_on]? {normal}:{disabled}}]
+    .scan.ch$ch configure -state $st
+  }
+}
 
 ##########################################################################
 
 Device $pars(dev)
 set br [LakeShore370AC br#auto $pars(dev)]
 
-# scan panel
-set autoscan 0
-set chan [lindex [$br get_scan] 0]
+set autoscan 0; # software autoscan mode
+set r [$br get_scan]
+set chan [lindex $r 0]
+# set hardware autoscan to 0
+lset r 1 0
+$br set_scan {*}$r
 
-frame .scan
-foreach ch [$br chan_list] {
-  radiobutton .scan.ch$ch -text $ch -variable chan\
-    -value $ch -command "switch_chan $ch"
-  grid .scan.ch$ch -sticky w
-}
-mk_check .scan.auto autoscan "scan"
 
 # tabset
 blt::tabset .tabs -selectcommand {[.tabs get select] read_pars}
+
+# scan panel
+frame .scan
+
+for {set ch 1} {$ch <= [$br nchan]} {incr ch} {
+  # channel panel
+  ChanPanel ch_pan$ch .tabs.ch$ch $br $ch
+  .tabs insert end ch_pan$ch -window .tabs.ch$ch\
+     -anchor n -text $ch -fill both -padx 3 -pady 3
+
+  # scan panel
+  radiobutton .scan.ch$ch -text $ch -variable chan\
+    -value $ch -command "switch_chan $ch"
+  # width: 7 for number + 1 for space + 4 for units
+  label .scan.l$ch -width 12 -justify left -anchor w
+  grid .scan.ch$ch .scan.l$ch -sticky w
+}
+mk_check .scan.auto autoscan "scan"
+
+update_ch_states
 
 grid .scan -column 0 -row 0 -sticky ewn
 grid .tabs -column 1 -row 0 -sticky ewsn
 grid columnconfigure . 0 -weight 0
 grid columnconfigure . 1 -weight 1
 grid rowconfigure    . 0 -weight 1
-
-# build channel panels
-foreach ch [$br chan_list] {
-  ChanPanel ch_pan$ch .tabs.ch$ch $br $ch
-  .tabs insert end ch_pan$ch -window .tabs.ch$ch\
-     -anchor n -text $ch -fill both -padx 3 -pady 3
-}
 
 # device panel
 DevPanel dev_pan .tabs.dev $br
@@ -738,45 +784,62 @@ CurvePanel crv_pan .tabs.crv $br
 .tabs insert end crv_pan -window .tabs.crv\
    -anchor n -text Curves -fill both -padx 3 -pady 3
 
-# set autoscan to 0
-set r [$br get_scan]
-lset r 1 0
-$br set_scan {*}$r
-
-# update visible panels
+# update visible panel
 ch_pan1 read_pars
 
-proc on_meas_e {} {
-  if {[catch on_meas]} {
-    ## TODO: statusline
-    puts "err: $::errorInfo"
-    return
-  }
-}
 
 proc on_meas {} {
   # scanned channel
   global br
-  set ch [lindex [$br get_scan] 0]
+  global autoscan chan
 
-  # current tab
-  set tab [.tabs get select]
+  # update current channel
+  set chan [lindex [$br get_scan] 0]
 
-  global ch_pan$ch
-  ch_pan$ch measure
+  # disable non-working channels
+  update_ch_states
+
+  # do measurement
+  set ret [ch_pan$chan measure $autoscan]
+  set val [lindex $ret 0]
+  set st  [lindex $ret 1]
+  set col [lindex $ret 2]
+  set sw_ch 1
+  if {[string range $st 0 3] == "Wait"} { set sw_ch 0 }
+
+  m set_status "Measuring CH$chan: $st" $col
+  .scan.l$chan configure -fg $col -text $val
+
+  # find next channel and switch to it
+  if {$autoscan && $sw_ch} {
+    ch_pan$chan stop_meas
+    set ch $chan
+    while {1} {
+      set ch [expr {$ch%([$br nchan]) + 1}]
+      if {[lindex [$br get_ch_inp $ch] 0]} break
+    }
+    set chan $ch
+    $br set_scan $chan 0
+    after 1000
+  }
+
 }
 
 proc switch_chan {ch} {
   global br chan
   set old [lindex [$br get_scan] 0]
   $br set_scan $ch 0
-  ch_pan$old configure -onscan ""
+  ch_pan$old stop_meas
 }
 
+
 # monitor
-Monitor m {} -name $pars(name) -period 1\
-   -func_meas on_meas_e\
-   -func_start {} -func_stop {}
+Monitor m .mon -name $pars(name) -period $pars(period)\
+   -func_meas on_meas\
+   -func_mkint {} -func_start {} -func_stop {}\
+   -show_ctl 0 -show_title 0 -verb 0
+
+grid .mon -columnspan 2 -sticky we
 
 m restart; # start measurements
 

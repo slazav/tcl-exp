@@ -10,26 +10,13 @@
 
 ### TODO:
 
-* statusline for error messages
-
 * fix error with plot scrolling (some strange timeplot error?)
   scrolling can be fixed by switching to "temp vs. pwr" mode and back
 
-* autoscan mode (simulation), use dwell+filter time, counters etc
+* device panel
 
-* process autorange with larger limits ?
-  (do not save values if autorange is on and range is going to be changed)
+* channel and device alarm settings
 
-* device statuses
+* curve panel: read/write curves!
 
-* alarm settings
-
-* curve read/write!
-
-* in scan panel disable channels which are off
-
-* in scan panel show values
-
-* remove "Scanning" flag when switching channel
-
-
+* writing to databases!
