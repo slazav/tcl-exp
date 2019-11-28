@@ -20,7 +20,6 @@ package require xBlt; # options
 
 itcl::class Monitor {
 
-  variable status_text {}; # full text in the status line
   variable onoff;          # on/off switch
   variable is_opened 0;    # are devices opened
   variable exit_fl 0;      # set to 1 to exit the program
@@ -31,6 +30,7 @@ itcl::class Monitor {
   variable func_stop;
   variable func_meas;
   variable func_mkint;
+  variable status_w;
 
   #########################
   ## Configuration parameters. Defaults are set in the constructor
@@ -107,13 +107,8 @@ itcl::class Monitor {
     pack $root.ctl.restart $root.ctl.single $root.ctl.stop -side left -padx 3
     pack $root.ctl.per_v $root.ctl.per_l -side right
 
-    ## status line on the bottom
-    frame $root.st -borderwidth 1 -relief sunken
-    canvas $root.st.lamp -width 10 -height 10
-    label $root.st.text -height 1 
-    bind $root.st.text <ButtonPress> "$this show_status"
-    grid $root.st.lamp $root.st.text -sticky w -padx 3
-    grid columnconfigure $root.st 1 -weight 1
+    ## status bar on the bottom
+    set status_w [StatusBar #auto $root.st]
 
     grid $root.n   -sticky we
     grid $root.u   -sticky wens
@@ -136,54 +131,7 @@ itcl::class Monitor {
   ## set status line and update interface
   method set_status {msg {col black}} {
     if {$root == {}} return
-    set L $root.st.text; # the label widget
-    set status_text $msg
-    # We want to cut one line of the text
-    set n [string first "\n" $msg]
-    if {$n>0} {
-      $L configure -text [string range $msg 0 [expr $n-1]]
-    } else {
-      $L configure -text $msg
-    }
-    $L configure -fg $col
-    update idletasks
-  }
-
-  ##########################
-  # Dialog with full text of the status line
-  # (called when pressing on the status line)
-  method show_status { } {
-    if {[winfo exists .log]} {
-      raise .log
-      return
-    }
-    toplevel .log; #Make the window
-
-    text .log.text -wrap char -width 80 -height 20\
-       -yscrollcommand {.log.yscroll set}
-    scrollbar .log.yscroll -orient vertical \
-        -command [list .log.text yview]
-    button .log.btn -text "Close" -command { destroy .log }
-
-    pack .log.btn -expand 0 -fill x -side bottom
-    pack .log.yscroll -expand 0 -fill y -side right
-    pack .log.text -expand 1 -fill both
-
-    .log.text insert end $status_text
-
-    # highklite some words with colors
-    foreach patt {"Error:" "invoked from within" "while executing"}\
-            col {"red" "green" "green"} {
-      set t 0.0
-      set cnt 0
-      while {1} {
-        set t [.log.text search -exact -count cnt $patt "$t + $cnt chars" end]
-        if {$t == {}} {break}
-        .log.text tag add t$t $t "$t + $cnt chars"
-        .log.text tag configure t$t -foreground $col
-      }
-    }
-
+    $status_w set_status $msg $col
   }
 
   ##########################
@@ -279,12 +227,8 @@ itcl::class Monitor {
   method onoff_btn {v} {
     set onoff $v
     if {$root == {}} return
-    $root.st.lamp delete r
-    if {$onoff} {
-      $root.st.lamp create polygon 1 1 10 5 1 10 -fill "green" -tags r
-    } else {
-      $root.st.lamp create polygon 1 1 1 10 10 10 10 1 -fill "red" -tags r
-    }
+    if {$onoff} { $status_w set_img triangle_right green
+    } else {      $status_w set_img square red }
   }
 
   #########################

@@ -1,6 +1,7 @@
 #!/usr/bin/wish
 
 source ./monitor.tcl
+source ./statusbar.tcl
 
 set err1 0
 
