@@ -17,6 +17,7 @@ package require xBlt; # options
 ##   -func_mkint   make interface function (argument: widget path)
 ##   -show_ctl     show control panel, buttons and period setting (default: 1)
 ##   -show_title   show title panel (default: 1)
+##   -verb         verbosity level (default: 1)
 
 ## All func_* functions can throw errors, return values are ignored
 ## 
@@ -41,6 +42,7 @@ itcl::class Monitor {
   variable name;       # program name
   variable period;     # period setting (sec)
   variable dt;         # actual value (ms)
+  variable verb;       # verbosity level (0,1,...)
 
   #########################
   ## User-supplied functions.
@@ -76,6 +78,7 @@ itcl::class Monitor {
       -func_mkint    func_mkint   {}\
       -show_ctl      show_ctl   1\
       -show_title    show_title 1\
+      -verb          verb       1\
     ]
     xblt::parse_options "monitor" $args $options
 
@@ -166,7 +169,7 @@ itcl::class Monitor {
     # Open devices if needed, return on failure
     if {$onoff && !$is_opened} {
       set is_opened 1
-      set_status "Starting the measurement, opening devices..."
+      if {$verb>0} {set_status "Starting the measurement, opening devices..."}
       set ::errorInfo {}
       run_cmd $func_start
       if {$::errorInfo != {}} {
@@ -191,7 +194,7 @@ itcl::class Monitor {
     }
 
     # Do the measurement
-    set_status "Measuring..."
+    if {$verb>0} {set_status "Measuring..."}
     set ::errorInfo {}
     run_cmd $func_meas
 
@@ -202,7 +205,7 @@ itcl::class Monitor {
       set period [expr {$dt/1000.}]
     }
     if {$::errorInfo == {}} {
-      set_status "Waiting for the next measurement ([expr $dt/1000.0] s)..."
+      if {$verb>0} {set_status "Waiting for the next measurement ([expr $dt/1000.0] s)..."}
     } else {
       set_status "Error: $::errorInfo" red
     }
@@ -215,7 +218,7 @@ itcl::class Monitor {
   method startstop {} {
     if {$is_opened} {return}
     set is_opened 1
-    set_status "Checking devices..."
+    if {$verb>0} {set_status "Checking devices..."}
     run_cmd $func_start
     if {$::errorInfo != {}} {
       set is_opened 0
