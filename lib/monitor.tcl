@@ -16,6 +16,8 @@ package require xBlt; # options
 ##   -func_meas    measure function
 ##   -func_mkint   make interface function (argument: widget path)
 ##   -show_ctl     show control panel, buttons and period setting (default: 1)
+##   -show_title   show title panel (default: 1)
+
 ## All func_* functions can throw errors, return values are ignored
 ## 
 
@@ -71,8 +73,9 @@ itcl::class Monitor {
       -func_start    func_start   def_func_start\
       -func_stop     func_stop    def_func_stop\
       -func_meas     func_meas    def_func_meas\
-      -func_mkint    func_mkint   def_func_mkint\
-      -show_ctl      show_ctl 1\
+      -func_mkint    func_mkint   {}\
+      -show_ctl      show_ctl   1\
+      -show_title    show_title 1\
     ]
     xblt::parse_options "monitor" $args $options
 
@@ -84,13 +87,19 @@ itcl::class Monitor {
     ## interface
     # title frame
     frame $root
-    frame $root.n
-    label $root.n.name -text "$name" -font {-size 14}
-    pack $root.n.name -side left -padx 10
+
+    # title frame
+    if {$show_title} {
+      frame $root.n
+      label $root.n.name -text "$name" -font {-size 14}
+      pack $root.n.name -side left -padx 10
+    }
 
     # user frame
-    frame $root.u
-    $func_mkint $root.u
+    if {$func_mkint != {}} {
+      frame $root.u
+      $func_mkint $root.u
+    }
 
     # control frame
     if {$show_ctl} {
@@ -114,9 +123,9 @@ itcl::class Monitor {
     ## status bar on the bottom
     set status_w [StatusBar #auto $root.st]
 
-    grid $root.n   -sticky we
-    grid $root.u   -sticky wens
-    if {$show_ctl} {grid $root.ctl -sticky we}
+    if {$show_title}       {grid $root.n   -sticky we}
+    if {$func_mkint != {}} {grid $root.u   -sticky wens}
+    if {$show_ctl}         {grid $root.ctl -sticky we}
     grid $root.st  -sticky we
     grid rowconfigure $root 1 -weight 1
     grid columnconfigure $root 0 -weight 1

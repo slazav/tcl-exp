@@ -1,0 +1,29 @@
+#!/usr/bin/wish
+
+# example this externally-build interface, without using a mkint function.
+
+source ./monitor.tcl
+source ./statusbar.tcl
+
+set err1 0
+
+# redefine measure commend
+proc meas {} {
+  puts "Measure"
+  after 1000
+  if {$::err1} {error "can't measure: error checkbox is set!\
+      It should be a really long error message to test how is it\
+      displayed in the status line of the program..."}
+}
+
+checkbutton .e1 -text "measurement error" -variable ::err1
+pack .e1 -anchor w -expand 1 -fill both
+
+Monitor m .m -name {Monitor test} -period 10\
+   -func_meas meas -show_title 0
+
+pack .m -expand 0
+wm protocol . WM_DELETE_WINDOW { m do_exit }
+wm geometry . 300x100
+
+ m startstop
