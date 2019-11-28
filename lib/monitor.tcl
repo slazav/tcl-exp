@@ -14,7 +14,8 @@ package require xBlt; # options
 ##   -func_start   start function
 ##   -func_stop    stop function
 ##   -func_meas    measure function
-##   -func_mkint   make interface function (argumentL: widget path)
+##   -func_mkint   make interface function (argument: widget path)
+##   -show_ctl     show control panel, buttons and period setting (default: 1)
 ## All func_* functions can throw errors, return values are ignored
 ## 
 
@@ -30,6 +31,7 @@ itcl::class Monitor {
   variable func_stop;
   variable func_meas;
   variable func_mkint;
+  # status widget
   variable status_w;
 
   #########################
@@ -70,6 +72,7 @@ itcl::class Monitor {
       -func_stop     func_stop    def_func_stop\
       -func_meas     func_meas    def_func_meas\
       -func_mkint    func_mkint   def_func_mkint\
+      -show_ctl      show_ctl 1\
     ]
     xblt::parse_options "monitor" $args $options
 
@@ -90,29 +93,30 @@ itcl::class Monitor {
     $func_mkint $root.u
 
     # control frame
-    frame $root.ctl
-    button $root.ctl.restart -text "(re)start"\
-      -pady 0 -padx 2 -bd 1 -relief raised\
-      -command "$this restart"
-    button $root.ctl.single -text "single"\
-      -pady 0 -padx 2 -bd 1 -relief raised\
-      -command "$this single"
-    button $root.ctl.stop -text "stop"\
-      -pady 0 -padx 2 -bd 1 -relief raised\
-      -command "$this stop"
-    label       $root.ctl.per_l -padx 10 -text "period (sec):"
-    entry       $root.ctl.per_v -width 6 -textvariable [itcl::scope period]\
-                -vcmd "$this validate_period %W %s %P" -validate {key}
-
-    pack $root.ctl.restart $root.ctl.single $root.ctl.stop -side left -padx 3
-    pack $root.ctl.per_v $root.ctl.per_l -side right
+    if {$show_ctl} {
+      frame $root.ctl
+      button $root.ctl.restart -text "(re)start"\
+        -pady 0 -padx 2 -bd 1 -relief raised\
+        -command "$this restart"
+      button $root.ctl.single -text "single"\
+        -pady 0 -padx 2 -bd 1 -relief raised\
+        -command "$this single"
+      button $root.ctl.stop -text "stop"\
+        -pady 0 -padx 2 -bd 1 -relief raised\
+        -command "$this stop"
+      label       $root.ctl.per_l -padx 10 -text "period (sec):"
+      entry       $root.ctl.per_v -width 6 -textvariable [itcl::scope period]\
+                  -vcmd "$this validate_period %W %s %P" -validate {key}
+      pack $root.ctl.restart $root.ctl.single $root.ctl.stop -side left -padx 3
+      pack $root.ctl.per_v $root.ctl.per_l -side right
+    }
 
     ## status bar on the bottom
     set status_w [StatusBar #auto $root.st]
 
     grid $root.n   -sticky we
     grid $root.u   -sticky wens
-    grid $root.ctl -sticky we
+    if {$show_ctl} {grid $root.ctl -sticky we}
     grid $root.st  -sticky we
     grid rowconfigure $root 1 -weight 1
     grid columnconfigure $root 0 -weight 1
