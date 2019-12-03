@@ -224,6 +224,8 @@ itcl::class GenInt {
   public variable ph2 {}
   public variable estate 0
   public variable cstate 0
+  public variable bestate 0
+  public variable bcstate 0
 
   public variable egain 0
   public variable cgain 0
@@ -249,7 +251,9 @@ itcl::class GenInt {
 
     checkbutton $widget.estate -text "Excitation ON"\
        -variable [itcl::scope estate] -command "$this switch_exc"
-    grid $widget.estate -padx 5 -pady 2 -sticky w -columnspan 2
+    checkbutton $widget.bestate -text "Burst"\
+       -variable [itcl::scope bestate] -command "$this switch_burst_exc"
+    grid $widget.estate $widget.bestate -padx 5 -pady 2 -sticky w -columnspan 1
 
 
     # Compensation/Comp.phase spinboxes
@@ -265,7 +269,9 @@ itcl::class GenInt {
 
     checkbutton $widget.cstate -text "Compensation ON"\
        -variable [itcl::scope cstate] -command "$this switch_comp"
-    grid $widget.cstate -padx 5 -pady 2 -sticky w -columnspan 2
+    checkbutton $widget.bcstate -text "Burst"\
+       -variable [itcl::scope bcstate] -command "$this switch_burst_comp"
+    grid $widget.cstate  $widget.bcstate -padx 5 -pady 2 -sticky w -columnspan 1
 
 
     # Apply/Update buttons
@@ -361,6 +367,8 @@ itcl::class GenInt {
     set ph2   [format "%.4f" [$dev cmd "SOUR2:PHAS?"]]
     set estate [$dev cmd "OUTP1?"]
     set cstate [$dev cmd "OUTP2?"]
+    set bestate [$dev cmd "SOUR1:BURST?"]
+    set bcstate [$dev cmd "SOUR2:BURST?"]
   }
 
   method measure {} {
@@ -378,10 +386,22 @@ itcl::class GenInt {
     if {$v != {}} {set estate $v}
     $dev cmd OUTP1 [expr "$estate?ON:OFF"]
   }
+  method switch_burst_exc { {v {}} } {
+    if {[info command $dev] == {}} return
+    if {$v != {}} {set bestate $v}
+    $dev cmd SOUR1:BURST:STATE "$bestate"
+    $dev cmd SOUR1:BURST:MODE "TRIG"
+  }
   method switch_comp { {v {}} } {
     if {[info command $dev] == {}} return
     if {$v != {}} {set cstate $v}
     $dev cmd OUTP2 [expr "$cstate?ON:OFF"]
+  }
+  method switch_burst_comp { {v {}} } {
+    if {[info command $dev] == {}} return
+    if {$v != {}} {set bcstate $v}
+    $dev cmd SOUR2:BURST:STATE "$bcstate"
+    $dev cmd SOUR2:BURST:MODE "TRIG"
   }
 
   method fix_phase {ph} { return [expr $ph-int($ph/360.0)*360] }
