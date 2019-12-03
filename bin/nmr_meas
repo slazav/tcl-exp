@@ -482,7 +482,7 @@ itcl::class FreqInt {
   variable btnlist {}
 
   public variable fmin $::pars(gen_fmin)
-  public variable fmax $::pars(gen_fmin)
+  public variable fmax $::pars(gen_fmax)
   public variable npt  $::pars(gen_npt)
 
   public variable gen_int {}
