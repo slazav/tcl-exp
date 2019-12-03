@@ -100,18 +100,25 @@ itcl::class LockinInt {
 
   method get_widget {} {return $widget}
 
+  method widget_state_ {w s} {
+    if $s {set s_ttk !disabled; set s_tk normal} \
+     else {set s_ttk disabled; set s_tk disabled}
+    foreach w {range tconst} {$widget.$w state $s_ttk}
+    foreach w {range_l tconst_l val status ubtn} {widget_state $widget.$w $s_tk}
+  }
+
   # open devices
   method on {} {
     if {$dev == {}} { set dev [DeviceRole $dev_name gauge] }
     update
-    widget_state $widget normal
+    widget_state_ $widget 1
   }
 
   # release opened devices
   method off {} {
     if {$dev != {}} { itcl::delete object $dev }
     set dev {}
-    widget_state $widget disabled
+    widget_state_ $widget 0
   }
 
   # write settings to lock-in device
@@ -140,6 +147,7 @@ itcl::class LockinInt {
   method update_val {} {
     if {$dev == {}} return
     set value    [$dev get]
+    if {$dev == {}} return
     set status   [$dev get_status]
     set x [lindex $value 0]
     set y [lindex $value 1]
@@ -185,6 +193,7 @@ itcl::class LockinInt {
   }
 
   method wait_lock {} {
+    if {$dev == {}} return
     set s [$dev get_status]
     set t 2000
     set dt 10
@@ -271,7 +280,7 @@ itcl::class GenInt {
        -variable [itcl::scope cstate] -command "$this switch_comp"
     checkbutton $widget.bcstate -text "Burst"\
        -variable [itcl::scope bcstate] -command "$this switch_burst_comp"
-    grid $widget.cstate  $widget.bcstate -padx 5 -pady 2 -sticky w -columnspan 1
+    grid $widget.cstate $widget.bcstate -padx 5 -pady 2 -sticky w -columnspan 1
 
 
     # Apply/Update buttons
@@ -580,6 +589,8 @@ itcl::class FreqInt {
   variable run_npt 0
   variable run_i
   variable run_handler {}
+  variable switch_e 0
+  variable switch_c 0
 
   # start the measurement
   method run {} {
@@ -599,6 +610,8 @@ itcl::class FreqInt {
     after cancel $run_handler
     widget_state [gen_int get_widget] disabled
     setfre_plot clear
+    set switch_e [$gen_int cget -estate]
+    set switch_c [$gen_int cget -cstate]
     $gen_int switch_exc  1
     $gen_int switch_comp 0
     $gen_int configure -fre $run_f1
@@ -630,12 +643,14 @@ itcl::class FreqInt {
 
   # stop the measurements
   method stop {} {
+    if { $run_handler == {} } return
     after cancel $run_handler
     set run_npt 0
     widget_state [gen_int get_widget] normal
     if {$run_of != {}} {$gen_int configure -fre $run_of}
+    $gen_int switch_exc  $switch_e
+    $gen_int switch_comp $switch_c
     $gen_int apply_exc
-    $gen_int switch_comp 1
   }
 
   # finish the measurement (do fits)
@@ -712,6 +727,7 @@ proc on {} {
 }
 
 proc off {} {
+  fre_int stop
   lockin_int off
   gen_int off
   fre_int off
