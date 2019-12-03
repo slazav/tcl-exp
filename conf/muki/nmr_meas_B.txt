@@ -1,0 +1,17 @@
+# configuration for nmr_meas
+
+name           {nmrB lockin2}   {program name}
+
+gauge_dev      {lockin2:XY}     {Lock-in device name}
+
+gen_dev        {dgen2}          {2-ch generator}
+gen_fmin       0.975e6          {generator min freq, Hz}
+gen_fmax       1.0e6            {generator max freq, Hz}
+gen_npt        25               {generator number of points}
+
+db_dev         db_exp           {db device}
+db_nmr_lockin  muki_nmrB_lockin {database for nmr lockin parameters (range, tconst)}
+db_nmr_gen     muki_nmrB_gen    {database for nmr generator parameters (exc_amp, exc_ph, comp_amp, comp_ph)}
+db_nmr_cal     muki_nmrB_cal    {database for nmr calibration (exc_gain, exc_turn, comp_gain, comp_turn)}
+db_nmr_res     muki_nmrB_res    {database for nmr resonance curves (fre x y)}
+db_nmr_q       muki_nmrB_q      {database for nmr reasured resonance parameters (fre q)}

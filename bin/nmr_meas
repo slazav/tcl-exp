@@ -21,18 +21,30 @@ set Device::sync 1
 
 ### parameters
 
-set par_list [list \
-  gen_dev   {dgen2}   {2-ch generator}\
-  gauge_dev {dosc1:lockin:XY} {Lock-in device name}\
-  db_dev         db_exp      {db device}\
-  db_nmr_lockin  muki_nmr_lockin {database for nmr lockin parameters (range, tconst)}\
-  db_nmr_gen     muki_nmr_gen    {database for nmr generator parameters (exc_amp, exc_ph, comp_amp, comp_ph)}\
-  db_nmr_cal     muki_nmr_cal    {database for nmr calibration (exc_gain, exc_turn, comp_gain, comp_turn)}\
-  db_nmr_res     muki_nmr_res    {database for nmr resonance curves (fre x y)}\
-  db_nmr_q       muki_nmr_q      {database for nmr reasured resonance parameters (fre q)}\
-]
+set default_pars {
+  name           {Default} {program name}
+  gauge_dev      {TEST}    {Lock-in device name}
+  gen_dev        {TEST}    {2-ch generator}
+  gen_fmin       1e5       {generator min freq, Hz}
+  gen_fmax       2e6       {generator max freq, Hz}
+  gen_npt        25        {generator number of points}
+  db_dev         {}        {db device}
+  db_nmr_lockin  {}        {database for nmr lockin parameters (range, tconst)}
+  db_nmr_gen     {}        {database for nmr generator parameters (exc_amp, exc_ph, comp_amp, comp_ph)}
+  db_nmr_cal     {}        {database for nmr calibration (exc_gain, exc_turn, comp_gain, comp_turn)}
+  db_nmr_res     {}        {database for nmr resonance curves (fre x y)}
+  db_nmr_q       {}        {database for nmr reasured resonance parameters (fre q)}
+}
 
-foreach {name def title} $par_list { set pars($name) $def }
+#foreach {name def title} $par_list { set pars($name) $def }
+if {[llength $argv]>0 } {
+  read_conf [lindex $argv 0] pars $default_pars
+}\
+else {
+  foreach {name def title} $default_pars { set pars($name) $def }
+}
+
+tk appname "nmr_meas: $pars(name)"
 
 set state 0
 
@@ -468,9 +480,9 @@ itcl::class FreqInt {
   variable widget {};
   variable btnlist {}
 
-  public variable fmin 0.1e6
-  public variable fmax 1.8e6
-  public variable npt  200
+  public variable fmin $::pars(gen_fmin)
+  public variable fmax $::pars(gen_fmin)
+  public variable npt  $::pars(gen_npt)
 
   public variable gen_int {}
   public variable lockin_int {}
