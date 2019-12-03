@@ -23,6 +23,8 @@ set Device::sync 1
 
 set default_pars {
   name           {Default} {program name}
+  onoff          0         {initial state of main switch}
+  loop           0         {initial state of lock-in loop}
   gauge_dev      {TEST}    {Lock-in device name}
   gen_dev        {TEST}    {2-ch generator}
   gen_fmin       1e5       {generator min freq, Hz}
@@ -46,7 +48,6 @@ else {
 
 tk appname "nmr_meas: $pars(name)"
 
-set state 0
 
 ##########################################################
 # lock-in interface
@@ -717,6 +718,7 @@ grid .f -padx 5 -sticky new -column 2 -row 1 -rowspan 2
 checkbutton .oo -text "on/off" -variable ::state -command {set_state $::state}
 grid .oo -sticky w -row 3 -columnspan 2
 
+set_state $pars(onoff)
 
 proc loop {} {
   lockin_int update_val
@@ -724,4 +726,4 @@ proc loop {} {
   after 1000 loop
 }
 
-loop
+if $pars(loop) loop

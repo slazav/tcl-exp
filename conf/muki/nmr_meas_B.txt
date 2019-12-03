@@ -1,6 +1,8 @@
 # configuration for nmr_meas
 
 name           {nmrB lockin2}   {program name}
+onoff          1                {initial state of main switch}
+loop           0                {state of lock-in loop}
 
 gauge_dev      {lockin2:XY}     {Lock-in device name}
 
