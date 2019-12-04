@@ -25,8 +25,8 @@ set default_pars {
   name           {Default} {program name}
   onoff          0         {initial state of main switch}
   loop           0         {initial state of lock-in loop}
-  gauge_dev      {TEST}    {Lock-in device name}
-  gen_dev        {TEST}    {2-ch generator}
+  gauge_dev      {}        {Lock-in device name}
+  gen_dev        {}        {2-ch generator}
   gen_fmin       1e5       {generator min freq, Hz}
   gen_fmax       2e6       {generator max freq, Hz}
   gen_npt        25        {generator number of points}
@@ -109,6 +109,7 @@ itcl::class LockinInt {
 
   # open devices
   method on {} {
+    if {$dev_name == {}} { error "gauge_dev is empty" }
     if {$dev == {}} { set dev [DeviceRole $dev_name gauge] }
     update
     widget_state_ $widget 1
@@ -312,6 +313,7 @@ itcl::class GenInt {
   method get_widget {} {return $widget}
 
   method on {} {
+    if {$dev == {}} { error "gen_dev is empty" }
     if {[info command $dev] == {}}  { Device $dev }
     $dev cmd SOUR1:VOLT:UNIT VPP
     $dev cmd SOUR2:VOLT:UNIT VPP
@@ -735,7 +737,7 @@ proc off {} {
 
 ##########################################################
 
-Device $pars(db_dev)
+if {$pars(db_dev) != {}} {Device $pars(db_dev)}
 
 ## make interface
 LockinInt lockin_int $pars(gauge_dev) .l
