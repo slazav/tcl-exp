@@ -520,7 +520,7 @@ itcl::class ChanPanel {
 
     set f [labelframe $root.pars.inp -text "Input settings"]
     pack $f -fill x -expand 1 -pady 2
-    mk_check $f.arange [itcl::scope onoff] "channel ON/OFF"
+    mk_check $f.onoff  [itcl::scope onoff] "channel ON/OFF"
     mk_entry $f.dwell  [itcl::scope dwell] "Scanner dwell time, s: "
     mk_entry $f.pause  [itcl::scope pause] "Pause time, s: "
     mk_entry $f.curve  [itcl::scope curve] "Temperature curve: "
@@ -619,8 +619,6 @@ itcl::class ChanPanel {
     set res_range [lindex $r 2]
     set arange    [lindex $r 3]
     set exc_on    [lindex $r 4]
-
-    $root.pars.exc.res_range configure -state [expr {$arange? {disabled}:{normal}}]
 
     # Filter
     set r [$dev get_ch_filter $chan]
