@@ -653,7 +653,7 @@ itcl::class ChanPanel {
       set res_range [lindex $r 2]
     }
 
-    if {!$onoff} {return [list OFF OFF red]}
+    if {!$onoff} {return [list {} OFF red]}
 
     set onscan {Scanning...}
 
@@ -721,12 +721,17 @@ itcl::class ChanPanel {
 
 ##########################################################################
 
-# disable non-working channels
+# go through all channels, disable non-working ones
 proc update_ch_states {} {
   global br
   for {set ch 1} {$ch <= [$br nchan]} {incr ch} {
-    set st [expr {[ch_pan$ch is_on]? {normal}:{disabled}}]
-    .scan.ch$ch configure -state $st
+    if {[ch_pan$ch is_on]} {
+      .scan.ch$ch configure -state normal
+    }\
+    else {
+      .scan.ch$ch configure -state disabled
+      .scan.l$ch configure -text {}
+    }
   }
 }
 
