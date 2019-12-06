@@ -164,7 +164,7 @@ itcl::class LockinInt {
 
   # same but with waiting
   method update_val_w {} {
-    after [expr int($tconst*1000)] $this update_val
+    after [expr 2*int($tconst*1000)] $this update_val
   }
 
   # silent measurement with autorange
