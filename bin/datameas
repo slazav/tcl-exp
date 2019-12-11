@@ -9,8 +9,8 @@ package require Exp;  # timeplot, monitor
 set default_pars {
   name         {Default}  {program name}
   period       {1.0}      {measurement period}
-  onoff        0          {inital state of main switch}
-  save         0          {inital state of save switch}
+  onoff        0          {initial state of main switch}
+  save         0          {initial state of save switch}
   gauge_dev    {TEST}     {gauge device}
   db_dev       {}         {database device}
   db_name      {}         {database name}
