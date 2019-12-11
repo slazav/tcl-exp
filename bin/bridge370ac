@@ -12,10 +12,18 @@ source ../exp_tcl/statusbar.tcl
 ##########################################################################
 ## read parameters from configuration file
 
+set scan_modes {{OFF} {Measure single channel} {Scan all channels} {Scan and Measure}}
+
 set default_pars {
   name         {Resistance bridge}  {program name}
   period       0.5        {measurement period, s}
-  dev          {bridge}   {LakeShore device device}
+  dev          {bridge}   {LakeShore device}
+  chnames      {{1K pot} {20mK} {h.e.#2} {h.e.#4}\
+                {h.e.#6} {h.e.#8} {h.e.#10} {Mix.Ch.}\
+                {1K PT1000} {Still} {20mK PT1000} {20mk shield}\
+                {Mix. SMB conn} {Mix. conn} {Mix PT1000} {Mix Speer} } {Channel names (instead of 1,2,3 etc)}
+  scanmode     {Scan all channels} {Original value of scanmode switch}
+  mchan        {1} {Original value of measured channel switch}
 }
 
 if {[llength $argv]>0 } {
@@ -198,6 +206,18 @@ itcl::class LakeShore370AC {
     if {$curve < 0 || $curve > 20} {
       error "set_ch_inp: wrong curve setting: $curve"}
     $dev cmd "INSET $chan, $onoff, $dwell, $pause, $curve, $tempco"
+  }
+
+  # is channel on?
+  method is_ch_on {chan} {
+    return [lindex [get_ch_inp $chan] 0]
+  }
+
+  # switch channel on/off
+  method ch_onoff {chan val} {
+    set r [get_ch_inp $chan]
+    lset r 0 [expr {$val? 1:0}]
+    set_ch_inp $chan {*}$r
   }
 
 
@@ -464,7 +484,7 @@ itcl::class ChanPanel {
     TimePlot pl$chan $root.plot\
       -ncols 3\
       -maxn 0\
-      -maxt 1000\
+      -maxt 100000\
       -names {res temp pwr}\
       -titles {Resistance Temperature Power}\
       -plots_x {time pwr res}\
@@ -486,6 +506,9 @@ itcl::class ChanPanel {
     pack $f -fill x -expand 1 -pady 2
     mk_combo $f.name [itcl::scope displ_name] "Display: "
     $f.name configure -values {Resistance Temperature Power}
+
+    mk_check $f.onoff  [itcl::scope onoff] "channel ON/OFF"
+    $f.onoff configure -command "$this onoff"
 
     ######
     # Measured values and status
@@ -520,7 +543,6 @@ itcl::class ChanPanel {
 
     set f [labelframe $root.pars.inp -text "Input settings"]
     pack $f -fill x -expand 1 -pady 2
-    mk_check $f.onoff  [itcl::scope onoff] "channel ON/OFF"
     mk_entry $f.dwell  [itcl::scope dwell] "Scanner dwell time, s: "
     mk_entry $f.pause  [itcl::scope pause] "Pause time, s: "
     mk_entry $f.curve  [itcl::scope curve] "Temperature curve: "
@@ -570,8 +592,10 @@ itcl::class ChanPanel {
     set f [frame $root.pars.btn]
     pack $f -fill x -expand 1 -pady 2
 
+    button $f.switch  -text "Switch to channel"  -command "::switch_chan $chan"
     button $f.read  -text "Read"  -command "$this read_pars"
     button $f.write -text "Write" -command "$this write_pars"
+    pack $f.switch -anchor e -side left
     pack $f.read $f.write -anchor e -side right
 
     ######
@@ -716,23 +740,54 @@ itcl::class ChanPanel {
   }
 
   method is_on {} {return $onoff}
+
+  method onoff {{val {}}} {
+    if {$val == {}} {set val $onoff}
+    $dev ch_onoff $chan $val
+    set onoff $val
+  }
 }
 
 
 ##########################################################################
 
-# go through all channels, disable non-working ones
+# this function runs every second to the list using information from
+# individual channels.
 proc update_ch_states {} {
-  global br
+  global br chan
+  global pars
+  set chlist {}
   for {set ch 1} {$ch <= [$br nchan]} {incr ch} {
+
+    # disable non-working channels in the list
     if {[ch_pan$ch is_on]} {
-      .scan.ch$ch configure -state normal
+      .scan.n$ch configure -state normal
+      lappend chlist $ch
     }\
     else {
-      .scan.ch$ch configure -state disabled
-      .scan.l$ch configure -text {}
+      .scan.n$ch configure -state disabled
+      .scan.v$ch configure -text {}
+    }
+
+    # draw icon for currently measured channel
+    if {$ch==$chan} {
+      #.scan.i$ch create polygon 1 1 10 5 1 10 -fill green -tags r
+      .scan.i$ch create polygon 2 2 9 5 2 9 -fill black -tags r
+      #.scan.i$ch create oval 3 3 7 7 -fill black -tags r
+    }\
+    else {
+      .scan.i$ch delete r
     }
   }
+  # update list of channels in Measured channel selector
+  .scan.mchan configure -values $chlist
+
+  # update value in Measured channel selector
+  for {set i 0} {$i<[$br nchan]} {incr i} {
+    if {[$br is_ch_on $pars(mchan)]} break
+    set pars(mchan) [expr {$pars(mchan)%[$br nchan] + 1}]
+  }
+
 }
 
 ##########################################################################
@@ -740,9 +795,9 @@ proc update_ch_states {} {
 Device $pars(dev)
 set br [LakeShore370AC br#auto $pars(dev)]
 
-set autoscan 0; # software autoscan mode
 set r [$br get_scan]
 set chan [lindex $r 0]
+
 # set hardware autoscan to 0
 lset r 1 0
 $br set_scan {*}$r
@@ -755,19 +810,37 @@ blt::tabset .tabs -selectcommand {[.tabs get select] read_pars}
 frame .scan
 
 for {set ch 1} {$ch <= [$br nchan]} {incr ch} {
-  # channel panel
+  # create channel panel
   ChanPanel ch_pan$ch .tabs.ch$ch $br $ch
   .tabs insert end ch_pan$ch -window .tabs.ch$ch\
      -anchor n -text $ch -fill both -padx 3 -pady 3
 
-  # scan panel
-  radiobutton .scan.ch$ch -text $ch -variable chan\
-    -value $ch -command "switch_chan $ch"
-  # width: 7 for number + 1 for space + 4 for units
-  label .scan.l$ch -width 12 -justify left -anchor w
-  grid .scan.ch$ch .scan.l$ch -sticky w
+  # name to show in the scan panel
+  set name "$ch"
+  if {[llength $pars(chnames)] > $ch-1} {
+    set name "$name. [lindex $pars(chnames) [expr $ch-1]]"
+  }
+
+  canvas .scan.i$ch -width 10 -height 10
+  label .scan.n$ch -justify left -anchor w -text $name
+  label .scan.v$ch -width 12 -justify left -anchor w
+  grid .scan.i$ch .scan.n$ch .scan.v$ch -sticky w
+
+  bind .scan.n$ch  <ButtonPress> ".tabs select [expr $ch-1]; .tabs invoke [expr $ch-1]"
+  bind .scan.v$ch   <ButtonPress> ".tabs select [expr $ch-1]; .tabs invoke [expr $ch-1]"
 }
-mk_check .scan.auto autoscan "scan"
+
+frame .scan.hsep -relief groove -borderwidth 1 -height 2
+grid .scan.hsep -columnspan 3 -sticky we -pady 5
+
+label .scan.mode_l -text "Scan mode:"
+ttk::combobox .scan.mode -textvariable pars(scanmode)
+.scan.mode configure -values $scan_modes
+grid x .scan.mode_l .scan.mode -sticky nw
+
+label .scan.mchan_l -text "Measured channel:"
+ttk::combobox .scan.mchan -textvariable pars(mchan) -width 3
+grid x .scan.mchan_l .scan.mchan -sticky nw
 
 update_ch_states
 
@@ -787,14 +860,15 @@ CurvePanel crv_pan .tabs.crv $br
 .tabs insert end crv_pan -window .tabs.crv\
    -anchor n -text Curves -fill both -padx 3 -pady 3
 
-# update visible panel
-ch_pan1 read_pars
-
+# in scan-and-measure mode we want to keep number of previously measured channel
+set prev_chan $chan
 
 proc on_meas {} {
   # scanned channel
   global br
-  global autoscan chan
+  global pars chan
+  global scan_modes
+  global prev_chan
 
   # update current channel
   set chan [lindex [$br get_scan] 0]
@@ -802,26 +876,59 @@ proc on_meas {} {
   # disable non-working channels
   update_ch_states
 
+  # scan mode
+  if {$pars(scanmode) == {OFF}} return
+
+  set autoscan [expr {$pars(scanmode) != {Measure single channel}}]
+
   # do measurement
   set ret [ch_pan$chan measure $autoscan]
   set val [lindex $ret 0]
   set st  [lindex $ret 1]
   set col [lindex $ret 2]
-  set sw_ch 1
-  if {[string range $st 0 3] == "Wait"} { set sw_ch 0 }
+  set wait [expr {[string range $st 0 3] == "Wait"}]
 
   m set_status "Measuring CH$chan: $st" $col
-  .scan.l$chan configure -fg $col -text $val
+  .scan.v$chan configure -fg $col -text $val
 
-  # find next channel and switch to it
-  if {$autoscan && $sw_ch} {
-    ch_pan$chan stop_meas
-    set ch $chan
-    while {1} {
-      set ch [expr {$ch%([$br nchan]) + 1}]
-      if {[lindex [$br get_ch_inp $ch] 0]} break
+  # If wait=true we don't want to switch channels.
+  if {$wait} {return}
+
+  # Find next channel:
+  set next_chan $chan
+  if {$pars(scanmode) == {Measure single channel}} {
+    # In measurement mode it is always $pars(mchan)
+    set next_chan $pars(mchan)
+  }\
+  elseif {$pars(scanmode) == {Scan all channels}} {
+    # In scan mode we should find next available channel
+    set next_chan $chan
+    for {set i 0} {$i<[$br nchan]} {incr i} {
+      set next_chan [expr {$next_chan%([$br nchan]) + 1}]
+      if {[$br is_ch_on $next_chan]} break
     }
-    set chan $ch
+  }\
+  elseif {$pars(scanmode) == {Scan and Measure}} {
+    # In scan-and-measure mode we should switch from $pars(mchan)
+    # to $prev_chan+1 (excluding $pars(mchan)) and then back
+    if {$chan == $pars(mchan)} {
+      set next_chan $prev_chan
+      for {set i 0} {$i<[$br nchan]} {incr i} {
+        set next_chan [expr {$next_chan%([$br nchan]) + 1}]
+        if {$next_chan == $pars(mchan)} continue
+        if {[$br is_ch_on $next_chan]} break
+      }
+    }\
+    else {
+      set prev_chan $chan
+      set next_chan $pars(mchan)
+    }
+  }
+
+  # switch to next channel
+  if {$chan != $next_chan} {
+    ch_pan$chan stop_meas
+    set chan $next_chan
     $br set_scan $chan 0
     after 1000
   }
