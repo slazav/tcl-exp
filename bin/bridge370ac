@@ -632,7 +632,7 @@ itcl::class ChanPanel {
 
     set f [labelframe $root.pars.flt -text "Filter"]
     pack $f -fill x -expand 1 -pady 2
-    mk_check $f.onoff  [itcl::scope flt_on]   "filter ON/OFF"
+    mk_check $f.flt_on [itcl::scope flt_on]   "filter ON/OFF"
     mk_entry $f.settle [itcl::scope flt_time] "Settle time, s: "
     mk_entry $f.window [itcl::scope flt_win]  "Window, \%: "
 
@@ -723,11 +723,26 @@ itcl::class ChanPanel {
     }
     set status [join $status { }]
 
+    # update range
     set old_range $res_range
     if {$arange} {
       set r [$dev get_ch_range $chan]
       set res_range [lindex $r 2]
     }
+
+    # update filter settings
+    set r [$dev get_ch_filter $chan]
+    set flt_on     [lindex $r 0]
+    set flt_time   [lindex $r 1]
+    set flt_win    [lindex $r 2]
+
+    # update input settings
+    set r [$dev get_ch_inp $chan]
+    set onoff  [lindex $r 0]
+    set dwell  [lindex $r 1]
+    set pause  [lindex $r 2]
+    set curve  [lindex $r 3]
+    set tempco [lindex $r 4]
 
     if {!$onoff} {return [list {} OFF red]}
 
