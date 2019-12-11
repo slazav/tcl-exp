@@ -155,6 +155,58 @@ itcl::class LakeShore370AC {
   method get_tst {} { return [expr {[$dev cmd "*TST?"]}] }
 
   ###################################
+  # curve functions
+
+  # trivial save function
+  method save_curve {n fname} {
+    set ff [open $fname {w}]
+    set l [$dev cmd "CRVHDR? $n"]
+    puts $ff [string trimright $l \r\n]
+    for {set i 1} {$i<=200} {incr i} {
+      set l [$dev cmd "CRVPT? $n, $i"]
+      puts $ff [string trimright $l \r\n]
+    }
+    close $ff
+  }
+
+  # save all curves in a directory
+  method save_all_curves {fdir} {
+    for {set n 1} {$n<=20} {incr n} {
+      save_curve $n [format "$fdir/curve_%02d" $n]
+    }
+  }
+
+  # trivial load function, no checks
+  # skip empty lines and lines which start with #
+  method load_curve {n fname} {
+    set ff [open $fname {r}]
+    set l {}
+    while {$l=={} || [string range $l 0 1] == "#"} {
+      set l [gets $ff]
+      if {[eof $ff]} return
+    }
+    $dev cmd "CRVDEL $n"
+    $dev cmd "CRVHDR $n, $l"
+    for {set i 1} {$i<=200} {incr i} {
+      set l {}
+      while {$l=={} || [string range $l 0 1] == "#"} {
+        set l [gets $ff]
+        if {[eof $ff]} return
+      }
+      $dev cmd "CRVPT $n, $i, $l"
+    }
+    close $ff
+  }
+
+  # load all curves from a directory
+  method load_all_curves {fdir} {
+    for {set n 1} {$n<=20} {incr n} {
+      load_curve $n [format "$fdir/curve_%02d" $n]
+    }
+  }
+
+
+  ###################################
   # channel functions
 
   # get resistance reading
