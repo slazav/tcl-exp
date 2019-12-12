@@ -711,6 +711,11 @@ itcl::class ChanPanel {
   # returns a list [value status color]
   method measure {{autoscan 0}} {
 
+    # channel is off
+    if {!$onoff} {return [list {} OFF red]}
+
+    set onscan {Measuring...}
+
     # Measured values
     set res [$dev get_ch_res  $chan]
     set temp [$dev get_ch_temp $chan]
@@ -729,24 +734,6 @@ itcl::class ChanPanel {
       set r [$dev get_ch_range $chan]
       set res_range [lindex $r 2]
     }
-
-    # update filter settings
-    set r [$dev get_ch_filter $chan]
-    set flt_on     [lindex $r 0]
-    set flt_time   [lindex $r 1]
-    set flt_win    [lindex $r 2]
-
-    # update input settings
-    set r [$dev get_ch_inp $chan]
-    set onoff  [lindex $r 0]
-    set dwell  [lindex $r 1]
-    set pause  [lindex $r 2]
-    set curve  [lindex $r 3]
-    set tempco [lindex $r 4]
-
-    if {!$onoff} {return [list {} OFF red]}
-
-    set onscan {Scanning...}
 
     # format display value:
     if {$displ_name == "Resistance"} {
@@ -786,6 +773,8 @@ itcl::class ChanPanel {
       return [list Error $status red]
     }
 
+    # Add timestamp and measured data to the plot
+    # TODO - database
     set tt [expr {[clock milliseconds]/1000.0}]
     pl$chan add_data [list $tt $res $temp $pwr]
 
@@ -830,7 +819,7 @@ $br set_scan {*}$r
 
 
 # tabset
-blt::tabset .tabs -selectcommand {[.tabs get select] read_pars}
+blt::tabset .tabs
 
 # scan panel
 frame .scan
@@ -840,6 +829,9 @@ for {set ch 1} {$ch <= [$br nchan]} {incr ch} {
   ChanPanel ch_pan$ch .tabs.ch$ch $br $ch
   .tabs insert end ch_pan$ch -window .tabs.ch$ch\
      -anchor n -text $ch -fill both -padx 3 -pady 3
+
+  # read parameters from the device
+  ch_pan$ch read_pars
 
   # name to show in the scan panel
   set name "$ch"
@@ -867,12 +859,6 @@ grid x .scan.mode_l .scan.mode -sticky nw
 label .scan.mchan_l -text "Measured channel:"
 ttk::combobox .scan.mchan -textvariable pars(mchan) -width 3
 grid x .scan.mchan_l .scan.mchan -sticky nw
-
-# read channel parameters for currently selected tab.
-# overs will be read on deman, when tab is switched, or
-# read button is pressed. Some parameters are updated
-# during measurement (range, times)
-.tabs invoke select
 
 grid .scan -column 0 -row 0 -sticky ewn
 grid .tabs -column 1 -row 0 -sticky ewsn
