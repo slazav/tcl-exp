@@ -818,47 +818,6 @@ itcl::class ChanPanel {
 
 ##########################################################################
 
-# this function runs every second to the list using information from
-# individual channels.
-proc update_ch_states {} {
-  global br chan
-  global pars
-  set chlist {}
-  for {set ch 1} {$ch <= [$br nchan]} {incr ch} {
-
-    # disable non-working channels in the list
-    if {[ch_pan$ch is_on]} {
-      .scan.n$ch configure -state normal
-      lappend chlist $ch
-    }\
-    else {
-      .scan.n$ch configure -state disabled
-      .scan.v$ch configure -text {}
-    }
-
-    # draw icon for currently measured channel
-    if {$ch==$chan} {
-      #.scan.i$ch create polygon 1 1 10 5 1 10 -fill green -tags r
-      .scan.i$ch create polygon 2 2 9 5 2 9 -fill black -tags r
-      #.scan.i$ch create oval 3 3 7 7 -fill black -tags r
-    }\
-    else {
-      .scan.i$ch delete r
-    }
-  }
-  # update list of channels in Measured channel selector
-  .scan.mchan configure -values $chlist
-
-  # update value in Measured channel selector
-  for {set i 0} {$i<[$br nchan]} {incr i} {
-    if {[$br is_ch_on $pars(mchan)]} break
-    set pars(mchan) [expr {$pars(mchan)%[$br nchan] + 1}]
-  }
-
-}
-
-##########################################################################
-
 Device $pars(dev)
 set br [LakeShore370AC br#auto $pars(dev)]
 
@@ -909,7 +868,11 @@ label .scan.mchan_l -text "Measured channel:"
 ttk::combobox .scan.mchan -textvariable pars(mchan) -width 3
 grid x .scan.mchan_l .scan.mchan -sticky nw
 
-update_ch_states
+# read channel parameters for currently selected tab.
+# overs will be read on deman, when tab is switched, or
+# read button is pressed. Some parameters are updated
+# during measurement (range, times)
+.tabs invoke select
 
 grid .scan -column 0 -row 0 -sticky ewn
 grid .tabs -column 1 -row 0 -sticky ewsn
@@ -937,18 +900,50 @@ proc on_meas {} {
   global scan_modes
   global prev_chan
 
+  # If scan mode == OFF do nothing
+  if {$pars(scanmode) == {OFF}} return
+
+  ##############
   # update current channel
   set chan [lindex [$br get_scan] 0]
 
-  # disable non-working channels
-  update_ch_states
+  ##############
+  # update interface
+  set chlist {}
+  for {set ch 1} {$ch <= [$br nchan]} {incr ch} {
 
-  # scan mode
-  if {$pars(scanmode) == {OFF}} return
+    # disable non-working channels in the list
+    if {[ch_pan$ch is_on]} {
+      .scan.n$ch configure -state normal
+      lappend chlist $ch
+    }\
+    else {
+      .scan.n$ch configure -state disabled
+      .scan.v$ch configure -text {}
+    }
 
-  set autoscan [expr {$pars(scanmode) != {Measure single channel}}]
+    # draw icon for currently measured channel
+    if {$ch==$chan} {
+      #.scan.i$ch create polygon 1 1 10 5 1 10 -fill green -tags r
+      .scan.i$ch create polygon 2 2 9 5 2 9 -fill black -tags r
+      #.scan.i$ch create oval 3 3 7 7 -fill black -tags r
+    }\
+    else {
+      .scan.i$ch delete r
+    }
+  }
+  # update list of channels in Measured channel selector
+  .scan.mchan configure -values $chlist
 
+  # update value in Measured channel selector
+  for {set i 0} {$i<[$br nchan]} {incr i} {
+    if {[$br is_ch_on $pars(mchan)]} break
+    set pars(mchan) [expr {$pars(mchan)%[$br nchan] + 1}]
+  }
+
+  ##############
   # do measurement
+  set autoscan [expr {$pars(scanmode) != {Measure single channel}}]
   set ret [ch_pan$chan measure $autoscan]
   set val [lindex $ret 0]
   set st  [lindex $ret 1]
