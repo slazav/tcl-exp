@@ -9,6 +9,11 @@ source ../exp_tcl/timeplot.tcl
 source ../exp_tcl/monitor.tcl
 source ../exp_tcl/statusbar.tcl
 
+# this is needed to avoid program locking when
+# measurement and curve savind or loading are done
+# at the same time
+set Device::sync 1
+
 ##########################################################################
 ## read parameters from configuration file
 
@@ -24,6 +29,7 @@ set default_pars {
                 {Mix. SMB conn} {Mix. conn} {Mix PT1000} {Mix Speer} } {Channel names (instead of 1,2,3 etc)}
   scanmode     {Scan all channels} {Original value of scanmode switch}
   mchan        {1} {Original value of measured channel switch}
+  curve_dir    {.} {Default directory for calibration curves}
 }
 
 if {[llength $argv]>0 } {
@@ -157,6 +163,27 @@ itcl::class LakeShore370AC {
   ###################################
   # curve functions
 
+  # read header, returns name,serial,
+  method get_crv_hdr {n} {
+    set r [split [$dev cmd CRVHDR? $n] ,]
+    set name   [lindex $r 0]
+    set serial [lindex $r 1]
+    set fmt    [trim_num [lindex $r 2]]
+    set limit  [trim_num [lindex $r 3]]
+    set coeff  [trim_num [lindex $r 4]]
+
+    if     {$fmt == 3} {set fmt "Ohm/K"}\
+    elseif {$fmt == 4} {set fmt "log(Ohm)/K"}\
+    else   {set fmt "Unknown"}
+
+    if     {$coeff == 1} {set coeff "Neg"}\
+    elseif {$coeff == 2} {set coeff "Pos"}\
+    else   {set coeff "Unknown"}
+
+    return [list $name $serial $fmt $limit $coeff]
+  }
+
+
   # trivial save function
   method save_curve {n fname} {
     set ff [open $fname {w}]
@@ -203,6 +230,11 @@ itcl::class LakeShore370AC {
     for {set n 1} {$n<=20} {incr n} {
       load_curve $n [format "$fdir/curve_%02d" $n]
     }
+  }
+
+  # delete a curve from the device
+  method del_curve {n} {
+    $dev cmd "CRVDEL $n"
   }
 
 
@@ -473,15 +505,145 @@ itcl::class DevPanel {
 itcl::class CurvePanel {
   variable dev;
   variable root;
+  variable sel 1; # selected curve
+  variable curve_dir {.}; # default directory for curves
 
-  constructor {r d} {
+  # curve header parameters (arrays)
+  variable name;
+  variable serial;
+  variable fmt;
+  variable limit;
+  variable coeff;
+
+  constructor {r d dir} {
     set dev $d
     set root $r
+    set curve_dir $dir
+
     frame $root
+    set f [labelframe $root.crvs -text "Calibration curves:"]
+    grid $f -sticky w -pady 5
+
+    label $f.num    -text N
+    label $f.name   -text Name -width 15
+    label $f.serial -text Serial -width 10
+    label $f.fmt    -text Format
+    label $f.limit  -text Limit
+    label $f.coeff  -text T.Coeff
+    grid $f.num $f.name $f.serial\
+         $f.fmt $f.limit $f.coeff
+
+    frame $f.hsep -relief groove -borderwidth 1 -height 2
+    grid $f.hsep -columnspan 6 -sticky we -pady 5
+
+    for {set i 1} {$i<=20} {incr i} {
+      radiobutton $f.num$i -text $i -variable [itcl::scope sel] -value $i
+      label $f.name$i   -textvariable [itcl::scope name($i)] -width 15
+      label $f.serial$i -textvariable [itcl::scope serial($i)] -width 10
+      label $f.fmt$i    -textvariable [itcl::scope fmt($i)]    -width 10
+      label $f.limit$i  -textvariable [itcl::scope limit($i)]
+      label $f.coeff$i  -textvariable [itcl::scope coeff($i)]
+      grid $f.num$i $f.name$i $f.serial$i\
+           $f.fmt$i $f.limit$i $f.coeff$i
+    }
+    # read button
+    button $f.read  -text "Update information" -command "$this read_pars"
+    grid $f.read -columnspan 6 -sticky e -padx 5
+
+    # Save/load buttons
+    set f [labelframe $root.btns_sel -text "Selected curve:"]
+    grid $f -sticky w -pady 5
+
+    button $f.save -text "Save to file"   -command "$this save_sel"
+    button $f.load -text "Load from file" -command "$this load_sel"
+    button $f.del  -text "Delete"         -command "$this del_sel"
+    pack $f.save $f.load $f.del -anchor e -side right
+
+    # Save/load_all buttons
+    set f [labelframe $root.btns_all -text "Save/load all curves to a folder"]
+    grid $f -sticky w -pady 5
+
+    button $f.save -text "Save all curves" -command "$this save_all"
+    button $f.load -text "Load all curves" -command "$this load_all"
+    pack $f.save $f.load -anchor e -side right
+
+    # status label
+    label $root.status -foreground red
+    grid $root.status -sticky w -pady 5
   }
 
-  method read_pars {} {
+  # read single curve header (and update interface)
+  method read_head {n} {
+    set l [$dev get_crv_hdr $n]
+    set name($n)   [lindex $l 0]
+    set serial($n) [lindex $l 1]
+    set fmt($n)    [lindex $l 2]
+    set limit($n)  [lindex $l 3]
+    set coeff($n)  [lindex $l 4]
   }
+
+  # update interface for all curve
+  method read_pars {} {
+    for {set i 1} {$i<=20} {incr i} { read_head $i }
+  }
+
+  method save_sel {} {
+    set fname [tk_getSaveFile\
+      -confirmoverwrite 1\
+      -initialdir $curve_dir\
+    ]
+    lock_int 1 "Saving curve $sel to file $fname"
+    $dev save_curve $sel $fname
+    lock_int 0 ""
+  }
+
+  method load_sel {} {
+    set fname [tk_getOpenFile\
+      -initialdir $curve_dir\
+    ]
+    lock_int 1 "Loading curve $sel from file $fname"
+    $dev load_curve $sel $fname
+    read_head $sel
+    lock_int 0 ""
+  }
+
+  method del_sel {} {
+    lock_int 1 "Deleting curve $sel"
+    $dev del_curve $sel
+    read_head $sel
+    lock_int 0 ""
+  }
+
+  method save_all {} {
+    set fdir [tk_chooseDirectory -initialdir $curve_dir ]
+    for {set n 1} {$n<=20} {incr n} {
+      set fname [format "$fdir/curve_%02d" $n]
+      lock_int 1 "Saving curve $n to file $fname"
+      $dev save_curve $n $fname
+    }
+    lock_int 0
+  }
+
+  method load_all {} {
+    set fdir [tk_chooseDirectory -initialdir $curve_dir ]
+    $dev load_all_curves $dir
+    for {set n 1} {$n<=20} {incr n} {
+      set fname [format "$fdir/curve_%02d" $n]
+      lock_int 1 "Loading curve $n from file $fname"
+      $dev load_curve $n $fname
+      read_head $n
+    }
+    lock_int 0
+  }
+
+  method lock_int {on msg} {
+    foreach i [list $root.btns_all.save $root.btns_all.load\
+               $root.btns_sel.save $root.btns_sel.load $root.btns_sel.del] {
+      $i configure -state [expr {$on? {disabled}:{active}}]
+    }
+    $root.status configure -text $msg
+  }
+
 }
 
 ##########################################################################
@@ -872,9 +1034,10 @@ DevPanel dev_pan .tabs.dev $br
    -anchor n -text Device -fill both -padx 3 -pady 3
 
 # curves panel
-CurvePanel crv_pan .tabs.crv $br
+CurvePanel crv_pan .tabs.crv $br $pars(curve_dir)
 .tabs insert end crv_pan -window .tabs.crv\
    -anchor n -text Curves -fill both -padx 3 -pady 3
+crv_pan read_pars
 
 # in scan-and-measure mode we want to keep number of previously measured channel
 set prev_chan $chan
