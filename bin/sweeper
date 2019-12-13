@@ -15,6 +15,7 @@ set default_pars {
   ps_dev2     {}    {2nd power supply device}
   antipar      0    {anti-parallel connection}
   gauge_dev   {}    {measure device}
+  gauge_int    0    {measure interface}
   ovp           5   {overvoltage protection, V}
   ramp_tstep  0.2   {ramping time step}
   idle_tstep  0.5   {idle time step}
@@ -31,7 +32,7 @@ set default_pars {
   db_ann       {}   {database for sweeper comments}
   db_comm      {}   {database for high-level comments}
   interface_type {grad}   {interface control type: nmr, grad, hs}
-  plot_ncols   2    {number of columns in the plot}
+  plot_ncols   4    {number of columns in the plot}
   plot_maxt    600  {max time span in the plot}
   plot_maxn    0    {max number of points in the plot}
   plot_names   {Imeas Iset V R}   {column names}
@@ -79,6 +80,7 @@ if {$r_k == {}} {error "unknown rate units: $pars(r_units)"}
 
 wm title . "sweeper: $pars(name)"
 tk appname "sweeper: $pars(name)"
+set root .f
 
 ######################################################
 ### Create current sweeper
@@ -112,6 +114,14 @@ set sweeps -1;    ## number of sweeps
 set rate   $pars(def_rate)
 set dest1  $pars(minI)
 set dest2  $pars(maxI)
+
+set g_range 0;    ## gauge range
+set g_tconst 0;   ## gauge tconst
+set g_status {};  ## gauge status
+set g_ww 170; ## value bar width
+set g_hh 10;  ## value bar height
+set g_dev $pars(gauge_dev)
+set g_int $pars(gauge_int)
 
 # set/get sweep limits (A/mA/uA)
 proc set_limits {v1 v2} {
@@ -160,6 +170,64 @@ proc go_back {} {
   if {$::state == 0} {return}
   sweeper go_back
 }
+
+##########################################################
+## a few things for the interface
+
+proc gint_update {} {
+  if {$::g_dev == {} || $::g_int != 1} return
+  sweeper gauge_update_r
+  sweeper gauge_update_t
+}
+
+proc gint_update_r {v} {
+  if {$::g_dev == {} || $::g_int != 1} return
+  set ::g_range $v
+  return
+}
+
+proc gint_update_t {v} {
+  if {$::g_dev == {} || $::g_int != 1} return
+  set ::g_tconst $v
+  return
+}
+
+proc gint_update_c {} {
+  if {$::g_dev == {} || $::g_int != 1} return
+  $::root.c.g3.range  configure -values [sweeper gauge_get_ranges]
+  $::root.c.g3.tconst configure -values [sweeper gauge_get_tconsts]
+}
+
+proc gint_apply_r {} {
+  if {$::g_dev == {} || $::g_int != 1} return
+  sweeper gauge_apply_r $::g_range
+}
+
+proc gint_apply_t {} {
+  if {$::g_dev == {} || $::g_int != 1} return
+  sweeper gauge_apply_t $::g_tconst
+}
+
+proc gint_update_st {st} {
+  if {$::g_dev == {} || $::g_int != 1} return
+  set ::g_status $st
+}
+
+proc gint_update_val {v} {
+  if {$::g_int != 1 || $::g_dev == {}} return
+  set x [lindex $v 0]
+  set y [lindex $v 1]
+  set v $::root.c.g3.val
+  set ww $::g_ww
+  set hh $::g_hh
+  set x1 [expr int((1.0+$x/$::g_range)*0.5*$ww)]
+  set y1 [expr int((1.0+$y/$::g_range)*0.5*$ww)]
+  set z [expr $ww/2]
+  $v delete data
+  $v create rectangle $z 1 $x1 [expr $hh/2] -fill darkcyan -tags data
+  $v create rectangle $z [expr $hh/2] $y1 $hh -fill green -tags data
+}
+
 proc do_reset {} {
   if {$::state == 0} {return}
   sweeper reset
@@ -172,15 +240,13 @@ proc do_onoff {state} {
   set ::state $state
 }
 
-##########################################################
-## a few things for the interface
 set control_widgets {}; # list of widgets to be enabled/disabled
 
 proc enable {v} {
   foreach w $::control_widgets {
     foreach ch [winfo children $w] {
-      $ch configure -state [expr {$v?{normal}:{disabled}}]
-    }
+      if {[catch {$ch configure -state [expr {$v?{normal}:{disabled}}]}]} { }
+  }
   }
 }
 
@@ -202,12 +268,14 @@ proc on_new_com {t com} {
 }
 
 ## update values command
-proc on_new_val {t cm cs vm {m 0}} {
+proc on_new_val {t cm cs vm {m 0} {st {}}} {
   global pars c_k
   set ::current    [format "%.3f" [expr $cm/$c_k]]
   set ::resistance [format "%.3f" [expr { $cm!=0? $vm/$cm:0} ]]
   set ::dev_status [sweeper get_stat]
   time_plot add_data [list $t [expr $cm/$c_k] [expr $cs/$c_k] $vm $::resistance {*}$m]
+  gint_update_val $m
+  gint_update_st $st
   return
 }
 
@@ -228,44 +296,75 @@ proc make_control {root} {
        $root.m.vR $root.m.uR $root.m.st -sticky w
   pack $root.m -fill x
 
-
   if {$::pars(interface_type) == {nmr}} {
-    frame $root.g1;  # go frame
-    label $root.g1.ldest1 -text "destination 1: " -padx 2 -pady 2
-    entry $root.g1.dest1  -width 10 -textvariable ::dest1
-    label $root.g1.udest1 -text "($::pars(c_units)), "
-    label $root.g1.ldest2 -text "destination 2: " -padx 2 -pady 2
-    entry $root.g1.dest2  -width 10 -textvariable ::dest2
-    label $root.g1.udest2 -text "($::pars(c_units)), "
-    label $root.g1.lrate -text "rate: " -padx 2 -pady 2
-    entry $root.g1.rate -width 6 -textvariable ::rate
-    label $root.g1.urate -text "($::pars(r_units)) "
-    label $root.g1.lsweeps -text "sweeps: " -padx 2 -pady 2
-    entry $root.g1.sweeps -width 6 -textvariable ::sweeps
+    frame $root.c
 
-    grid $root.g1.ldest1 $root.g1.dest1 $root.g1.udest1\
-         $root.g1.lrate $root.g1.rate $root.g1.urate\
+    frame $root.c.g1;  # go frame
+    label $root.c.g1.ldest1 -text "destination 1: " -padx 2 -pady 2
+    entry $root.c.g1.dest1  -width 10 -textvariable ::dest1
+    label $root.c.g1.udest1 -text "($::pars(c_units)), "
+    label $root.c.g1.ldest2 -text "destination 2: " -padx 2 -pady 2
+    entry $root.c.g1.dest2  -width 10 -textvariable ::dest2
+    label $root.c.g1.udest2 -text "($::pars(c_units)), "
+    label $root.c.g1.lrate -text "rate: " -padx 2 -pady 2
+    entry $root.c.g1.rate -width 6 -textvariable ::rate
+    label $root.c.g1.urate -text "($::pars(r_units)) "
+    label $root.c.g1.lsweeps -text "sweeps: " -padx 2 -pady 2
+    entry $root.c.g1.sweeps -width 6 -textvariable ::sweeps
+
+    grid $root.c.g1.ldest1 $root.c.g1.dest1 $root.c.g1.udest1\
+         $root.c.g1.lrate $root.c.g1.rate $root.c.g1.urate\
        -sticky w
-    grid $root.g1.ldest2  $root.g1.dest2 $root.g1.udest2\
-         $root.g1.lsweeps $root.g1.sweeps\
+    grid $root.c.g1.ldest2  $root.c.g1.dest2 $root.c.g1.udest2\
+         $root.c.g1.lsweeps $root.c.g1.sweeps\
        -sticky w
-    pack $root.g1 -fill x
 
-    frame $root.g2;  # go frame
-    button $root.g2.b1   -text "Go down" -padx 10 -pady 3 -command {sweep -1 $::sweeps}
-    button $root.g2.b2   -text "Go up"   -padx 10 -pady 3 -command {sweep +1 $::sweeps}
-    button $root.g2.b3   -text "Go back" -padx 10 -pady 3 -command go_back
-    button $root.g2.b4   -text "Stop" -padx 10 -pady 3 -command stop
-    grid $root.g2.b1 $root.g2.b2 $root.g2.b3 $root.g2.b4 -sticky we -padx 3
+    frame $root.c.g2;  # go frame
+    button $root.c.g2.b1   -text "Go down" -padx 10 -pady 3 -command {sweep -1 $::sweeps}
+    button $root.c.g2.b2   -text "Go up"   -padx 10 -pady 3 -command {sweep +1 $::sweeps}
+    button $root.c.g2.b3   -text "Go back" -padx 10 -pady 3 -command go_back
+    button $root.c.g2.b4   -text "Stop" -padx 10 -pady 3 -command stop
+    grid $root.c.g2.b1 $root.c.g2.b2 $root.c.g2.b3 $root.c.g2.b4 -sticky we -padx 3
 
-    button $root.g2.b5   -text "To lower limit"   -pady 3 -command {sweep -1 1}
-    button $root.g2.b6   -text "To upper limit"   -pady 3 -command {sweep +1 1}
-    button $root.g2.b7   -text "To Zero" -pady 3 -command {set_llimit 0; sweep -1 1}
-    grid $root.g2.b5 $root.g2.b6 $root.g2.b7 -sticky we -padx 3
+    button $root.c.g2.b5   -text "To lower limit"   -pady 3 -command {sweep -1 1}
+    button $root.c.g2.b6   -text "To upper limit"   -pady 3 -command {sweep +1 1}
+    button $root.c.g2.b7   -text "To Zero" -pady 3 -command {set_llimit 0; sweep -1 1}
+    grid $root.c.g2.b5 $root.c.g2.b6 $root.c.g2.b7 -sticky we -padx 3
 
-    pack $root.g2 -fill x -expand yes
+    frame $root.c.g3;  # gauge frame
+    label $root.c.g3.range_l -text "Sensitivity, V:"
+    ttk::combobox $root.c.g3.range -width 5 -textvariable [itcl::scope ::g_range]
+    bind $root.c.g3.range <<ComboboxSelected>> "gint_apply_r"
+    grid $root.c.g3.range_l $root.c.g3.range -padx 5 -pady 2 -sticky e
 
-    set ::control_widgets [list $root.m $root.g1 $root.g2]
+    label $root.c.g3.tconst_l -text "Time constant, s:"
+    ttk::combobox $root.c.g3.tconst -width 5 -textvariable [itcl::scope ::g_tconst]
+    bind $root.c.g3.tconst <<ComboboxSelected>> "gint_apply_t"
+    grid $root.c.g3.tconst_l $root.c.g3.tconst -padx 5 -pady 2 -sticky e
+
+    set ww $::g_ww
+    set hh $::g_hh
+    set v $root.c.g3.val
+    canvas $v -width $ww -height $hh
+    $v create rectangle 1 1 $ww $hh -fill white -outline grey
+    $v create line [expr $ww/2] 1 [expr $ww/2] $hh
+    grid $v -padx 5 -pady 2 -sticky e -columnspan 2
+
+    label $root.c.g3.status -textvariable [itcl::scope ::g_status] \
+      -font {-size 10 -weight bold} -fg red
+
+    button $root.c.g3.ubtn -text "Update" -command "gint_update"
+    grid $root.c.g3.status $root.c.g3.ubtn -padx 3 -pady 3
+
+    grid $root.c.g1 -row 1 -column 1 -sticky w
+    grid $root.c.g2 -row 2 -column 1 -sticky w
+    if {$::g_int==1} {
+      grid $root.c.g3 -row 1 -column 2 -sticky e -rowspan 2
+    }
+    grid columnconfigure $root.c {1 2} -weight 1
+    pack $root.c -fill x -expand yes
+
+    set ::control_widgets [list $root.m $root.c.g1 $root.c.g2 $root.c.g3]
   }
 
   if {$::pars(interface_type) == {grad}} {
@@ -319,8 +418,8 @@ pack .n -anchor w
 
 ######################
 # buttons
-make_control .f
-pack .f -anchor w -fill x -expand 0
+make_control $root
+pack $root -anchor w -fill x -expand 0
 
 ######################
 # make graph

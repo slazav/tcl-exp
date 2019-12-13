@@ -49,7 +49,13 @@ itcl::class SweepController {
   variable dev1 {}; # device driver
   variable dev2 {}; # device driver -- 2nd chan
   variable gdev {}; # gauge device driver
-  variable rh   {}; # ramping loop handler
+#  variable g_r {};  # gauge range
+  variable g_t {};  # gauge tconst
+  variable g_sr 0;  # gauge set range
+  variable g_st 0;  # gauge set tconst
+  variable g_gr 0;  # gauge get range
+  variable g_gt 0;  # gauge get tconst
+  variable rh  {};    # ramping loop handler
   variable cs1 0;     # set current - 1st chan
   variable cs2 0;     # set current - 2nd chan
   variable cm1 0;     # measured current - 1st chan
@@ -58,7 +64,8 @@ itcl::class SweepController {
   variable vm2 0;     # measured voltage - 2nd chan
   variable st {};     # device state
   variable mval {};   # measured value
-  variable tstep;   # current time step
+  variable mst  {};   # measurement status
+  variable tstep;     # current time step
 
   # see options:
   variable ps_dev1
@@ -169,6 +176,8 @@ itcl::class SweepController {
     # open gauge device if needed
     if {$g_dev != {}} {
       set gdev [DeviceRole $g_dev gauge]
+      if {$g_t != {}} {$gdev set_tconst $g_t}
+      uplevel \#0 [eval {gint_update_c}]
     }
 
     # Open database if needed
@@ -177,6 +186,8 @@ itcl::class SweepController {
     # reset the device and starm main loop
     set tstep $idle_tstep
     set state 1
+    gauge_update_t
+    gauge_update_r
     reset
   }
 
@@ -206,7 +217,7 @@ itcl::class SweepController {
     set cs [expr {$cs1 + $cs2}]
     set vm [expr {abs($vm1)>abs($vm2)? $vm1:$vm2}]
     set t [expr [clock milliseconds]/1000.0]
-    if {$on_new_val != {}} { uplevel \#0 [eval {$on_new_val $t $cm $cs $vm $mval}]}
+    if {$on_new_val != {}} { uplevel \#0 [eval {$on_new_val $t $cm $cs $vm $mval $mst}]}
     if { $db_dev != {} && $db_val != {}} {
       $db_dev cmd "put $db_val $t $cm $cs $vm $mval"
       $db_dev cmd "sync"
@@ -283,9 +294,27 @@ itcl::class SweepController {
       set st "$st:$st2"
     }
 
-    # do measurement if needed
-    if {$gdev != {}} { set mval [ $gdev get ] }\
-    else { set mval {} }
+    if {$gdev != {}} {
+      # set/get gauge range if needed
+      if {$g_gr == 1} {
+        set r [$gdev get_range]
+        uplevel \#0 [eval {gint_update_r $r}]
+        set g_gr 0
+      }
+      if {$g_sr != 0} { $gdev set_range $g_sr; set g_sr 0 }
+
+      # set/get gauge tconst if needed
+      if {$g_gt == 1} {
+        set t [$gdev get_tconst]
+        uplevel \#0 [eval {gint_update_t $t}]
+        set g_gt 0
+      }
+      if {$g_st != 0} { $gdev set_tconst $g_st; set g_t $g_st; set g_st 0 }
+
+      # do measurement if needed
+        set mval [ $gdev get ]
+        set mst [ $gdev get_status ]
+    } else { set mval {}; set mst {} }
 
     if {!$skip || $changed==1 || $msg != {}} { put_value }
     set changed 0
@@ -536,6 +565,14 @@ itcl::class SweepController {
     loop_restart
     return
   }
+
+  method gauge_get_ranges {} {return [$gdev list_ranges]}
+  method gauge_get_tconsts {} {return [$gdev list_tconsts]}
+
+  method gauge_apply_r {v} {set g_sr $v}
+  method gauge_apply_t {v} {set g_st $v}
+  method gauge_update_r {} {set g_gr 1}
+  method gauge_update_t {} {set g_gt 1}
 
 }
 
