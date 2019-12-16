@@ -1,13 +1,8 @@
 #!/usr/bin/wish
 
 package require Device
-#package require Exp;  # timeplot, monitor
+package require Exp;  # timeplot, monitor
 package require itcl;
-
-source ../exp_tcl/widgets.tcl
-source ../exp_tcl/timeplot.tcl
-source ../exp_tcl/monitor.tcl
-source ../exp_tcl/statusbar.tcl
 
 # this is needed to avoid program locking when
 # measurement and curve savind or loading are done
