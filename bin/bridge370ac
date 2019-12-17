@@ -18,7 +18,9 @@ set default_pars {
   name         {Resistance bridge}  {program name}
   period       0.5        {measurement period, s}
   dev          {bridge}   {LakeShore device}
-  chnames      {{1K pot} {20mK} {h.e.#2} {h.e.#4}\
+  db_dev       {db}       {database device}
+  db_names     {R01 R02 R03 R04 R05 R06 R07 R08 R09 R10 R11 R12 R13 R14 R15 R16} {databases for each channel}
+  ch_names     {{1K pot} {20mK} {h.e.#2} {h.e.#4}\
                 {h.e.#6} {h.e.#8} {h.e.#10} {Mix.Ch.}\
                 {1K PT1000} {Still} {20mK PT1000} {20mk shield}\
                 {Mix. SMB conn} {Mix. conn} {Mix PT1000} {Mix Speer} } {Channel names (instead of 1,2,3 etc)}
@@ -867,7 +869,7 @@ itcl::class ChanPanel {
 
   # measurement
   # returns a list [value status color]
-  method measure {{autoscan 0} {timeout 0}} {
+  method measure {{autoscan 0} {timeout 0} {db_dev {}} {db_name {}}} {
 
     # channel is off
     if {!$onoff} {return [list {} OFF red]}
@@ -934,9 +936,15 @@ itcl::class ChanPanel {
     }
 
     # Add timestamp and measured data to the plot
-    # TODO - database
     set tt [expr {[clock milliseconds]/1000.0}]
     pl$chan add_data [list $tt $res $temp $pwr]
+
+    # Add data to the database
+    if {$db_dev != {} && $db_name != {}} {
+      $db_dev cmd put $db_name $tt $res $temp $pwr
+      $db_dev cmd sync
+    }
+
 
     return [list $val OK green]
   }
@@ -970,6 +978,9 @@ itcl::class ChanPanel {
 Device $pars(dev)
 set br [LakeShore370AC br#auto $pars(dev)]
 
+if {$pars(db_dev) != {} } { Device $pars(db_dev) }
+
+
 set r [$br get_scan]
 set chan [lindex $r 0]
 
@@ -995,8 +1006,8 @@ for {set ch 1} {$ch <= [$br nchan]} {incr ch} {
 
   # name to show in the scan panel
   set name "$ch"
-  if {[llength $pars(chnames)] > $ch-1} {
-    set name "$name. [lindex $pars(chnames) [expr $ch-1]]"
+  if {[llength $pars(ch_names)] > $ch-1} {
+    set name "$name. [lindex $pars(ch_names) [expr $ch-1]]"
   }
 
   canvas .scan.i$ch -width 10 -height 10
@@ -1088,10 +1099,17 @@ proc on_meas {} {
     set pars(mchan) [expr {$pars(mchan)%[$br nchan] + 1}]
   }
 
+  set autoscan [expr {$pars(scanmode) != {Measure single channel}}]
+
+  set db_name ""
+  if {$pars(db_dev) != {} && [llength $pars(db_names)] > $chan-1 } {
+    set db_name [lindex $pars(db_names) [expr $chan-1]]
+  }
+
   ##############
   # do measurement
-  set autoscan [expr {$pars(scanmode) != {Measure single channel}}]
-  set ret [ch_pan$chan measure $autoscan $pars(timeout)]
+  set ret [ch_pan$chan measure $autoscan $pars(timeout) $pars(db_dev) $db_name]
+
   set val [lindex $ret 0]
   set st  [lindex $ret 1]
   set col [lindex $ret 2]
