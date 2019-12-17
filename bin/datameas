@@ -13,7 +13,7 @@ set default_pars {
   save         0          {initial state of save switch}
   gauge_dev    {TEST}     {gauge device}
   db_dev       {}         {database device}
-  db_name      {}         {database name}
+  db_name      {}         {database name (one name to put all in one or list of names to put each channel separately)}
   tpos         0.5        {timestamp position: 0-beginning of measurement, 1-end of measuremen}
   tconv        0          {ms, time shift between samples in 1 step}
 
