@@ -18,6 +18,7 @@ set default_pars {
   name         {Resistance bridge}  {program name}
   period       0.5        {measurement period, s}
   dev          {bridge}   {LakeShore device}
+  nchan        {16}       {number of channels (depends on scanner model)}
   db_dev       {db}       {database device}
   db_names     {R01 R02 R03 R04 R05 R06 R07 R08 R09 R10 R11 R12 R13 R14 R15 R16} {databases for each channel}
   ch_names     {{1K pot} {20mK} {h.e.#2} {h.e.#4}\
@@ -47,14 +48,10 @@ itcl::class LakeShore370AC {
 
   variable dev; # device
 
-
   ###################################
   ## Some lists
   ## Lists should depend on the bridge model and
   ## on the switch option
-
-  # list of all channels (depends on the scanner option)
-  method nchan {} { return 16 }
 
   # channel excitation methods (voltage/current)
   method exc_list {} { return [list\
@@ -995,7 +992,7 @@ blt::tabset .tabs
 # scan panel
 frame .scan
 
-for {set ch 1} {$ch <= [$br nchan]} {incr ch} {
+for {set ch 1} {$ch <= $pars(nchan)} {incr ch} {
   # create channel panel
   ChanPanel ch_pan$ch .tabs.ch$ch $br $ch
   .tabs insert end ch_pan$ch -window .tabs.ch$ch\
@@ -1068,7 +1065,7 @@ proc on_meas {} {
   ##############
   # update interface
   set chlist {}
-  for {set ch 1} {$ch <= [$br nchan]} {incr ch} {
+  for {set ch 1} {$ch <= $pars(nchan)} {incr ch} {
 
     # disable non-working channels in the list
     if {[ch_pan$ch is_on]} {
@@ -1094,9 +1091,9 @@ proc on_meas {} {
   .scan.mchan configure -values $chlist
 
   # update value in Measured channel selector
-  for {set i 0} {$i<[$br nchan]} {incr i} {
+  for {set i 0} {$i<$pars(nchan)} {incr i} {
     if {[$br is_ch_on $pars(mchan)]} break
-    set pars(mchan) [expr {$pars(mchan)%[$br nchan] + 1}]
+    set pars(mchan) [expr {$pars(mchan)%$pars(nchan) + 1}]
   }
 
   set autoscan [expr {$pars(scanmode) != {Measure single channel}}]
@@ -1130,8 +1127,8 @@ proc on_meas {} {
   elseif {$pars(scanmode) == {Scan all channels}} {
     # In scan mode we should find next available channel
     set next_chan $chan
-    for {set i 0} {$i<[$br nchan]} {incr i} {
-      set next_chan [expr {$next_chan%([$br nchan]) + 1}]
+    for {set i 0} {$i<$pars(nchan)} {incr i} {
+      set next_chan [expr {$next_chan%($pars(nchan)) + 1}]
       if {[$br is_ch_on $next_chan]} break
     }
   }\
@@ -1140,8 +1137,8 @@ proc on_meas {} {
     # to $prev_chan+1 (excluding $pars(mchan)) and then back
     if {$chan == $pars(mchan)} {
       set next_chan $prev_chan
-      for {set i 0} {$i<[$br nchan]} {incr i} {
-        set next_chan [expr {$next_chan%([$br nchan]) + 1}]
+      for {set i 0} {$i<$pars(nchan)} {incr i} {
+        set next_chan [expr {$next_chan%$pars(nchan) + 1}]
         if {$next_chan == $pars(mchan)} continue
         if {[$br is_ch_on $next_chan]} break
       }
