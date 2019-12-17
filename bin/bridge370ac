@@ -25,6 +25,7 @@ set default_pars {
   scanmode     {Scan all channels} {Original value of scanmode switch}
   mchan        {1} {Original value of measured channel switch}
   curve_dir    {.} {Default directory for calibration curves}
+  timeout    { 200} {How long we want to stay at one channel in autoscan mode [s]; 0 - forever}
 }
 
 if {[llength $argv]>0 } {
@@ -866,7 +867,7 @@ itcl::class ChanPanel {
 
   # measurement
   # returns a list [value status color]
-  method measure {{autoscan 0}} {
+  method measure {{autoscan 0} {timeout 0}} {
 
     # channel is off
     if {!$onoff} {return [list {} OFF red]}
@@ -923,6 +924,8 @@ itcl::class ChanPanel {
 
     if {$dt>0} { return [list $val "Wait: ${dt}s" #606000] }
 
+    if {$timeout > 0 && $timer - [clock seconds] > $timeout} {
+       return [list Timeout Timeout red] }
 
     # Do not save values if status has some errors
     if {$status != {}} {
@@ -1088,7 +1091,7 @@ proc on_meas {} {
   ##############
   # do measurement
   set autoscan [expr {$pars(scanmode) != {Measure single channel}}]
-  set ret [ch_pan$chan measure $autoscan]
+  set ret [ch_pan$chan measure $autoscan $pars(timeout)]
   set val [lindex $ret 0]
   set st  [lindex $ret 1]
   set col [lindex $ret 2]
