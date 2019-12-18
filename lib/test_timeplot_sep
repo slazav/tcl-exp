@@ -1,0 +1,60 @@
+#!/usr/bin/wish
+
+## Test timeplot
+source timeplot.tcl
+
+# Configure time plot
+TimePlot pl .pl\
+  -ncols 3\
+  -maxn 0\
+  -maxt 1000\
+  -names {X D1 D2}\
+  -separate 1\
+  -use_marker 1
+
+pack .pl -fill both -expand y
+
+
+# parameters for x sweep
+set x 0;
+set dx 1;
+set xmin 0;
+set xmax 31;
+
+# produce new data and push it to the plot
+proc add_x {} {
+  set t [expr [clock milliseconds]/1000.0]
+
+  global x xmin xmax dx
+  set x [expr {$x+$dx}]
+  if {$x <= $xmin} {set dx 1}
+  if {$x >= $xmax} {set dx -1}
+
+  pl add_data_sep X $t $x
+  after 200 add_x
+}
+
+proc add_d1 {} {
+  set t [expr [clock milliseconds]/1000.0]
+  pl add_data_sep D1 $t [expr rand()]
+  after 500 add_d1
+}
+
+proc add_d2 {} {
+  set t [expr [clock milliseconds]/1000.0]
+  pl add_data_sep D2 $t [expr rand()]
+  after 1500 add_d2
+}
+
+
+# produce new comments and push it to the plot
+proc add_comm {} {
+  set t [expr [clock milliseconds]/1000.0]
+  pl add_comment $t "$t"
+  after 5000 add_comm
+}
+
+add_x
+add_d1
+add_d2
+add_comm

@@ -23,6 +23,7 @@ itcl::class TimePlot {
   variable zstyles
   variable use_comm
   variable use_marker
+  variable separate
 
   variable plot_type
   variable plot_types
@@ -50,6 +51,7 @@ itcl::class TimePlot {
     {-Z -zstyles}  zstyles  {x}\
     {-C -use_comm}   use_comm 0\
     {-M -use_marker} use_marker 0\
+    {-separate}    separate 0\
     ]
     xblt::parse_options "timeplot" $args $options
 
@@ -116,14 +118,14 @@ itcl::class TimePlot {
       }
       set plot_type [lindex $plot_types 0]
     } else {error "not enough plot types"}
-    if {[llength $plot_types] > 1} {
+    if {[llength $plot_types] > 1 && !$separate} {
       ttk::combobox $plot.modes -width 12\
           -textvariable [itcl::scope plot_type]\
           -values $plot_types
       pack $plot.modes -side left -padx 4
       bind $plot.modes <<ComboboxSelected>> "$this setup_plot"
     }
-    # hystory entries
+    # history entries
     if {$maxt > 0} {
       label $plot.mtl -text "History length, s:"
       entry $plot.mt -textvariable [itcl::scope maxt] -width 8
@@ -153,10 +155,13 @@ itcl::class TimePlot {
                              -time_fmt "%Y-%m-%d %H:%M:%S"
     }
 
-    # create BLT vectors for data, create axis for each data column
-    blt::vector create "$this:T"
+    # Create BLT vectors for data, create axis for each data column:
+    #   separate mode vectors: T0,D0, T1,D1, etc.
+    #   normal mode vectors: T,D0,D1, etc.
+    if {!$separate} {blt::vector create "$this:T"}
     for {set i 0} {$i < $ncols} {incr i} {
       blt::vector create "$this:D$i"
+      if {$separate} {blt::vector create "$this:T$i"}
       set t [lindex $titles $i]
       set n [lindex $names $i]
       set c [lindex $colors $i]
@@ -164,10 +169,18 @@ itcl::class TimePlot {
       set s [lindex $symbols $i]
       set ss [lindex $ssizes $i]
 
-      # for each element we create x$n axis and $n axis
-      $graph axis create x$n -title $t -titlecolor black -logscale $l
+      # For each column <n> we create axes <n> and x<n>.
+      # In separate and normal modes x<n> has different meaning:
+      #   normal: it is used when data is plotted as a function of this column
+      #   separate: it is time axis used for this dataset
       $graph axis create $n -title $t -titlecolor black -logscale $l
       $graph element create $n -symbol $s -pixels $ss -color $c -mapy $n
+      if {$separate} {
+        $graph axis create x$n
+      }\
+      else {
+        $graph axis create x$n -title $t -titlecolor black -logscale $l
+      }
 
       if {$use_marker} {
         $graph marker create text -font {helvetica 16} -text *\
@@ -236,8 +249,11 @@ itcl::class TimePlot {
       # column parameters
       set h [lindex $hides $iy]
       # configure xdata and show element
-      set xdata [expr {$x == "time"? "$this:T":"$this:D$ix"}]
-
+      if {$separate} {
+        set xdata "$this:T$iy"
+      } else {
+        set xdata [expr {$x == "time"? "$this:T":"$this:D$ix"}]
+      }
       # for xy zoom style all elements should be mapped to axis y
       set yaxis [expr {$zstyle == {xy}? "y":"$y"}]
       $graph element configure $y -hide 0 -label $y\
@@ -264,8 +280,9 @@ itcl::class TimePlot {
   ##########################################################
   # clear plot
   method clear {} {
-    if {["$this:T" length] > 0} { "$this:T" delete 0:end }
+    if {!$separate && ["$this:T" length] > 0} { "$this:T" delete 0:end }
     for {set i 0} {$i < $ncols} {incr i} {
+      if {$separate && ["$this:D$i" length] > 0} { "$this:T$i" delete 0:end }
       if {["$this:D$i" length] > 0} { "$this:D$i" delete 0:end }
     }
   }
@@ -273,6 +290,8 @@ itcl::class TimePlot {
   ##########################################################
   # add data to plot
   method add_data {data} {
+
+    if {$separate} {error "can't use add_data in separate mode, use add_data_sep instead"}
 
     # add zeros to data if needed
     for {set i [llength $data]} {$i < [expr $ncols+1]} {incr i} {
@@ -283,25 +302,49 @@ itcl::class TimePlot {
     for {set i 0} {$i < $ncols} {incr i} {
       "$this:D$i" append [lindex $data [expr $i+1]] }
 
-    # reconfigure markers
-    if {$use_marker} {
-      foreach n [$graph element names *] {
-        set ax [$graph element cget $n -mapx]
-        set ay [$graph element cget $n -mapy]
-        set x [[$graph element cget $n -xdata] index end]
-        set y [[$graph element cget $n -ydata] index end]
-        $graph marker configure $n -coords [list $x $y]\
-          -mapx $ax -mapy $ay
-      }
-    }
+    # reconfigure markers for all columns
+    update_markers $names
+
+    # remove old values:
+    set dvecs {}
+    for {set i 0} {$i < $ncols} {incr i} {append dvecs "$this:D$i"}
+    clean_old_values "$this:T" $dvecs
+
+  }
+
+  ##########################################################
+  # add data to plot in separate mode
+  method add_data_sep {col tstamp value} {
+
+
+    if {!$separate} {error "can't use add_data_sep in normal mode, use add_data instead"}
+
+    # column number
+    set nc [lsearch -exact $names $col];
+    if {$nc <0} {error: "add_data_sep: unknown column name: $col. Use one of ($names)"}
+
+    # add data to BLT vectors
+    "$this:T$nc" append $tstamp
+    "$this:D$nc" append $value
+
+    # reconfigure marker for this column
+    update_markers $col
+
+    # remove old values:
+    clean_old_values "$this:T$nc" "$this:D$nc"
+
+  }
+
+  ##########################################################
+  ## remove old values
+  method clean_old_values {tvec dvecs} {
 
     # remove old values:
     if {$maxn > 0 } {
       set dn [expr ceil($maxn*0.1)]
-      if {["$this:T" length] > [expr {$maxn + $dn}]} {
-        "$this:T" delete 0:$dn
-        for {set i 0} {$i < $ncols} {incr i} {
-          "$this:D$i" delete 0:$dn }
+      if {[$tvec length] > [expr {$maxn + $dn}]} {
+        $tvec delete 0:$dn
+        foreach dvec $dvecs { $dvec delete 0:$dn }
       }
     }
 
@@ -312,22 +355,34 @@ itcl::class TimePlot {
       set t1 [expr {$t2-$maxt}]
 
       # remove old data if needed
-      if {["$this:T" length]>0 && ["$this:T" index end] - ["$this:T" index 0] > $maxt+$dt} {
-        for {set n 0} {$n<["$this:T" length]} {incr n} {
-          if {["$this:T" index $n]>=$t1} {break} }
+      if {[$tvec length]>0 && [$tvec index end] - [$tvec index 0] > $maxt+$dt} {
+        for {set n 0} {$n<[$tvec length]} {incr n} {
+          if {[$tvec index $n]>=$t1} {break} }
         if {$n>0} {
-          "$this:T" delete 0:$n
-          for {set i 0} {$i < $ncols} {incr i} {
-            "$this:D$i" delete 0:$n }
+          $tvec delete 0:$n
+          foreach dvec $dvecs { $dvec delete 0:$n }
         }
       }
     }
 
     # remove old comments:
-    if {["$this:T" length]>0} {
-      xblt::xcomments::delete_range $graph 0 ["$this:T" index 0]
+    if {[$tvec length]>0} {
+      xblt::xcomments::delete_range $graph 0 [$tvec index 0]
     }
+  }
 
+  ##########################################################
+  # reconfigure markers
+  method update_markers {columns} {
+    if {!$use_marker} return
+    foreach n $columns {
+      set ax [$graph element cget $n -mapx]
+      set ay [$graph element cget $n -mapy]
+      set x [[$graph element cget $n -xdata] index end]
+      set y [[$graph element cget $n -ydata] index end]
+      $graph marker configure $n -coords [list $x $y]\
+        -mapx $ax -mapy $ay
+    }
   }
 
   ##########################################################
@@ -339,10 +394,23 @@ itcl::class TimePlot {
 
   ##########################################################
   # get time/data vectors names
-  method get_tvec  {} { return "$this:T" }
+  method get_tvec  {{i 0}} {
+    if {$separate} { return "$this:T$i" }
+    else {return "$this:T"}
+  }
   method get_dvec  {i} { return "$this:D$i" }
   method get_graph {} { return $graph }
+
   method get_data {} {
+    if {$separate} {
+      for {set n 0} {$n < $ncols} {incr n} {
+        set Tlength ["$this:T$n" length]
+        set data "# time,s  [lindex $names $n]\n"
+        for {set i 0} {$i < $Tlength} {incr i} {
+          append data ["$this:T$n" index $i] " " ["$this:D$n" index $i] "\n"
+        }
+      }
+    } else {
       set Tlength ["$this:T" length]
       set data "# time,s  "
       append data $names
@@ -352,6 +420,7 @@ itcl::class TimePlot {
           append data " "  ["$this:D$n" index $i]
         }
       }
+    }
     return $data
   }
 }
