@@ -81,7 +81,7 @@ proc func_meas {} {
   global pars dev D0 Df T0 Tf
   if {$dev=={}} return
   set t1 [clock microseconds]
-  if {[catch {set D0 [$dev get]}]} { error }
+  set D0 [$dev get]
   set t2 [clock microseconds]
 
   # convert data with data_convs
