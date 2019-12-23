@@ -15,6 +15,10 @@ Options:
 * `-func_stop`  -- stop function
 * `-func_meas`  -- measure function
 * `-func_mkint` -- make interface function (argumentL: widget path)
+* `-show_ctl`   -- show control panel, buttons and period setting (default: 1)
+* `-show_title` -- show title panel (default: 1)
+* `-verb`       -- verbosity level (0: show only errors in the status line,
+*                  1(default): show status messages (Measure, Waiting, etc.)
 
 All func_* functions can throw errors, return values are ignored.
 
@@ -27,3 +31,6 @@ Useful methods:
 * `do_exit {}` -- close devices and exit
 * `startstop {}` -- Do start and stop without any measurement
   (useful if in the beginning we want to open devices and collect some information)
+
+If <widget path> is empty then monitor does not create any interface.
+User can create its own interface instead.
