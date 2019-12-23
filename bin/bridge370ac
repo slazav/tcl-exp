@@ -878,10 +878,16 @@ itcl::class ChanPanel {
     set temp [$dev get_ch_temp $chan]
     set pwr [$dev get_ch_pwr  $chan]
 
-    # status
+    # get status
+    # if status = T_UNDER or T_OVER do not fail but set temp=0
     set status {}
+    set fail 0
     foreach s [$dev get_ch_status $chan] {
-      lappend status [lindex [$dev ch_status_list] $s]
+      set st_str [lindex [$dev ch_status_list] $s]
+      if {$st_str == "T_OVER"} { set temp 0 }\
+      elseif {$st_str == "T_UNDER"} { set temp 0 }\
+      else {set fail 1}
+      lappend status $st_str
     }
     set status [join $status { }]
 
@@ -926,8 +932,8 @@ itcl::class ChanPanel {
     if {$timeout > 0 && $timer - [clock seconds] > $timeout} {
        return [list Timeout Timeout red] }
 
-    # Do not save values if status has some errors
-    if {$status != {}} {
+    # Do not save values if $fail==1
+    if {$fail} {
       set timer {}
       return [list Error $status red]
     }
