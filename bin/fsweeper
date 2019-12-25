@@ -50,7 +50,7 @@ else {
   foreach {name def title} $default_pars { set pars($name) $def }
 }
 
-tk appname "nmr_meas: $pars(name)"
+tk appname "fsweeper: $pars(name)"
 
 
 ##########################################################
@@ -228,6 +228,7 @@ itcl::class LockinInt {
 # generator interface
 itcl::class GenInt {
 
+  variable dev_name {};
   variable dev {};
   variable widget {};
 
@@ -250,8 +251,8 @@ itcl::class GenInt {
 
   variable r2d [expr {180/3.1415926}]
 
-  constructor {dev_ widget_} {
-    set dev $dev_
+  constructor {dev_name_ widget_} {
+    set dev_name $dev_name_
     set widget $widget_
     labelframe $widget -text "Generator settings" -font {-weight bold -size 10}
 
@@ -322,7 +323,7 @@ itcl::class GenInt {
   method get_widget {} {return $widget}
 
   method on {} {
-    if {$dev == {}} { error "gen_dev is empty" }
+    if {$dev_name == {}} { error "gen_dev is empty" }
     if {$dev == {}} {
       if {$::pars(use_comp)} {set dev [DeviceRole $dev_name dgen]}\
       else {set dev [DeviceRole $dev_name ac_source]}
@@ -342,18 +343,33 @@ itcl::class GenInt {
 
     # change excitation amplitude and phase,
     # compensation will be changed accordingly
-    $dev change_amp $amp1 $ph1
+    $dev set_freq $fre
+    if {$::pars(use_comp)} {
+      $dev change_amp $amp1 $ph1
+    }\
+    else {
+      $dev set_volt $amp1
+      $dev set_phase $ph1
+    }
 
     # update values in the interface
     set amp1 [format "%.4f" [$dev get_volt]]
     set ph1  [format "%.4f" [$dev get_phase]]
-    set amp2 [format "%.4f" [$dev get_volt2]]
-    set ph2  [format "%.4f" [$dev get_phase2]]
+
+    if {$::pars(use_comp)} {
+      set amp2 [format "%.4f" [$dev get_volt2]]
+      set ph2  [format "%.4f" [$dev get_phase2]]
+    }
 
     # update lockin interface
     if {$lockin_int!={}} {$lockin_int update_val_w}
+
     if {$::pars(db_dev)!={} && $::pars(db_nmr_gen)!={}} {
-      $::pars(db_dev) cmd put $::pars(db_nmr_gen) now $fre $amp1 $ph1 $amp2 $ph2
+      if {$::pars(use_comp)} {
+        $::pars(db_dev) cmd put $::pars(db_nmr_gen) now $fre $amp1 $ph1 $amp2 $ph2
+      } else {
+        $::pars(db_dev) cmd put $::pars(db_nmr_gen) now $fre $amp1 $ph1
+      }
       $::pars(db_dev) cmd sync
     }
   }
