@@ -37,6 +37,9 @@ set default_pars {
   db_nmr_res     {}        {database for nmr resonance curves (fre x y)}
   db_nmr_q       {}        {database for nmr reasured resonance parameters (fre q)}
   use_comp       1         {use compensation interface and dgen device role}
+  autosave       0         {autosave resonance curves}
+  autorepeat     0         {autorepeat resonance curve measurements}
+  fit_type       none      {how to fit resonance curve: none, simple}
 }
 
 #foreach {name def title} $par_list { set pars($name) $def }
@@ -580,7 +583,13 @@ itcl::class FreqInt {
     button $bfr.run  -text "Run"  -command "$this run"
     button $bfr.stop -text "Stop" -command "$this stop"
     button $bfr.save -text "Save" -command "$this save"
-    pack $bfr.run $bfr.stop $bfr.save -side left -padx 3 -pady 3
+
+    if {$::pars(autosave)} {
+      pack $bfr.run $bfr.stop -side left -padx 3 -pady 3
+    } else {
+      pack $bfr.run $bfr.stop $bfr.save -side left -padx 3 -pady 3
+    }
+
     lappend btnlist $widget.rbtn $widget.sbtn
     grid $bfr
 
@@ -682,28 +691,39 @@ itcl::class FreqInt {
   # finish the measurement (do fits)
   method finish {} {
     stop
-    set fv [setfre_plot get_dvec 0]
-    set av [setfre_plot get_dvec 3]
-    set res [fit_res $fv $av]
+    switch -exact -- $::pars(fit_type) {
 
-    set f0 [lindex $res 0]
-    set q  [lindex $res 1]
-    set a0 [lindex $res 2]
-    set xl [lindex $res 3]
-    set xr [lindex $res 4]
-    set aa [expr $a0/2.0]
-    set df [expr {$f0/$q/2}]
+      none {}
 
-    set resfreq [format %.2f $f0]
-    set qfactor [format %.2f $q]
+      simple {
+        set fv [setfre_plot get_dvec 0]
+        set av [setfre_plot get_dvec 3]
+        set res [fit_res $fv $av]
 
-    # draw a fitting curve on the plot
-    set G [setfre_plot get_graph]
-    fitx seq $xl $xr [expr ($xr-$xl)/100]
-    fity expr {$a0/sqrt((fitx-$f0)^2 + $df^2)*$df}
+        set f0 [lindex $res 0]
+        set q  [lindex $res 1]
+        set a0 [lindex $res 2]
+        set xl [lindex $res 3]
+        set xr [lindex $res 4]
+        set aa [expr $a0/2.0]
+        set df [expr {$f0/$q/2}]
 
-    $G element create fit -outline black -mapx xFreq -mapy amp\
-      -xdata fitx -ydata fity -symbol {}
+        set resfreq [format %.2f $f0]
+        set qfactor [format %.2f $q]
+
+        # draw a fitting curve on the plot
+        set G [setfre_plot get_graph]
+        fitx seq $xl $xr [expr ($xr-$xl)/100]
+        fity expr {$a0/sqrt((fitx-$f0)^2 + $df^2)*$df}
+
+        $G element create fit -outline black -mapx xFreq -mapy amp\
+          -xdata fitx -ydata fity -symbol {}
+      }
+      default {error "unknown fit_type: $::pars(fit_type)"}
+    }
+
+    if {$::pars(autosave)} save
+    if {$::pars(autorepeat)} run
   }
 
   # save parameters
