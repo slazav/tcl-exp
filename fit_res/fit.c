@@ -4,8 +4,8 @@
 #include <gsl/gsl_matrix.h>
 #include <gsl/gsl_blas.h>
 #include <gsl/gsl_multifit_nlinear.h>
-#include <gsl/gsl_rng.h>
-#include <gsl/gsl_randist.h>
+//#include <gsl/gsl_rng.h>
+//#include <gsl/gsl_randist.h>
 
 // modified Gaussian example from
 //https://www.gnu.org/software/gsl/doc/html/nls.html#c.gsl_multifit_nlinear_fdf
@@ -149,7 +149,7 @@ callback(const size_t iter, void *params,
           gsl_blas_dnrm2(f));
 }
 
-void
+double
 solve_system(gsl_vector *x, gsl_multifit_nlinear_fdf *fdf,
              gsl_multifit_nlinear_parameters *params) {
   const gsl_multifit_nlinear_type *T = gsl_multifit_nlinear_trust;
@@ -190,8 +190,8 @@ solve_system(gsl_vector *x, gsl_multifit_nlinear_fdf *fdf,
   fprintf(stderr, "NFEV          = %zu\n", fdf->nevalf);
   fprintf(stderr, "NJEV          = %zu\n", fdf->nevaldf);
   fprintf(stderr, "NAEV          = %zu\n", fdf->nevalfvv);
-  fprintf(stderr, "initial cost  = %.12e\n", sqrt(chisq0));
-  fprintf(stderr, "final cost    = %.12e\n", sqrt(chisq));
+  fprintf(stderr, "initial cost  = %.12e\n", sqrt(chisq0/n));
+  fprintf(stderr, "final cost    = %.12e\n", sqrt(chisq/n));
 
   fprintf(stderr, "A  = %.12e\n", gsl_vector_get(x, 0));
   fprintf(stderr, "B  = %.12e\n", gsl_vector_get(x, 1));
@@ -203,54 +203,48 @@ solve_system(gsl_vector *x, gsl_multifit_nlinear_fdf *fdf,
   fprintf(stderr, "final cond(J) = %.12e\n", 1.0 / rcond);
 
   gsl_multifit_nlinear_free(work);
+  return sqrt(chisq/n);
 }
 
-int
-main (void)
-{
-  const size_t n = 300;  /* number of data points to fit */
+
+/*
+Fit resonance with Lorentzian curve
+Arguments:
+  n   - number of points
+  freq - frequency data [0..n-1]
+  real - X (real part) of the data [0..n-1]
+  imag - Y (imag part) of the data [0..n-1]
+  pars - array of size 6, fit parameters:
+         base_real, base_imag, amp_real, amp_imag, res_freq, res_width
+  pars_e
+Return value:
+
+*/
+double
+fit_res (const size_t n,
+         double * freq,
+         double * real,
+         double * imag,
+         double pars[6],
+         double pars_e[6]
+        ) {
+
   const size_t p = 6;    /* number of model parameters */
 
-  const gsl_rng_type * T = gsl_rng_default;
   gsl_vector *f = gsl_vector_alloc(2*n);
   gsl_vector *x = gsl_vector_alloc(p);
   gsl_multifit_nlinear_fdf fdf;
   gsl_multifit_nlinear_parameters fdf_params =
     gsl_multifit_nlinear_default_parameters();
-  struct data fit_data;
-  gsl_rng * r;
   size_t i;
+  struct data fit_data;
 
-  gsl_rng_env_setup ();
-  r = gsl_rng_alloc (T);
+  //
 
-  fit_data.w = malloc(n * sizeof(double));
-  fit_data.x = malloc(n * sizeof(double));
-  fit_data.y = malloc(n * sizeof(double));
   fit_data.n = n;
-
-  /* generate synthetic data with noise */
-  {
-    double A = 1.1;
-    double B = 0.1;
-    double C = 1.2;
-    double D = 2.2;
-    double w0 = 1023;
-    double dw = 11;
-    for (i = 0; i < n; ++i) {
-
-      double wi = w0 + 3*dw*( (double)i / (double) n - 0.5);
-      double X0 = A - (C*dw - D*(wi-w0))/((wi-w0)*(wi-w0) + dw*dw);
-      double Y0 = B - (C*(wi-w0) - D*dw)/((wi-w0)*(wi-w0) + dw*dw);
-
-      double dx = gsl_ran_gaussian (r, 0.1 * X0);
-      double dy = gsl_ran_gaussian (r, 0.1 * Y0);
-
-      fit_data.w[i] = wi;
-      fit_data.x[i] = X0 + dx;
-      fit_data.y[i] = Y0 + dy;
-    }
-  }
+  fit_data.w = freq;
+  fit_data.x = real;
+  fit_data.y = imag;
 
   /* define function to be minimized */
   fdf.f = func_f;
@@ -258,43 +252,25 @@ main (void)
   fdf.fvv = NULL; //func_fvv;
   fdf.n = 2*n;
   fdf.p = p;
-  fdf.params = &fit_data;
+  fdf.params = & fit_data;
 
   /* starting point */
-  gsl_vector_set(x, 0, (fit_data.x[0]+fit_data.x[n-1])/2);
-  gsl_vector_set(x, 1, (fit_data.y[0]+fit_data.y[n-1])/2);
+  gsl_vector_set(x, 0, (fit_data.x[0] + fit_data.x[n-1])/2);
+  gsl_vector_set(x, 1, (fit_data.y[0] + fit_data.y[n-1])/2);
   gsl_vector_set(x, 2, 1.0);
   gsl_vector_set(x, 3, 1.0);
-  gsl_vector_set(x, 4, (fit_data.w[n-1]+fit_data.w[0])/2);
+  gsl_vector_set(x, 4, (fit_data.w[n-1] + fit_data.w[0])/2);
   gsl_vector_set(x, 5, abs(fit_data.w[n-1]-fit_data.w[0])/2);
 
 //  fdf_params.trs = gsl_multifit_nlinear_trs_lmaccel;
   fdf_params.trs = gsl_multifit_nlinear_trs_lm;
-  solve_system(x, &fdf, &fdf_params);
+  double res = solve_system(x, &fdf, &fdf_params);
 
-  /* print data and model */
-  {
-    double A = gsl_vector_get(x, 0);
-    double B = gsl_vector_get(x, 1);
-    double C = gsl_vector_get(x, 2);
-    double D = gsl_vector_get(x, 3);
-    double w0 = gsl_vector_get(x, 4);
-    double dw = gsl_vector_get(x, 5);
-
-    for (i = 0; i < n; ++i) {
-        double wi = fit_data.w[i];
-        double Xi = fit_data.x[i];
-        double Yi = fit_data.y[i];
-        double z = (wi-w0)*(wi-w0) + dw*dw;
-        double X = A - (C*dw - D*(wi-w0))/z;
-        double Y = B - (C*(wi-w0) - D*dw)/z;
-        printf("%f %f %f %f %f\n", wi, Xi, Yi, X, Y);
-      }
-  }
+  for (i=0; i<6; i++) pars[i] = gsl_vector_get(x, i);
 
   gsl_vector_free(f);
   gsl_vector_free(x);
-  gsl_rng_free(r);
 
-  return 0;
+  return res;
 }
+
