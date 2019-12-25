@@ -17,8 +17,8 @@ set default_pars {
   tpos         0.5        {timestamp position: 0-beginning of measurement, 1-end of measuremen}
   tconv        0          {ms, time shift between samples in 1 step}
 
-  data_title   {Data:}    {data title in the interface}
   time_title   {Time:}    {time title in the interface}
+  print_values labels_top {labels_top | frames_top | none}
   tfmt         {%H:%M:%S} {time format string for the interface}
   dfmt         {%.3e}     {data format string for the interface}
   data_convs   {}         {data conversion for each data column - list of expr\
@@ -52,9 +52,9 @@ tk appname "datameas: $pars(name)"
 
 ##########################################################################
 ##########################################################################
-set D0  {};  # current data
-set Df  {};  # formatted data (see -dfmt option)
-set T0  {};  # current time (seconds)
+set T0  {};      # current time (seconds)
+set D0  {};      # current data (list)
+array unset Df;  # formatted data (see -dfmt option)
 set Tf  {};  # current formatted time (-tfmt option)
 set dev {};  # gauge device handler
 
@@ -81,7 +81,7 @@ proc func_meas {} {
   global pars dev D0 Df T0 Tf
   if {$dev=={}} return
   set t1 [clock microseconds]
-  if {[catch {set D0 [$dev get]}]} { error }
+  set D0 [$dev get]
   set t2 [clock microseconds]
 
   # convert data with data_convs
@@ -96,9 +96,15 @@ proc func_meas {} {
   set T0 [expr {($t1 + ($t2-$t1)*$pars(tpos))/1e6}]
 
   # format data and time for the interface
-  if {$pars(dfmt) != {}} { set Df [format $pars(dfmt) {*}$D0] }\
-  else {set Df $D0}
   set Tf [clock format [expr int($T0)] -format $pars(tfmt)]
+  set i 0
+  foreach name $pars(plot_names) fmt $pars(dfmt) val $D0 {
+    if {$fmt != {}} {
+      set Df($name) [format $fmt $val]
+    } else {
+      set Df($name) $val
+    }
+  }
 
   # append data to timeplot
   time_plot add_data "$T0 $D0"
@@ -123,14 +129,66 @@ proc func_meas {} {
 proc func_mkint {w} {
   global pars
   frame $w.data
-  label $w.data.tl -text $pars(time_title)
-  label $w.data.vl -text $pars(data_title)
-  label $w.data.t -fg darkgreen -font {-size 12} -textvariable Tf
-  label $w.data.v -fg darkgreen -font {-size 12} -textvariable Df
-  checkbutton $w.data.save -text "save to DB" -selectcolor "red" -bd 1 -relief raised\
-    -variable pars(save) -command "set_checkbox_color $w.data.save"
-  pack $w.data.tl $w.data.t $w.data.vl $w.data.v -side left
-  if {$pars(db_dev) != {}} {pack $w.data.save -side right}
+
+  set top 1
+  switch -exact -- $pars(print_values) {
+    labels_top {
+      label $w.data.tl -text $pars(time_title)
+      label $w.data.t -fg darkgreen -font {-size 12} -textvariable Tf -width 8
+      pack $w.data.tl $w.data.t -side left
+      foreach n $pars(plot_names) {
+        label $w.data.l$n -text "$n:"
+        label $w.data.v$n -fg darkgreen -font {-size 12} -textvariable Df($n)
+        pack $w.data.l$n $w.data.v$n -side left
+      }
+    }
+    labels_left {
+      frame $w.data.tab
+      label $w.data.tab.lt -text $pars(time_title)
+      label $w.data.tab.vt -fg darkgreen -font {-size 12} -textvariable Tf -width 8
+      grid $w.data.tab.lt $w.data.tab.vt -sticky w
+      foreach n $pars(plot_names) {
+        label $w.data.tab.l$n -text "$n:"
+        label $w.data.tab.v$n -fg darkgreen -font {-size 12} -textvariable Df($n)
+        grid $w.data.tab.l$n $w.data.tab.v$n -sticky w
+      }
+      pack $w.data.tab -side top -expand 1 -fill x
+      set top 0
+    }
+    frames_top {
+      labelframe $w.data.lt -text $pars(time_title)
+      label $w.data.lt.v -fg darkgreen -font {-size 12} -textvariable Tf -width 8
+      pack $w.data.lt.v
+      pack $w.data.lt -side left
+      foreach n $pars(plot_names) {
+        labelframe $w.data.l$n -text "$n:"
+        label $w.data.l$n.v -fg darkgreen -font {-size 12} -textvariable Df($n)
+        pack $w.data.l$n.v
+        pack $w.data.l$n -side left
+      }
+    }
+    frames_left {
+      labelframe $w.data.lt -text $pars(time_title)
+      label $w.data.lt.v -fg darkgreen -font {-size 12} -textvariable Tf -width 8
+      pack $w.data.lt.v
+      pack $w.data.lt -side top
+      foreach n $pars(plot_names) {
+        labelframe $w.data.l$n -text "$n:"
+        label $w.data.l$n.v -fg darkgreen -font {-size 12} -textvariable Df($n)
+        pack $w.data.l$n.v
+        pack $w.data.l$n -side top
+      }
+      set top 0
+    }
+    none {}
+    default {error "unknown print_value setting"}
+  }
+
+  if {$pars(db_dev) != {}} {
+    checkbutton $w.data.save -text "save to DB" -selectcolor "red" -bd 1 -relief raised\
+      -variable pars(save) -command "set_checkbox_color $w.data.save"
+    pack $w.data.save -side [expr {$top? "right":"bottom"}]
+  }
 
   set Tf [clock format [clock seconds] -format $pars(tfmt)]
 
@@ -151,10 +209,17 @@ proc func_mkint {w} {
    -use_comm   $pars(plot_comm)\
    -use_marker $pars(plot_marker)
 
-  grid $w.data -sticky we
-  grid $w.tplot -sticky wens
-  grid columnconfigure $w 0 -weight 1
-  grid rowconfigure    $w 1 -weight 1
+  if {$top} {
+    grid $w.data -sticky we
+    grid $w.tplot -sticky wens
+    grid columnconfigure $w 0 -weight 1
+    grid rowconfigure    $w 1 -weight 1
+  } else {
+    grid $w.data -column 0 -row 0 -sticky n
+    grid $w.tplot -column 1 -row 0 -sticky wens
+    grid rowconfigure $w 0 -weight 1
+    grid columnconfigure $w 1 -weight 1
+  }
 }
 
 #########################
