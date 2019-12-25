@@ -17,7 +17,8 @@ package require xBlt; # options
 ##   -func_mkint   make interface function (argument: widget path)
 ##   -show_ctl     show control panel, buttons and period setting (default: 1)
 ##   -show_title   show title panel (default: 1)
-##   -verb         verbosity level (default: 1)
+##   -verb         verbosity level (0: show only errors in the status line,
+##                 1(default): show status messages (Measure, Waiting, etc.)
 
 ## All func_* functions can throw errors, return values are ignored
 ## 
