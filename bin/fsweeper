@@ -187,13 +187,13 @@ itcl::class LockinInt {
   # silent measurement with autorange
   method get_auto_w {} {
     if {$dev == {}} return
-    after [expr int($tconst*1000*3)]
+    after [expr int($tconst*1000*2)]
     return [$dev get_auto]
   }
 
   method get_w {} {
     if {$dev == {}} return
-    after [expr int($tconst*1000*3)]
+    after [expr int($tconst*1000*2)]
     return [$dev get]
   }
 
@@ -362,7 +362,7 @@ itcl::class GenInt {
     }
 
     # update lockin interface
-    if {$lockin_int!={}} {$lockin_int update_val_w}
+#    if {$lockin_int!={}} {$lockin_int update_val_w}
 
     if {$::pars(db_dev)!={} && $::pars(db_nmr_gen)!={}} {
       if {$::pars(use_comp)} {
