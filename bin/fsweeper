@@ -337,8 +337,9 @@ itcl::class GenInt {
     widget_state $widget disabled
   }
 
-  # write settings to generator device
-  method apply_exc {} {
+  # Write settings to generator device
+  # If save==1 parameters are saved to the database
+  method apply_exc {{save 1}} {
     if {[info command $dev] == {}} return
 
     # change excitation amplitude and phase,
@@ -364,7 +365,7 @@ itcl::class GenInt {
     # update lockin interface
 #    if {$lockin_int!={}} {$lockin_int update_val_w}
 
-    if {$::pars(db_dev)!={} && $::pars(db_nmr_gen)!={}} {
+    if {$save && $::pars(db_dev)!={} && $::pars(db_nmr_gen)!={}} {
       if {$::pars(use_comp)} {
         $::pars(db_dev) cmd put $::pars(db_nmr_gen) now $fre $amp1 $ph1 $amp2 $ph2
       } else {
@@ -678,7 +679,7 @@ itcl::class FreqInt {
     set f [expr {$run_f1 + 1.0*($run_f2-$run_f1)*$run_i/($run_npt-1)}]
     set f [format %.2f $f]
     $gen_int configure -fre $f
-    $gen_int apply_exc
+    $gen_int apply_exc 0
     $lockin_int wait_lock
     set res [$lockin_int get_w]
     # in case if stop button pressed during measurement
