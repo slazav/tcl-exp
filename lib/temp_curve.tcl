@@ -178,10 +178,10 @@ itcl::class TempCurve {
       set xp [lindex $xdata 0]
       set yp [lindex $ydata 0]
       if {[get_fmt] == 4} {set x [expr log($x)/log(10)]}
-      if {$x <  $xp} {lappend yy {};  continue}
+      if {$x <  $xp} {lappend yy {-Inf};  continue}
       if {$x == $xp} {lappend yy $yp; continue}
 
-      set y {}
+      set y {+Inf}
       for {set n 1} {$n<[get_npts]} {incr n} {
         set xn [lindex $xdata $n]
         set yn [lindex $ydata $n]
