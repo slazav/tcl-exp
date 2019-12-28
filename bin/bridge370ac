@@ -28,7 +28,7 @@ set default_pars {
   scanmode     {Scan all channels} {Original value of scanmode switch}
   mchan        {1} {Original value of measured channel switch}
   curve_dir    {.} {Default directory for calibration curves}
-  timeout    { 200} {How long we want to stay at one channel in autoscan mode [s]; 0 - forever}
+  timeout     {30} {How long we want to stay at one channel in autoscan mode [s]; 0 - forever}
 }
 
 if {[llength $argv]>0 } {
@@ -656,6 +656,7 @@ itcl::class ChanPanel {
   variable status; # channel status (overloads)
   variable onscan; # is channel scanned now (text!)
   variable timer {};  # autoscan timer
+  variable gtimer {}; # global timer (how long we want t stay a this channel)
 
   # input settings
   variable onoff {};
@@ -917,6 +918,20 @@ itcl::class ChanPanel {
       else                   {set val [format "%7g fW" [expr $pwr*1e15]]}
     }
 
+
+    # Global timer: for how long we want so say at this channel
+    # before returning Timeout status
+    if {$gtimer == {}} {set gtimer [clock seconds]}
+
+    if {$timeout > 0 && [clock seconds] - $gtimer  > $timeout} {
+       return [list Timeout Timeout red] }
+
+
+
+    # Timer: for how long we want to wait before filter time and
+    # dwell tme is expied and we can return OK status.
+    # timer is reset when range is changes or error occures.
+
     # Wait before recording measurement value
     set del $pause
     if {$flt_on} {set del [expr $del+$flt_time]}
@@ -929,14 +944,13 @@ itcl::class ChanPanel {
 
     if {$dt>0} { return [list $val "Wait: ${dt}s" #606000] }
 
-    if {$timeout > 0 && $timer - [clock seconds] > $timeout} {
-       return [list Timeout Timeout red] }
-
     # Do not save values if $fail==1
     if {$fail} {
       set timer {}
       return [list Error $status red]
     }
+
+
 
     # Add timestamp and measured data to the plot
     set tt [expr {[clock milliseconds]/1000.0}]
@@ -955,6 +969,7 @@ itcl::class ChanPanel {
   method stop_meas {} {
     set onscan {}
     set timer {}
+    set gtimer {}
   }
 
   method write_pars {} {
@@ -1160,7 +1175,7 @@ proc on_meas {} {
     ch_pan$chan stop_meas
     set chan $next_chan
     $br set_scan $chan 0
-    after 1000
+    after 100
   }
 
 }
