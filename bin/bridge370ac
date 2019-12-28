@@ -1171,20 +1171,18 @@ proc on_meas {} {
   }
 
   # switch to next channel
-  if {$chan != $next_chan} {
-    ch_pan$chan stop_meas
-    set chan $next_chan
-    $br set_scan $chan 0
-    after 100
-  }
+  if {$chan != $next_chan} { switch_chan $next_chan }
 
 }
 
-proc switch_chan {ch} {
+# switch bridge to another channel
+proc switch_chan {new_ch} {
   global br chan
-  set old [lindex [$br get_scan] 0]
-  $br set_scan $ch 0
-  ch_pan$old stop_meas
+  set old_ch [lindex [$br get_scan] 0]
+  ch_pan$old_ch stop_meas
+  set chan $new_ch
+  $br set_scan $new_ch 0
+  after 100
 }
 
 
