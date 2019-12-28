@@ -122,10 +122,9 @@ itcl::class TempCurve {
         continue
       }
 
-      # Bluefors data: two space-separated values
-      set clist [split $line " +"]
-      if {[llength $clist] == 3} {
-        append_point [lindex $clist 1] [lindex $clist 2]
+      # Bluefors data: three space-separated values
+      if {[llength $line] == 3} {
+        append_point [lindex $line 1] [lindex $line 2]
         continue
       }
 

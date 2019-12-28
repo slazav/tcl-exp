@@ -26,3 +26,6 @@ assert {[format %.3f [crv calc 1277]] == "344.773"}
 puts [crv calc {1296.9 1277.0}]
 
 
+
+crv read_file temp_curve_bluefors.dat
+assert {[crv get_npts] == 93}
