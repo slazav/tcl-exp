@@ -22,6 +22,7 @@ set default_pars {
   volt_dev   {} {dc_source device}
   db_dev     {} {database device (can be empty)}
   db_val     {} {database name for numerical values}
+  db_comm    {} {database name for text comments}
 }
 
 if {[llength $argv]>0 } {
@@ -77,7 +78,7 @@ proc do_onoff {state} {
   else {
     if {$::pars(volt_dev)!={}} {
       set dev [DeviceRole $::pars(volt_dev) dc_source]
-      measure
+      measure 1
     }
   }
   enable $state
@@ -87,9 +88,11 @@ proc do_onoff {state} {
 
 set rh {}
 
-proc measure {} {
+proc measure {{first 0}} {
   global dev pars voltage power v_k p_k rh
   after cancel $rh
+
+  set old_voltage $voltage
 
   if {$dev=={}} return
   set v [expr {[$dev get_volt]*$pars(gain)}]
@@ -101,15 +104,21 @@ proc measure {} {
   }
 
   # put values into db
-  if {$pars(db_dev)!={} && $pars(db_val)!={}} {
+  if {$pars(db_dev)!={}} {
     Device $pars(db_dev)
-    $pars(db_dev) cmd put $pars(db_val) now_s $v $p
+
+    if {$pars(db_val)!={}} {
+      $pars(db_dev) cmd put $pars(db_val) now_s $v $p }
+
+    if {$pars(db_comm)!={} && !$first && $old_voltage != $voltage} {
+      $pars(db_dev) cmd put $pars(db_comm) now_s "$pars(name): $voltage $pars(v_units), $power $pars(p_units) "}
+
     itcl::delete object $pars(db_dev)
   }
 
   if {$pars(mon_int)>0} {
     set dt [expr {int($pars(mon_int)*1000.0)}]
-    set rh [after $dt measure]
+    set rh [after $dt measure 0]
   }
 }
 
