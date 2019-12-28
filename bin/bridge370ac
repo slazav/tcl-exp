@@ -1063,10 +1063,10 @@ switch_tab 1
 frame .scan.hsep -relief groove -borderwidth 1 -height 2
 grid .scan.hsep -columnspan 3 -sticky we -pady 5
 
-label .scan.mode_l -text "Scan mode:"
+#label .scan.mode_l -text "Scan mode:"
 ttk::combobox .scan.mode -textvariable pars(scanmode)
 .scan.mode configure -values $scan_modes
-grid x .scan.mode_l .scan.mode -sticky nw
+grid x .scan.mode -sticky nw -columnspan 2
 
 label .scan.mchan_l -text "Measured channel:"
 ttk::combobox .scan.mchan -textvariable pars(mchan) -width 3
