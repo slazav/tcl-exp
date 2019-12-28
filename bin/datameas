@@ -23,6 +23,12 @@ set default_pars {
   dfmt         {%.3e}     {data format string for the interface}
   data_convs   {}         {data conversion for each data column - list of expr\
                            statements with $x variable (like {{$x*2} {sin($x)}} etc.) }
+  data_curves  {}         {data calibration curves (see TempCurve description).\
+                           If both data_convs and data_curves are non-empty for\
+                           a given column, then data_convs is applied first.}
+  data_add     {replace}  {What to do with data from data_convs/data_curves:\
+                           replace - replace existing data, insert - insert after\
+                           the column, append - append at the end of data list}
   plot_ncols   1          {number of columns in the plot}
   plot_maxt    600        {max time span in the plot}
   plot_maxn    0          {max number of points in the plot}
@@ -57,6 +63,12 @@ set D0  {};      # current data (list)
 array unset Df;  # formatted data (see -dfmt option)
 set Tf  {};  # current formatted time (-tfmt option)
 set dev {};  # gauge device handler
+set curves {}; # calibration curves
+
+foreach c $pars(data_curves) {
+  if {$c!={}} {lappend curves [TempCurve #auto]}\
+  else {lappend curves {}}
+}
 
 ##########################################################################
 ##########################################################################
@@ -64,9 +76,14 @@ set dev {};  # gauge device handler
 
 # Open devices
 proc func_start {} {
-  global pars dev
+  global pars dev curves
   if {$pars(gauge_dev)!={}} {set dev [DeviceRole $pars(gauge_dev) gauge]}
   if {$pars(db_dev)!={}} { Device $pars(db_dev) }
+
+  # re-read calibration curves
+  foreach c $curves f $pars(data_curves) {
+    if {$c!={}} { $c read_file $f } 
+  }
 }
 
 # Close devices
@@ -78,19 +95,34 @@ proc func_stop {} {
 
 # Do a single measurement, return data
 proc func_meas {} {
-  global pars dev D0 Df T0 Tf
+  global pars dev D0 Df T0 Tf curves
   if {$dev=={}} return
   set t1 [clock microseconds]
   set D0 [$dev get]
   set t2 [clock microseconds]
 
-  # convert data with data_convs
-  set i 0
-  foreach x $D0 conv $pars(data_convs) {
-    if {$conv == {}} {continue}
-    lset D0 $i [expr $conv]
-    incr i
+  # convert data with data_convs and data_curves
+  set converted {}
+  set convertede {}
+  foreach x $D0 conv $pars(data_convs) curve $curves {
+    set v $x
+    set cnv 0
+    if {$conv  != {}} {set v [expr $conv]; set cnv 1}
+    if {$curve != {}} {set v [$curve calc $v]; set cnv 1}
+
+    if {$cnv} {
+      switch -exact -- $pars(data_add) {
+        {replace} {lappend converted $v}
+        {insert}  {lappend converted $x; lappend converted $v}
+        {append}  {lappend converted $x; lappend convertede $v}
+        default {error "unknown data_add setting: $pars(data_add). replace, insert, or append expected"}
+      }
+    }\
+    else {
+      lappend converted $x
+    }
   }
+  set D0 [concat $converted $convertede]
 
   # calculate timestamp
   set T0 [expr {($t1 + ($t2-$t1)*$pars(tpos))/1e6}]
