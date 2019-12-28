@@ -174,9 +174,9 @@ itcl::class TempCurve {
   method calc {xx} {
     check_data
     set yy {}
-    set xp [lindex $xdata 0]
-    set yp [lindex $ydata 0]
     foreach x $xx {
+      set xp [lindex $xdata 0]
+      set yp [lindex $ydata 0]
       if {[get_fmt] == 4} {set x [expr log($x)/log(10)]}
       if {$x <  $xp} {lappend yy {};  continue}
       if {$x == $xp} {lappend yy $yp; continue}
@@ -186,7 +186,7 @@ itcl::class TempCurve {
         set xn [lindex $xdata $n]
         set yn [lindex $ydata $n]
         if {$x > $xp && $x <= $xn} {
-          set y [expr {$yp + ($x-$xp)*($xn-$xp)/($yn-$yp)}]
+          set y [expr {$yp + ($x-$xp)*($yn-$yp)/($xn-$xp)}]
           break
         }
         set xp $xn

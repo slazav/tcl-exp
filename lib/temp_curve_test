@@ -1,0 +1,28 @@
+#!/usr/bin/tclsh
+
+source temp_curve.tcl
+
+proc assert {e} {
+  if {![expr $e]} { error "Assertion failed: $e" } }
+
+
+TempCurve crv
+
+crv read_file temp_curve_simple.dat
+
+assert {[crv get_name] == "PT1000"}
+assert {[crv get_serial] == "VZ_N6PT"}
+assert {[crv get_fmt] == 4}
+assert {[crv get_tlim] == 350}
+assert {[crv get_tcoeff] == 1}
+assert {[crv get_npts] == 93}
+
+assert {[crv calc {0 1 2 1e8}] == {{} {} {} {}}}
+
+
+assert {[format %.3f [crv calc 1296.9]] == "349.978"}
+assert {[format %.3f [crv calc 1277]] == "344.773"}
+
+puts [crv calc {1296.9 1277.0}]
+
+
