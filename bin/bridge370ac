@@ -920,7 +920,7 @@ itcl::class ChanPanel {
 
 
     # Global timer: for how long we want so say at this channel
-    # before returning Timeout status
+    # without any measurements before returning Timeout status
     if {$gtimer == {}} {set gtimer [clock seconds]}
 
     if {$timeout > 0 && [clock seconds] - $gtimer  > $timeout} {
@@ -962,7 +962,7 @@ itcl::class ChanPanel {
       $db_dev cmd sync
     }
 
-
+    set gtimer {}
     return [list $val OK green]
   }
 
