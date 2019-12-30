@@ -11,6 +11,7 @@ set default_pars {
   period       {1.0}      {measurement period}
   onoff        0          {initial state of main switch}
   save         0          {initial state of save switch}
+  savebtn      1          {draw the save switch}
   gauge_dev    {TEST}     {gauge device}
   db_dev       {}         {database device}
   db_name      {}         {database name (one name to put all in one or list of names to put each channel separately)}
@@ -175,13 +176,16 @@ proc func_mkint {w} {
       }
     }
     labels_left {
-      frame $w.data.tab
+      labelframe $w.data.tab
       label $w.data.tab.lt -text $pars(time_title)
       label $w.data.tab.vt -fg darkgreen -font {-size 12} -textvariable Tf -width 8
       grid $w.data.tab.lt $w.data.tab.vt -sticky w
+      frame $w.data.tab.hsep -relief groove -borderwidth 1 -height 2
+      grid $w.data.tab.hsep -columnspan 2 -sticky we -pady 2
+
       foreach n $pars(plot_names) {
-        label $w.data.tab.l$n -text "$n:"
-        label $w.data.tab.v$n -fg darkgreen -font {-size 12} -textvariable Df($n)
+        label $w.data.tab.l$n -text "$n:" 
+        label $w.data.tab.v$n -fg darkgreen -font {-size 12} -textvariable Df($n) -width 10
         grid $w.data.tab.l$n $w.data.tab.v$n -sticky w
       }
       pack $w.data.tab -side top -expand 1 -fill x
@@ -216,7 +220,7 @@ proc func_mkint {w} {
     default {error "unknown print_value setting"}
   }
 
-  if {$pars(db_dev) != {}} {
+  if {$pars(db_dev) != {} && $pars(savebtn)} {
     checkbutton $w.data.save -text "save to DB" -selectcolor "red" -bd 1 -relief raised\
       -variable pars(save) -command "set_checkbox_color $w.data.save"
     pack $w.data.save -side [expr {$top? "right":"bottom"}]
