@@ -6,6 +6,15 @@
 # defs  -- array with default values,
 #   contains three values for each parameter:
 #   name, default value, description (not used).
+#
+# configuration file structure:
+# - lines which consist of 0 or more spaces are skipped
+# - lines which start with 0 or more spaces followed by
+#   '#'  character are skipped
+# - if a line ends with '\' the next line will be
+#   appended to it
+# - Two first values are extracted frome each line,
+#   key and vsalue. The key should match defs structure.
 
 proc read_conf {fname arr defs} {
   set ff [open $fname]
@@ -16,7 +25,13 @@ proc read_conf {fname arr defs} {
   }
 
   while {![eof $ff]} {
-    set line [gets $ff]
+    set line "[gets $ff]"
+
+    # strings can be concatenated using \ symbol
+    while {[string index "$line" end] == "\\"} {
+      set line [string cat [string trimright $line "\\"] [gets $ff]]
+    }
+
     # skip empty lines and comments
     if {[regexp {^\s*$} $line]} continue
     if {[regexp {^\s*#} $line]} continue

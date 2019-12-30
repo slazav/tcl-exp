@@ -6,8 +6,11 @@ read_conf test_read_conf.txt pars {
  v1  0.5      {parameter 1}
  v2  1.2      {parameter 2}
  v3  {1 2 3}  {par 3}
+ v4  {1 2
+      3 4}  {par 3}
 }
 
 puts "v1: $pars(v1)"
 puts "v2: $pars(v2)"
 puts "v3: $pars(v3)"
+puts "v4: $pars(v4)"
