@@ -316,11 +316,11 @@ itcl::class LakeShore370AC {
     # convert from numbers to text values
     set mod [lindex [exc_list] $mod_n]
     if {$mod_n == 0} {
-      set exc [lindex [volt_list] $exc_n ]
+      set exc [lindex [volt_list] [expr $exc_n-1] ]
     } else {
-      set exc [lindex [curr_list] $exc_n ]
+      set exc [lindex [curr_list] [expr $exc_n-1] ]
     }
-    set rng [lindex [res_list] $rng_n]
+    set rng [lindex [res_list] [expr $rng_n-1]]
 
     return [list $mod $exc $rng $autorng $onoff]
   }
@@ -329,18 +329,21 @@ itcl::class LakeShore370AC {
   method set_ch_range {chan exc_type exc_range res_range arange exc_on} {
     set exc_type_n [lsearch -exact [exc_list] $exc_type]
     set res_range_n [lsearch -exact [res_list] $res_range]
+    incr res_range_n
 
     if {$exc_type_n == 0} {
       set exc_range_n [lsearch -exact [volt_list] $exc_range]
+      incr exc_range_n
     } else {
       set exc_range_n [lsearch -exact [curr_list] $exc_range]
+      incr exc_range_n
     }
 
     if {$exc_type_n<0} {
       error "set_ch_range: wrong exc_type setting: $exc_type"}
-    if {$exc_range_n<0} {
+    if {$exc_range_n<1} {
       error "set_ch_range: wrong exc_range setting: $exc_range"}
-    if {$res_range_n<0} {
+    if {$res_range_n<1} {
       error "set_ch_range: wrong res_range setting: $res_range"}
     if {$arange!=0 && $arange!=1} {
       error "set_ch_range: wrong autorange setting: $arange"}
