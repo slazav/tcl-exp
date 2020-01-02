@@ -155,15 +155,15 @@ proc func_meas {} {
       set i 0
       array unset data_lists
       foreach db $pars(db_name) d $D0 {
-        if {$db == {} || $d = {}} continue
-        if {$data_lists($db) == {}} {
+        if {$db == {} || $d == {}} continue
+        if {[array names data_lists $db] == {}} {
           set data_lists($db) [expr $T0+$i*$pars(tconv)]
         }
         append data_lists($db) " $d"
         incr i
       }
-      foreach db [array names $data_lists] {
-        if {$db == {} || $data_lists($db) = {}} continue
+      foreach db [array names data_lists] {
+        if {$db == {} || $data_lists($db) == {}} continue
         $pars(db_dev) cmd put $db $data_lists($db)
         $pars(db_dev) cmd sync
       }
