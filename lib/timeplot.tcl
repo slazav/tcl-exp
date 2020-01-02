@@ -307,7 +307,7 @@ itcl::class TimePlot {
 
     # remove old values:
     set dvecs {}
-    for {set i 0} {$i < $ncols} {incr i} {append dvecs "$this:D$i"}
+    for {set i 0} {$i < $ncols} {incr i} {lappend dvecs "$this:D$i"}
     clean_old_values "$this:T" $dvecs
 
   }
