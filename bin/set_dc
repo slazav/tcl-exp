@@ -9,13 +9,29 @@ package require xBlt
 #
 # -d -dev   -- voltage source device (default gen0:1)
 # -v -volt  -- voltage (default 0)
+# -c -curr  -- voltage (default 0)
 
 set options [list \
 {-d -dev}   dev  {gen0:1}\
 {-v -volt}  volt    {0.0}\
+{-i -curr}  curr    {0.0}\
 ]
 
 xblt::parse_options "get_gain" $argv $options
 set source [DeviceRole $dev dc_source]
 
-$source set_volt $volt
+if { $curr == 0 && $volt == 0 } {
+  $source set_volt 0
+  $source set_curr 0
+  exit
+}
+
+if { $curr == 0 } {
+  $source set_volt $volt
+} \
+elseif { $volt == 0 } {
+  $source set_curr $curr
+} \
+else {
+  error "dc source: -curr $curr -volt $volt  can not be both non-zero"
+}
