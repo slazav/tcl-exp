@@ -1,6 +1,7 @@
 #!/usr/bin/tclsh
 
 package require DeviceRole 1.1
+package require Exp
 package require xBlt
 
 ## script for measuring amplifier gain as a function of vcc
@@ -16,6 +17,8 @@ package require xBlt
 # -F -freq      -- frequency (default 1e6)
 # -V -vmin      -- min Vcc (default 0)
 # -W -vmax      -- max Vcc (default 5)
+# -I -imin      -- min Icc (default 0)
+# -J -imax      -- max Icc (default 0.0005)
 # -n            -- number of points (default 21)
 # -L -log       -- logarithmic step (default 0)
 # -d -dt        -- delay between samples  (default 0.5)
@@ -32,6 +35,8 @@ set options [list \
 {-F -freq}     freq     {1e6}\
 {-V -vmin}     vmin     {0}\
 {-W -vmax}     vmax     {5}\
+{-I -imin}     imin     {0}\
+{-J -imax}     imax     {0.0005}\
 {-G -fmax}     fmax     {2e6}\
 {-n}           npts     {21}\
 {-L -log}      log      {0}\
@@ -41,18 +46,41 @@ set options [list \
 {-g -gfactor}  gfact    {1}\
 ]
 
+# set dc_mode  if imin,imax,vmin,vmax are not redundant
+set imax_on [opt_on "-J -imax"]
+set imin_on [opt_on "-I -imin"]
+set vmax_on [opt_on "-W -vmax"]
+set vmin_on [opt_on "-V -vmin"]
+
 xblt::parse_options "get_gain_vcc" $argv $options
 
+if { $vmin_on * $vmax_on > 0 && $imin_on + $imax_on == 0} {
+  set dc_mode volt
+  set dc_m v
+  set pmin $vmin
+  set pmax $vmax
+} elseif { $imin_on * $imax_on > 0 && $vmin_on + $vmax_on == 0} {
+  set dc_mode curr
+  set dc_m i
+  set pmin $imin
+  set pmax $imax
+} else {
+  error "confusing options: -imin $imin -imax $imax -vmin $imin -vmax $vmax"
+}
 
 if {$npts <= 0} {error "$npts <= 0"}
 
 if {$npts!=1} {
-  if {$vmax <= $vmin} {error "$vmax <= $vmin"}
-  set dv  [expr {1.0*($vmax-$vmin)/($npts-1)}]
-  set dvk [expr {pow(1.0*$vmax/$vmin, 1.0/($npts-1))}]
+  if {$pmax <= $pmin} {error "$pmax <= $pmin"}
+  set dp  [expr {1.0*($pmax-$pmin)/($npts-1)}]
+  set dpk [expr {pow(1.0*$pmax/$pmin, 1.0/($npts-1))}]
 } else {
-  set dv 0
-  set dvk 1
+  set dp 0
+  set dpk 1
+}
+
+proc ps_set {val} {
+    if { $::dc_mode == "volt" } { $::ps set_volt $val } { $::ps set_curr $val }
 }
 
 
@@ -67,26 +95,25 @@ $gauge set_tconst $tconst
 
 # prepare power supply
 set ps [DeviceRole $ps_dev dc_source]
-$ps set_volt $vmin
+ps_set $pmin
 
 # initial delay
 after [expr {int($del*1000)}]
 
-puts "# freq volt vcc gain x y"
-set vcc $vmin
+puts "# freq volt ${dc_m}cc gain x y"
+set pcc $pmin
 for {set i 0} {$i < $npts} {incr i} {
-
-  set vcc [format "%.3f" $vcc]
-  $ps set_volt $vcc
+  set pcc [format "%.3e" $pcc]
+  ps_set $pcc
   after [expr {int($dt*1000)}]
   set out [$gauge get_auto]
   set x [lindex $out 0]
   set y [lindex $out 1]
   if {$x eq NaN || $y eq NaN} { set g NaN }\
   else {set g [expr {sqrt($x**2+$y**2)/$gfact/$volt}]}
-  puts "$freq $volt $vcc $g $x $y"
-  set vcc [expr {$log? $vcc*$dvk : $vcc+$dv}]
+  puts "$freq $volt $pcc $g $x $y"
+  set pcc [expr {$log? $pcc*$dpk : $pcc+$dp}]
 }
 
-$ps set_volt $vmin
+ps_set $pmin
 

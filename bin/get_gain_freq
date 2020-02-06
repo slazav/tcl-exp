@@ -1,6 +1,7 @@
 #!/usr/bin/tclsh
 
 package require DeviceRole 1.1
+package require Exp
 package require xBlt
 
 ## script for measuring frequency response
@@ -14,6 +15,7 @@ package require xBlt
 # -v -volt      -- voltage (default 0.01)
 # -o -offs      -- offset (default 0.0)
 # -V -vcc       -- Vcc  (default 3)
+# -I -icc       -- Icc  (default 0.0005)
 # -F -fmin      -- min frequency (default 23e3)
 # -G -fmax      -- max frequency (default 2e6)
 # -n            -- number of points (default 100)
@@ -30,7 +32,8 @@ set options [list \
 {-p -ps_dev}   ps_dev   {gen1}\
 {-v -volt}     volt     {0.01}\
 {-o -offs}     offs     {0.0}\
-{-V -vcc}      vcc      {3.0}\
+{-V -vcc}      vcc      {3}\
+{-I -icc}      icc      {0.0005}\
 {-F -fmin}     fmin     {25e3}\
 {-G -fmax}     fmax     {2e6}\
 {-n}           npts     {100}\
@@ -41,8 +44,23 @@ set options [list \
 {-g -gfactor}  gfact    {1}\
 ]
 
+
+set vcc_on [opt_on "-V -vcc"]
+set icc_on [opt_on "-I -icc"]
+
 xblt::parse_options "get_gain_freq" $argv $options
 
+if { ${vcc_on} > 0 && ${icc_on} == 0} {
+  set dc_mode volt
+  set dc_m v
+  set pcc $vcc
+} elseif { ${icc_on} > 0 && ${vcc_on} == 0} {
+  set dc_mode curr
+  set dc_m i
+  set pcc $icc
+} else {
+  error "confusing options: -vcc $vcc -icc $icc"
+}
 
 if {$npts <= 0} {error "$npts <= 0"}
 
@@ -53,6 +71,10 @@ if {$npts!=1} {
 } else {
   set df  0
   set dfk 1
+}
+
+proc ps_set {val} {
+    if { $::dc_mode == "volt" } { $::ps set_volt $val } { $::ps set_curr $val }
 }
 
 
@@ -67,12 +89,12 @@ $gauge set_tconst $tconst
 
 # prepare power supply
 set ps [DeviceRole $ps_dev dc_source]
-$ps set_volt $vcc
+ps_set $pcc
 
 # initial delay
 after [expr {int($del*1000)}]
 
-puts "# freq volt vcc gain x y"
+puts "# freq volt ${dc_m}cc gain x y"
 set f $fmin
 set f_set nan
 for {set i 0} {$i < $npts} {incr i} {
@@ -85,7 +107,7 @@ for {set i 0} {$i < $npts} {incr i} {
     set y [lindex $out 1]
     if {$x eq NaN || $y eq NaN} { set g NaN }\
     else {set g [expr {sqrt($x**2+$y**2)/$gfact/$volt}]}
-    puts "$f_set $volt $vcc $g $x $y"
+    puts "$f_set $volt $pcc $g $x $y"
   }
   set f [expr {$log? $f*$dfk : $f+$df}]
 

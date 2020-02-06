@@ -1,6 +1,7 @@
 #!/usr/bin/tclsh
 
 package require DeviceRole 1.1
+package require Exp
 package require xBlt
 
 ## script for measuring amplifier DC response
@@ -14,7 +15,8 @@ package require xBlt
 # -p -ps_dev    -- power supply device (default gen1)
 # -v -vmin      -- min input voltage (default -0.5)
 # -w -vmax      -- max input voltage (default 0.5)
-# -V -vcc       -- Vcc (default 0)
+# -V -vcc       -- Vcc (default 3)
+# -I -icc       -- Icc (default 0.0005)
 # -n1           -- number of points in gen1 sweep (default 21)
 # -n2           -- number of points in gen2 sweep (default 11)
 # -d -dt        -- delay between samples  (default 0.5)
@@ -30,6 +32,7 @@ set options [list \
 {-v -vmin}     vmin     {-0.5}\
 {-w -vmax}     vmax     {0.5}\
 {-V -vcc}      vcc      {3}\
+{-I -icc}      icc      {0.0005}\
 {-n1}          npts1    {21}\
 {-n2}          npts2    {11}\
 {-d -dt}       dt       {0.5}\
@@ -38,7 +41,22 @@ set options [list \
 {-g -gfactor}  gfact    {1}\
 ]
 
+set vcc_on [opt_on "-V -vcc"]
+set icc_on [opt_on "-I -icc"]
+
 xblt::parse_options "get_gain_dc" $argv $options
+
+if { $vcc_on > 0 && $icc_on == 0} {
+  set dc_mode volt
+  set dc_m v
+  set pcc $vcc
+} elseif { $icc_on > 0 && $vcc_on == 0} {
+  set dc_mode curr
+  set dc_m i
+  set pcc $icc
+} else {
+  error "confusing options: -vcc $vcc -icc $icc"
+}
 
 
 if {$npts1 <= 0} {error "$npts1 <= 0"}
@@ -58,6 +76,10 @@ if {$npts1!=1} {
   set dv2 0
 }
 
+proc ps_set {val} {
+    if { $::dc_mode == "volt" } { $::ps set_volt $val } { $::ps set_curr $val }
+}
+
 
 ## prepare generators
 set gen1   [DeviceRole $gen1_dev dc_source]
@@ -72,15 +94,16 @@ $gauge set_tconst $tconst
 
 # prepare power supply
 set ps [DeviceRole $ps_dev dc_source]
-$ps set_volt $vcc
+ps_set $pcc
 
 # initial delay
 after [expr {int($del*1000)}]
 
-for {set v2 $vmin} {$v2 < $vmax} {set v2 [expr {$v2+$dv2}]} {
+puts "# v1 ${dc_m}cc gauge_out"
+#for {set v2 $vmin} {$v2 < $vmax} {set v2 [expr {$v2+$dv2}]} {
 
-  set v2 [format "%.3f" $v2]
-  $gen2 set_volt $v2
+#  set v2 [format "%.3f" $v2]
+#  $gen2 set_volt $v2
 
 
   for {set v1 $vmin} {$v1 < $vmax} {set v1 [expr {$v1+$dv1}]} {
@@ -89,9 +112,10 @@ for {set v2 $vmin} {$v2 < $vmax} {set v2 [expr {$v2+$dv2}]} {
 
     after [expr {int($dt*1000)}]
     set out [$gauge get_auto]
-    puts "$v1 $v2 $vcc $out"
+#    puts "$v1 $v2 $pcc $out"
+    puts "$v1 $pcc $out"
   }
   puts ""
-}
+#}
 
 

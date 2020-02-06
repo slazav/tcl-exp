@@ -1,6 +1,7 @@
 #!/usr/bin/tclsh
 
 package require DeviceRole 1.2
+package require Exp
 package require xBlt
 
 ## script for setting a DC source form the command line
@@ -9,7 +10,7 @@ package require xBlt
 #
 # -d -dev   -- voltage source device (default gen0:1)
 # -v -volt  -- voltage (default 0)
-# -c -curr  -- voltage (default 0)
+# -c -curr  -- current (default 0)
 
 set options [list \
 {-d -dev}   dev  {gen0:1}\
@@ -17,21 +18,25 @@ set options [list \
 {-i -curr}  curr    {0.0}\
 ]
 
-xblt::parse_options "get_gain" $argv $options
+xblt::parse_options "set_dc" $argv $options
+
+set volt_on [opt_on "-v -volt"]
+set curr_on [opt_on "-i -curr"]
+if { $volt_on > 0 && $curr_on == 0} {
+  set dc_mode volt
+  set p $volt
+} elseif { $curr_on > 0 && $volt_on == 0} {
+  set dc_mode curr
+  set p $curr
+} else {
+  error "confusing options: -volt $volt -curr $curr"
+}
+
+
+proc source_set {val} {
+    if { $::dc_mode == "volt" } { $::source set_volt $val } { $::source set_curr $val }
+}
+
 set source [DeviceRole $dev dc_source]
 
-if { $curr == 0 && $volt == 0 } {
-  $source set_volt 0
-  $source set_curr 0
-  exit
-}
-
-if { $curr == 0 } {
-  $source set_volt $volt
-} \
-elseif { $volt == 0 } {
-  $source set_curr $curr
-} \
-else {
-  error "dc source: -curr $curr -volt $volt  can not be both non-zero"
-}
+source_set $p

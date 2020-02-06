@@ -16,6 +16,7 @@
 # - Two first values are extracted frome each line,
 #   key and vsalue. The key should match defs structure.
 
+
 proc read_conf {fname arr defs} {
   set ff [open $fname]
 
@@ -46,4 +47,11 @@ proc read_conf {fname arr defs} {
   }
 
   close $ff
+}
+
+proc opt_on {val} {
+  foreach v $val {
+    if {[expr [lsearch $::argv $v]]>-1} { return 1 }
+  }
+  return 0
 }

@@ -1,6 +1,7 @@
 #!/usr/bin/tclsh
 
 package require DeviceRole 1.1
+package require Exp
 package require xBlt
 
 ## script for measuring amplifier gain as a function of input amplitude
@@ -13,7 +14,8 @@ package require xBlt
 # -p -ps_dev    -- power supply device (default gen1)
 # -o -offs      -- offset (default 0.0)
 # -F -freq      -- frequency (default 1e6)
-# -V -vcc       -- Vcc (default 4)
+# -V -vcc       -- Vcc (default 3)
+# -I -icc       -- Vcc (default 0.0005)
 # -A -amin      -- min amplitude (default 0.002)
 # -B -amax      -- max amplitude (default 2)
 # -n            -- number of points (default 21)
@@ -30,6 +32,7 @@ set options [list \
 {-o -offs}     offs     {0.0}\
 {-F -freq}     freq     {1e6}\
 {-V -vcc}      vcc      {3}\
+{-I -icc}      icc      {0.0005}\
 {-A -amin}     amin     {0.002}\
 {-B -amax}     amax     {2}\
 {-G -fmax}     fmax     {2e6}\
@@ -43,6 +46,20 @@ set options [list \
 
 xblt::parse_options "get_gain_amp" $argv $options
 
+set vcc_on [opt_on "-V -vcc"]
+set icc_on [opt_on "-I -icc"]
+if { $vcc_on > 0 && $icc_on == 0} {
+  set dc_mode volt
+  set dc_m v
+  set pcc $vcc
+} elseif { $icc_on > 0 && $vcc_on > 0} {
+  set dc_mode curr
+  set dc_m i
+  set pcc $icc
+} else {
+  error "confusing options: -vcc $vcc -icc $icc"
+}
+
 if {$npts <= 0} {error "$npts <= 0"}
 
 if {$npts!=1} {
@@ -52,6 +69,10 @@ if {$npts!=1} {
 } else {
   set dv 0
   set dvk 1
+}
+
+proc ps_set {val} {
+    if { $::dc_mode == "volt" } { $::ps set_volt $val } { $::ps set_curr $val }
 }
 
 ## prepare generator
@@ -65,12 +86,12 @@ $gauge set_tconst $tconst
 
 # prepare power supply
 set ps [DeviceRole $ps_dev dc_source]
-$ps set_volt $vcc
+ps_set $pcc
 
 # initial delay
 after [expr {int($del*1000)}]
 
-puts "# freq amp vcc offs gain x y"
+puts "# freq amp ${dc_m}cc offs gain x y"
 set amp $amin
 set amp_set nan
 for {set i 0} {$i < $npts} {incr i} {
@@ -83,7 +104,7 @@ for {set i 0} {$i < $npts} {incr i} {
     set y [lindex $out 1]
     if {$x eq NaN || $y eq NaN} { set g NaN }\
     else {set g [expr {sqrt($x**2+$y**2)/$gfact/$amp_set}]}
-    puts "$freq $amp_set $vcc $offs $g $x $y"
+    puts "$freq $amp_set $pcc $offs $g $x $y"
   }
   set amp [expr {$log? $amp*$dvk : $amp+$dv}]
 }

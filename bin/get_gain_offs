@@ -1,6 +1,7 @@
 #!/usr/bin/tclsh
 
 package require DeviceRole 1.1
+package require Exp
 package require xBlt
 
 ## script for measuring amplifier gain as a function of offset
@@ -29,6 +30,7 @@ set options [list \
 {-v -volt}     volt     {0.01}\
 {-F -freq}     freq     {1e6}\
 {-V -vcc}      vcc      {0}\
+{-I -icc}      icc      {0}\
 {-O -omin}     omin     {0}\
 {-P -omax}     omax     {5}\
 {-G -fmax}     fmax     {2e6}\
@@ -41,6 +43,20 @@ set options [list \
 
 xblt::parse_options "get_gain_offs" $argv $options
 
+set vcc_on [opt_on "-V -vcc"]
+set icc_on [opt_on "-I -icc"]
+if { $vcc_on > 0 && $icc_on == 0} {
+  set dc_mode volt
+  set dc_m v
+  set pcc $vcc
+} elseif { $icc_on > 0 && $vcc_on > 0} {
+  set dc_mode curr
+  set dc_m i
+  set pcc $icc
+} else {
+  error "confusing options: -vcc $vcc -icc $icc"
+}
+
 
 if {$npts <= 0} {error "$npts <= 0"}
 
@@ -49,6 +65,10 @@ if {$npts!=1} {
   set dv  [expr {1.0*($omax-$omin)/($npts-1)}]
 } else {
   set dv 0
+}
+
+proc ps_set {val} {
+    if { $::dc_mode == "volt" } { $::ps set_volt $val } { $::ps set_curr $val }
 }
 
 
@@ -63,15 +83,14 @@ $gauge set_tconst $tconst
 
 # prepare power supply
 set ps [DeviceRole $ps_dev dc_source]
-$ps set_volt $vcc
+ps_set $pcc
 
 # initial delay
 after [expr {int($del*1000)}]
 
-puts "# freq volt vcc offs gain x y"
+puts "# freq volt ${dc_m}cc offs gain x y"
 set offs $omin
 for {set i 0} {$i < $npts} {incr i} {
-
   set offs [format "%.3f" $offs]
   $gen set_ac $freq $volt $offs
   after [expr {int($dt*1000)}]
@@ -80,7 +99,7 @@ for {set i 0} {$i < $npts} {incr i} {
   set y [lindex $out 1]
   if {$x eq NaN || $y eq NaN} { set g NaN }\
   else {set g [expr {sqrt($x**2+$y**2)/$gfact/$volt}]}
-  puts "$freq $volt $vcc $offs $g $x $y"
+  puts "$freq $volt $pcc $offs $g $x $y"
   set offs [expr $offs+$dv]
 }
 
