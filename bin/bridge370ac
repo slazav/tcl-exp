@@ -130,7 +130,7 @@ itcl::class LakeShore370AC {
   method set_mon {v} {
     set vn [lsearch -exact [mon_src_list] $v]
     if {$vn < 0} { error "set_mon: wrong setting: $v"}
-    $dev cmd "MONITOR $v"
+    $dev cmd "MONITOR $vn"
   }
 
   method get_guard {} { return [expr {[$dev cmd GUARD?]}] }
@@ -464,7 +464,7 @@ itcl::class DevPanel {
     set id  [$dev get_id]
     set mon [$dev get_mon]
     set tst [expr {[$dev get_tst] ? {FAIL}:{OK}}]
-    set guard [$dev get_tst]
+    set guard [$dev get_guard]
 
 #    # Status byte register
 #    set s [$dev cmd *ESE?]
@@ -493,6 +493,7 @@ itcl::class DevPanel {
   method write_pars {} {
     $dev set_mon $mon
     $dev set_guard $guard
+    read_pars
   }
 
 };
@@ -1090,6 +1091,7 @@ grid rowconfigure    . 0 -weight 1
 DevPanel dev_pan .tabs.dev $br
 .tabs insert end dev_pan -window .tabs.dev\
    -anchor n -text Device -fill both -padx 3 -pady 3
+dev_pan read_pars
 
 # curves panel
 CurvePanel crv_pan .tabs.crv $br $pars(curve_dir)
