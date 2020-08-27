@@ -1008,12 +1008,17 @@ proc switch_chan {new_ch} {
 # Select channel in the tab.
 # Note: channel numbers start from 1, tab indices start from 0!
 proc switch_tab {ch} {
-  set old [.tabs index [.tabs get select]]
-  incr old
-  .scan.n$old configure -relief flat
-  .scan.n$ch  configure -relief sunken
   .tabs select [expr $ch-1];
   .tabs invoke [expr $ch-1]
+  update_scan
+}
+
+proc update_scan {} {
+  global pars
+  set sel [.tabs index [.tabs get select]]
+  for {set ch 0} {$ch<$pars(nchan)} {incr ch} {
+    .scan.n[expr $ch+1]  configure -relief [expr {$ch == $sel? "sunken":"flat"}]
+  }
 }
 
 ##########################################################################
@@ -1042,7 +1047,7 @@ for {set ch 1} {$ch <= $pars(nchan)} {incr ch} {
   # create channel panel
   ChanPanel ch_pan$ch .tabs.ch$ch $br $ch
   .tabs insert end ch_pan$ch -window .tabs.ch$ch\
-     -anchor n -text $ch -fill both -padx 3 -pady 3
+     -anchor n -text $ch -fill both -padx 3 -pady 3 -command update_scan
 
   # read parameters from the device
   ch_pan$ch read_pars
