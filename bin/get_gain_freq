@@ -10,7 +10,7 @@ package require xBlt
 #
 # -g -gen_dev   -- generator device (default gen0:1)
 # -m -meas_dev  -- measurement device (default lockin0:XY)
-# -p -ps_dev    -- power supply device (default gen1)
+# -p -ps_dev    -- power supply device (default {})
 # -v -volt      -- voltage (default 0.01)
 # -o -offs      -- offset (default 0.0)
 # -V -vcc       -- Vcc  (default 3)
@@ -27,10 +27,10 @@ package require xBlt
 set options [list \
 {-g -gen_dev}  gen_dev  {gen0:1}\
 {-m -meas_dev} meas_dev {lockin0:XY}\
-{-p -ps_dev}   ps_dev   {gen1}\
+{-p -ps_dev}   ps_dev   {}\
 {-v -volt}     volt     {0.01}\
 {-o -offs}     offs     {0.0}\
-{-V -vcc}      vcc      {3.0}\
+{-V -vcc}      vcc      {0.0}\
 {-F -fmin}     fmin     {25e3}\
 {-G -fmax}     fmax     {2e6}\
 {-n}           npts     {100}\
@@ -66,8 +66,10 @@ set gauge [DeviceRole $meas_dev gauge]
 $gauge set_tconst $tconst
 
 # prepare power supply
-set ps [DeviceRole $ps_dev dc_source]
-$ps set_volt $vcc
+if {$ps_dev != {}} {
+  set ps [DeviceRole $ps_dev dc_source]
+  $ps set_volt $vcc
+}
 
 # initial delay
 after [expr {int($del*1000)}]
