@@ -1,0 +1,112 @@
+#!/usr/bin/wish
+
+## Interface for current sweeper
+
+package require Device 1.2
+package require xBlt 3
+package require Exp
+
+######################################################
+### Read parameters from configuration file
+
+set default_pars {
+  db_dev        {db_default}       {db device}
+  db_name       {}                 {database name}
+  db_comm       {}                 {database name}
+  day           {today}            {day to show}
+  plot_ncols    {7}                {}
+  plot_names    {M0 T,mK}          {}
+  plot_hides    {0 0 1 1 1 1 1}    {}
+  plot_use_comm {1}                {}
+}
+
+if {[llength $argv]>0 } {
+  read_conf [lindex $argv 0] pars $default_pars
+}\
+else {
+  foreach {name def title} $default_pars { set pars($name) $def }
+}
+
+
+######################################################
+### Interface
+
+# control panel
+frame .controls
+
+#listbox .controls.sweeps -selectmode browse -exportselection 0 
+#pack .controls.sweeps -side top -expand yes -fill both
+
+# go to day button:
+label .controls.dayl -text "Day:"
+entry .controls.day -textvariable pars(day) -width 12
+
+label .controls.daynl -text "show:"
+set mylist [list {1 day} {2 days} {1 week} {2 weeks} {1 month} {3 months} {6 months} {1 year}]
+ttk::combobox .controls.dayn  -textvariable pars(ndays) -values $mylist -width 10 -justify left -state normal
+set pars(ndays) {1 day}
+
+button .controls.daygp -text {<} -command {load_data -1} -width 1
+button .controls.dayg  -text Go  -command {load_data}
+button .controls.daygn -text {>} -command {load_data 1} -width 1
+
+label .controls.dayst -textvariable pars(status) -justify right -width 10
+set  pars(status) "ready"
+
+pack .controls.dayl .controls.day .controls.daynl .controls.dayn .controls.dayg .controls.daygp .controls.daygn -side left -expand no
+pack .controls.dayst -side left -expand no
+
+# graphs
+blt::graph .iplot
+blt::graph .xyplot
+
+TimePlot tplot .tplot\
+  -ncols    $pars(plot_ncols)\
+  -names    $pars(plot_names)\
+  -hides    $pars(plot_hides)\
+  -use_comm $pars(plot_use_comm)
+
+# pack everything together
+pack .tplot -fill both -expand yes
+pack  .controls -side left -fill both -expand yes
+
+
+######################################################
+### Data loading
+
+proc load_data {{shft 0}} {
+  global pars nmr_vectors
+  set  pars(status) "loading.."
+  shift_day $shft
+  set t1 [clock scan $pars(day)]
+  set t2 [clock scan "$pars(day) $pars(ndays)"]
+
+  tplot clear
+  set cmd "get_range $pars(db_name) $t1 $t2"
+  if {[catch {set lines [$pars(db_dev) cmd $cmd]}]} { error "DB error while executing: $cmd" }
+  foreach line $lines { tplot add_data $line }
+
+  if {$pars(plot_use_comm)==1} {
+    set cmd "get_range $pars(db_comm) $t1 $t2"
+    if {[catch {set lines_a [$pars(db_dev) cmd $cmd]}]} { error "DB error while executing: $cmd" }
+    foreach line_a  ${lines_a} {
+      set t [lindex $line_a 0]
+      set comm [lrange $line_a 1 end]
+      tplot add_comment $t "$comm"
+     }
+  }
+
+  set  pars(status) "ready!"
+}
+
+proc shift_day {sh} {
+  if {$sh == "0"} return
+  global pars
+  set shd $pars(ndays)
+  if {$sh == "-1"} {set shd "-$shd"}
+  set t [clock scan "$pars(day) $shd"]
+  set pars(day) [clock format $t -format "%Y-%m-%d"]
+}
+
+Device $pars(db_dev)
+load_data

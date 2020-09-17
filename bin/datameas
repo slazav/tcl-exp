@@ -24,6 +24,7 @@ set default_pars {
   dfmt         {%.3e}     {data format string for the interface}
   data_convs   {}         {data conversion for each data column - list of expr\
                            statements with $x variable (like {{$x*2} {sin($x)}} etc.) }
+  db_convs     {}         {conversions database device if needed for data conversions}
   data_curves  {}         {data calibration curves (see TempCurve description).\
                            If both data_convs and data_curves are non-empty for\
                            a given column, then data_convs is applied first.}
@@ -80,6 +81,7 @@ proc func_start {} {
   global pars dev curves
   if {$pars(gauge_dev)!={}} {set dev [DeviceRole $pars(gauge_dev) gauge]}
   if {$pars(db_dev)!={}} { Device $pars(db_dev) }
+  if {$pars(db_convs)!={}} { Device $pars(db_convs) }
 
   # re-read calibration curves
   foreach c $curves f $pars(data_curves) {
@@ -92,6 +94,7 @@ proc func_stop {} {
   global pars dev
   if {$pars(gauge_dev)!={}} { DeviceRoleDelete $dev }
   if {$pars(db_dev)!={}} { DeviceDelete $pars(db_dev) }
+  if {$pars(db_convs)!={}} { DeviceDelete $pars(db_convs) }
 }
 
 # Do a single measurement, return data
