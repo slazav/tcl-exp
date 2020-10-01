@@ -1,6 +1,5 @@
 # current sweeper library
 
-package require Device
 package require DeviceRole 1.0
 package require xBlt
 
