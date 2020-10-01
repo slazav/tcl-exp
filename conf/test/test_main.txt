@@ -1,4 +1,4 @@
-#!/usr/bin/sweeper
+#!../sweeper
 # configuration for the main solenoid
 
 name     {Main magnet}          # program title
@@ -14,6 +14,8 @@ minI          0                 # min current, A
 max_rate      0.01              # max rate, A/s
 def_rate     0.001              # default rate, A/s
 skip         0                  # do not write points if current was not set
+
+gauge_int 0
 
 # db       db_exp                 # db device
 # db_val   drydemag_sweep_main    # database for sweeper values

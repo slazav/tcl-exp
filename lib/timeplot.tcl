@@ -285,6 +285,8 @@ itcl::class TimePlot {
       if {$separate && ["$this:D$i" length] > 0} { "$this:T$i" delete 0:end }
       if {["$this:D$i" length] > 0} { "$this:D$i" delete 0:end }
     }
+   if {$use_comm == 0} {return}
+   xblt::xcomments::clear $graph
   }
 
   ##########################################################
