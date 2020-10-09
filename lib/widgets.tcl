@@ -42,6 +42,35 @@ proc mk_combo {w v t} {
   label ${w}_l -text $t
   grid ${w}_l ${w} -sticky nw
 }
+##########################################################
+# Make one of the above widgets according with type parameter.
+proc mk_conf_el {type w v t} {
+  switch -exact -- $type {
+    const  {mk_label $w $v $t}
+    bool   {mk_check $w $v $t}
+    string {mk_entry $w $v $t}
+    int    {mk_entry $w $v $t}
+    float  {mk_entry $w $v $t}
+    default {
+       mk_combo $w $v $t
+       $w configure -values $type
+    }
+  }
+}
+
+# Make frame with a few elements:
+# wid - widget name, sub elements will be "wid.<name>"
+# arr - array name, variables will be "arr(<name>)"
+# desc - {{<name> <type> <title>}}
+proc mk_conf {wid arr desc} {
+  frame $wid
+  foreach d $desc {
+    set name  [lindex $d 0]
+    set type  [lindex $d 1]
+    set title [lindex $d 2]
+    mk_conf_el $type "$wid.$name" "${arr}($name)" $title
+  }
+}
 
 ##########################################################
 # Change state of a widget with all its children (disabled or normal)
