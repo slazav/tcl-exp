@@ -134,7 +134,8 @@ itcl::class Monitor {
     grid rowconfigure $root 1 -weight 1
     grid columnconfigure $root 0 -weight 1
 
-    onoff_btn 0
+    onoff_btn $onoff
+    main_loop
   }
 
   # validate function for the period field
@@ -181,8 +182,8 @@ itcl::class Monitor {
       }
     }
 
-    # Close devices and return if checkbox was switched
-    if {!$onoff || $exit_fl} {
+    # Close devices if needed
+    if {(!$onoff || $exit_fl) && $is_opened} {
       # stop do not modify status to keep previous message if any
       set ::errorInfo {}
       run_cmd $func_stop
@@ -190,9 +191,9 @@ itcl::class Monitor {
         set_status "Error while stopping: $::errorInfo" red
       }
       set is_opened 0
-      if {$exit_fl} {exit}
-      return
     }
+    if {$exit_fl} {exit}
+    if {!$onoff} {return}
 
     # Do the measurement
     if {$verb>0} {set_status "Measuring..."}
