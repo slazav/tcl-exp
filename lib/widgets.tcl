@@ -38,7 +38,7 @@ proc mk_check {w v t} {
 proc mk_combo {w v t} {
   if {[regexp {^(.*)\(.*\)$} $v a arr]} {global $arr}\
   else {global $v}
-  ttk::combobox $w -width 9 -textvariable $v
+  ttk::combobox $w -width 9 -textvariable $v -state readonly
   label ${w}_l -text $t
   grid ${w}_l ${w} -sticky nw
 }
