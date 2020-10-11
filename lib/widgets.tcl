@@ -42,15 +42,43 @@ proc mk_combo {w v t} {
   label ${w}_l -text $t
   grid ${w}_l ${w} -sticky nw
 }
+
+##########################################################
+## Entry element. Value is checked and
+## applied after KeyReturn or FocusOut.
+proc mk_entry_check {w v t vcmd} {
+  entry $w -width 12 -validate key -vcmd "mk_entry_check_test $w %P \"$vcmd\""
+  label ${w}_l -text $t
+  grid ${w}_l ${w} -sticky nw
+  mk_entry_check_apply $w $v $vcmd
+  bind $w <Key-Return>  "mk_entry_check_apply $w $v \"$vcmd\""
+  bind $w <FocusOut>    "mk_entry_check_apply $w $v \"$vcmd\""
+  bind $w <ButtonPress> "$w configure -fg darkgreen"
+}
+proc mk_entry_check_apply {w v vcmd} {
+  if {$vcmd eq {} || [{*}$vcmd [$w get]]} {
+    set ::$v [$w get] }\
+  else {
+    $w delete 0 end;
+    $w insert 0 [set ::$v]
+  }
+  $w configure -fg black
+}
+proc mk_entry_check_test {w val vcmd} {
+  if {$vcmd eq {} || [{*}$vcmd $val]} { $w configure -fg darkgreen }\
+  else { $w configure -fg darkred }
+  return 1
+}
+
 ##########################################################
 # Make one of the above widgets according with type parameter.
 proc mk_conf_el {type w v t} {
   switch -exact -- $type {
     const  {mk_label $w $v $t}
     bool   {mk_check $w $v $t}
-    string {mk_entry $w $v $t}
-    int    {mk_entry $w $v $t}
-    float  {mk_entry $w $v $t}
+    string {mk_entry_check $w $v $t {}}
+    int    {mk_entry_check $w $v $t {regexp {^\s*\[+-\]?\[0-9\]+\s*$}}}
+    float  {mk_entry_check $w $v $t {string is double}}
     default {
        mk_combo $w $v $t
        $w configure -values $type
