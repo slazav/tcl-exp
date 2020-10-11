@@ -23,7 +23,7 @@
 
 package require itcl
 package require xBlt
-package require Device
+package require DeviceRole
 
 itcl::class manual_db {
   # parameters /see options/
