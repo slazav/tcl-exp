@@ -1,0 +1,29 @@
+#!../datameas
+
+name           {Test measurement}  # program title
+save            0                  # inital state of save switch
+
+gauge_dev       TEST:T2            # gauge device: 2 time sweep channels
+tpos            0.5                # timestamp position: 0-beginning of measurement, 1-end of measurement
+
+#db_dev          db_exp            # database device
+#db_name         leak_test         # database name
+
+dfmt            {%.4e %4e}   # data format in the interface
+data_convs      {{} {}}
+
+# timeplot parameters
+plot_ncols          2
+plot_maxt           10000
+plot_names          {V1 V2}         # data names
+plots_x             {time}
+plots_y             {{}}
+plot_symbols        {}
+plots_zst           {x}
+
+# monitor parameters
+period       1.0   # measurement period
+onoff        1     # inital state of main switch
+show_ctl     0     # show control panel, buttons and period setting
+show_title   0     # show title panel
+verb         0     # verbosity level 0:only errors, 1: current status

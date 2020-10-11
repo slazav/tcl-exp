@@ -8,8 +8,6 @@ package require Exp;  # timeplot, monitor
 
 set default_pars {
   name         {Default}  {program name}
-  period       {1.0}      {measurement period}
-  onoff        0          {initial state of main switch}
   save         0          {initial state of save switch}
   savebtn      1          {draw the save switch}
   gauge_dev    {TEST}     {gauge device}
@@ -31,6 +29,13 @@ set default_pars {
   data_add     {replace}  {What to do with data from data_convs/data_curves:\
                            replace - replace existing data, insert - insert after\
                            the column, append - append at the end of data list}
+# monitor parameters
+  period       {1.0}      {measurement period}
+  onoff        0          {initial state of main switch}
+  show_ctl     1          {show control panel, buttons and period setting}
+  show_title   1          {show title panel}
+  verb         1          {verbosity level 0:only errors, 1: current status}
+# timeplot parameters
   plot_ncols   1          {number of columns in the plot}
   plot_maxt    600        {max time span in the plot}
   plot_maxn    0          {max number of points in the plot}
@@ -288,6 +293,7 @@ proc set_checkbox_color {cb} {
 ## create the monitor class
 Monitor m .m -name $pars(name) -period $pars(period) -onoff $pars(onoff)\
   -func_start func_start -func_stop func_stop\
-  -func_meas func_meas -func_mkint func_mkint
+  -func_meas func_meas -func_mkint func_mkint\
+  -show_ctl $pars(show_ctl) -show_title $pars(show_title) -verb $pars(verb)
 pack .m -expand 1 -fill both
 wm protocol . WM_DELETE_WINDOW { m do_exit }
