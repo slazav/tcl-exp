@@ -17,7 +17,7 @@ set default_pars {
   par7  {1}  {parameter 7}
   par8  {1}  {parameter 8}
   par9  {1}  {parameter 9}
-  par10 {1}  {parameter 10}
+  parA  {1}  {parameter 10}
 }
 
 foreach {name def title} $default_pars { set pars($name) $def }
@@ -28,14 +28,14 @@ foreach {name def title} $default_pars { set ptitle($name) $title }
 mk_conf .pars pars {
   {par1 string  {parameter 1}}
   {par2 const   {parameter 2}}
-  {par3 bool    {parameter 3}}
-  {par4 {1 2 3} {parameter 4}}
-  {par5 int     {parameter 5}}
-  {par6 float   {parameter 6}}
-  {par7 string  {parameter 7}}
-  {par8 bool    {parameter 8}}
-  {par9 bool    {parameter 9}}
-  {parA bool    {parameter 10}}
+  {par3 bool    {parameter B}}
+  {par4 {1 2 3} {parameter S}}
+  {par5 int     {parameter I}}
+  {par6 float   {parameter F}}
+  {par7 string  {parameter S}}
+  {par8 bool    {parameter B}}
+  {par9 bool    {parameter B}}
+  {parA bool    {parameter B}}
 }
 
 ## set bgcolor of the configuration frame:

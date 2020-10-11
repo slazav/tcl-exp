@@ -42,6 +42,7 @@ proc mk_entry_check {w v t vcmd} {
   entry $w -width 12 -validate key -vcmd "mk_entry_check_test $w %P \"$vcmd\""
   label ${w}_l -text $t
   grid ${w}_l ${w} -sticky nw
+  $w insert 0 [set ::$v]
   mk_entry_check_apply $w $v $vcmd
   bind $w <Key-Return>  "mk_entry_check_apply $w $v \"$vcmd\""
   bind $w <FocusOut>    "mk_entry_check_apply $w $v \"$vcmd\""
@@ -74,7 +75,6 @@ proc mk_conf {wid arr desc} {
     set title [lindex $d 2]
     set swid  "$wid.$name"
     set var  "${arr}($name)"
-
     switch -exact -- $type {
       const  {mk_label $swid $var $title}
       bool   {mk_check $swid $var $title}
