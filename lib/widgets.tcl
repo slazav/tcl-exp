@@ -62,22 +62,6 @@ proc mk_entry_check_test {w val vcmd} {
   return 1
 }
 
-##########################################################
-# Make one of the above widgets according with type parameter.
-proc mk_conf_el {type w v t} {
-  switch -exact -- $type {
-    const  {mk_label $w $v $t}
-    bool   {mk_check $w $v $t}
-    string {mk_entry_check $w $v $t {}}
-    int    {mk_entry_check $w $v $t {regexp {^\s*\[+-\]?\[0-9\]+\s*$}}}
-    float  {mk_entry_check $w $v $t {string is double}}
-    default {
-       mk_combo $w $v $t
-       $w configure -values $type
-    }
-  }
-}
-
 # Make frame with a few elements:
 # wid - widget name, sub elements will be "wid.<name>"
 # arr - array name, variables will be "arr(<name>)"
@@ -88,7 +72,20 @@ proc mk_conf {wid arr desc} {
     set name  [lindex $d 0]
     set type  [lindex $d 1]
     set title [lindex $d 2]
-    mk_conf_el $type "$wid.$name" "${arr}($name)" $title
+    set swid  "$wid.$name"
+    set var  "${arr}($name)"
+
+    switch -exact -- $type {
+      const  {mk_label $swid $var $title}
+      bool   {mk_check $swid $var $title}
+      string {mk_entry_check $swid $var $title {}}
+      int    {mk_entry_check $swid $var $title {regexp {^\s*\[+-\]?\[0-9\]+\s*$}}}
+      float  {mk_entry_check $swid $var $title {string is double}}
+      default {
+         mk_combo  $swid $var $title
+         $swid configure -values $type
+      }
+    }
   }
 }
 
