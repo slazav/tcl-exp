@@ -12,33 +12,25 @@
 
 ## label
 proc mk_label {w v t} {
-  if {[regexp {^(.*)\(.*\)$} $v a arr]} {global $arr}\
-  else {global $v}
-  label $w -textvariable $v -width 12\
+  label $w -textvariable ::$v -width 12\
     -bd 1 -relief sunken -anchor w -fg #505050
   label ${w}_l -text $t
   grid ${w}_l ${w} -sticky nw
 }
 ## entry
 proc mk_entry {w v t} {
-  if {[regexp {^(.*)\(.*\)$} $v a arr]} {global $arr}\
-  else {global $v}
-  entry $w -textvariable $v -width 12
+  entry $w -textvariable ::$v -width 12
   label ${w}_l -text $t
   grid ${w}_l ${w} -sticky nw
 }
 ## checkbutton
 proc mk_check {w v t} {
-  if {[regexp {^(.*)\(.*\)$} $v a arr]} {global $arr}\
-  else {global $v}
-  checkbutton $w -text $t -variable $v -bd 0 -highlightthickness 1
+  checkbutton $w -text $t -variable ::$v -bd 0 -highlightthickness 1
   grid $w -sticky nw -columnspan 2
 }
 ## combobox
 proc mk_combo {w v t} {
-  if {[regexp {^(.*)\(.*\)$} $v a arr]} {global $arr}\
-  else {global $v}
-  ttk::combobox $w -width 9 -textvariable $v -state readonly
+  ttk::combobox $w -width 9 -textvariable ::$v -state readonly
   label ${w}_l -text $t
   grid ${w}_l ${w} -sticky nw
 }
