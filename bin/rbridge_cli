@@ -1,0 +1,102 @@
+#!/usr/bin/wish
+
+proc usage {} {
+  puts {
+    rbridge_cli -- command line tool for controlling a resistance bridge interface
+
+    Usage: sweeper_cli <name> <command>
+
+    <name> name of the sweeper which is set in its configuration file
+    <command>:
+      status: Check status of the sweeper programs (-1: not running, 0: off, 1:on)
+              All other commands will fail if status != 1
+    get <chan> - get measured value for a channel
+  }
+  exit 1
+}
+
+set name [lindex $argv 0]
+set cmd  [lindex $argv 1]
+
+if {$name == {}} usage
+if {$cmd  == {}} usage
+
+######################################################################
+# Connect to a program and ask for its state
+
+set app $name
+
+#if {[catch {set stat [send $app set state]}]} { set stat -1 }
+
+#if {$cmd == "status"} {
+#  puts "$stat"
+#  exit 0
+#}
+
+#if {$stat != 1} {
+#  puts stderr "$app is not active"
+#  exit 1
+#}
+
+if {$cmd == "switch_tab"} {
+  set ch [lindex $argv 2]
+  if {$ch  == {}} {set ch 1}
+  send $app switch_tab $ch
+  exit 0
+}
+
+if {$cmd == "switch_chan"} {
+  set ch [lindex $argv 2]
+  if {$ch  == {}} {set ch 1}
+  send $app switch_chan $ch
+  exit 0
+}
+
+if {$cmd == "mode_off"} {
+  send $app set pars(scanmode) {"OFF"}
+  exit 0
+}
+
+if {$cmd == "mode_scan"} {
+  send $app set pars(scanmode) {"Scan all channels"}
+  exit 0
+}
+
+if {$cmd == "mode_meas"} {
+  set ch [lindex $argv 2]
+  if {$ch  == {}} {set ch 1}
+  send $app set pars(mchan) $ch
+  send $app set pars(scanmode) {"Measure single channel"}
+  exit 0
+}
+
+if {$cmd == "mode_scan_meas"} {
+  set ch [lindex $argv 2]
+  if {$ch  == {}} {set ch 1}
+  send $app set pars(mchan) $ch
+  send $app set pars(scanmode) {"Scan and Measure"}
+  exit 0
+}
+
+if {$cmd == "set_exc"} {
+  set ch [lindex $argv 2]
+  set type [lindex $argv 3]
+  set val  [lindex $argv 4]
+  if {$ch    == {}} {set ch 1}
+  if {$type  == {}} {set type current}
+  if {$val   == {}} {set val {1 nA}}
+  set v [send $app {$br} get_ch_range $ch]
+  lset v 0 $type
+  lset v 1 $val
+  # puts $v
+  set v [send $app {$br} set_ch_range $ch $v]
+  send $app ch_pan$ch read_pars
+  exit 0
+}
+
+puts "Unknown commend: $cmd"
+
+
+######################################################################
+wm withdraw .
+after idle exit 0
