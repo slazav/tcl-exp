@@ -29,6 +29,13 @@ set default_pars {
   data_add     {replace}  {What to do with data from data_convs/data_curves:\
                            replace - replace existing data, insert - insert after\
                            the column, append - append at the end of data list}
+
+  avrg         {1}        {do multiple measurements, calculate mean value and its standard deviation}
+  stdev_filter {}         {If non-empty use StDev filter: skip points if they are closer then K*st.deviation\
+                           from previous value. Value K is taken from the parameter.}
+  filter_timeout {10}     {do not skip point if distance from previous is larger then filter_timeout, [s]}
+  append_stdev   {}       {If non-empty, write standard deviation to database (extra columns, after data)}
+
 # monitor parameters
   period       {1.0}      {measurement period}
   onoff        0          {initial state of main switch}
@@ -65,10 +72,17 @@ tk appname "datameas: $pars(name)"
 
 ##########################################################################
 ##########################################################################
-set T0  {};      # current time (seconds)
-set D0  {};      # current data (list)
+set T0  {};      # last measured time (seconds)
+set D0  {};      # last measured data (list)
+set S0  {};      # last measured std.devication of data (list)
+
+set TP  {};      # previous time (seconds) - what was went frough filters
+set DP  {};      # previous data (list)
+
 array unset Df;  # formatted data (see -dfmt option)
 set Tf  {};  # current formatted time (-tfmt option)
+
+
 set dev {};  # gauge device handler
 set curves {}; # calibration curves
 
@@ -102,18 +116,12 @@ proc func_stop {} {
   if {$pars(db_convs)!={}} { DeviceDelete $pars(db_convs) }
 }
 
-# Do a single measurement, return data
-proc func_meas {} {
-  global pars dev D0 Df T0 Tf curves
-  if {$dev=={}} return
-  set t1 [clock microseconds]
-  set D0 [$dev get]
-  set t2 [clock microseconds]
-
-  # convert data with data_convs and data_curves
+# convert data
+proc data_conv {D} {
+  global pars curves
   set converted {}
   set convertede {}
-  foreach x $D0 conv $pars(data_convs) curve $curves {
+  foreach x $D conv $pars(data_convs) curve $curves {
     set v $x
     set cnv 0
     if {$conv  != {}} {set v [expr $conv]; set cnv 1}
@@ -131,10 +139,49 @@ proc func_meas {} {
       lappend converted $x
     }
   }
-  set D0 [concat $converted $convertede]
+  return [concat $converted $convertede]
+}
 
-  # calculate timestamp
+
+# Do a single measurement, return data
+proc func_meas {} {
+  global pars dev T0 D0 S0 TP DP Tf Df
+  if {$dev=={}} return
+
+  # timestamp before the measurement
+  set t1 [clock microseconds]
+
+  # Measure data
+  if {$pars(avrg)=={} || $pars(avrg)<2} {
+    set D0 [data_conv [$dev get]]
+  }\
+  else {
+    # Do multiple measurements, calculate mean value and
+    # its standard deviation.
+    set vals {}
+    for {set n 0} {$n<$pars(avrg)} {incr n} {
+      set D0 [data_conv [$dev get]]
+      for {set i 0} {$i<[llength $D0]} {incr i} {
+        lset vals $i end+1 [lindex $D0 $i]
+      }
+    }
+    set D0 {}
+    set S0 {}
+    for {set i 0} {$i<[llength $vals]} {incr i} {
+      set v [lindex $vals $i]
+      # mean value, std.deviation of the mean value
+      # see https://wiki.tcl-lang.org/page/Additional+math+functions
+      set m [expr ([join $v +])/[llength $v]]
+      set s [expr sqrt((pow([join $v -$m,2)+pow(]-$m,2))/([llength $v]-1)/([llength $v]))]
+      lset D0 $i $m
+      lset S0 $i $s
+    }
+  }
+
+  # timestamp after the measurement, final timestamp
+  set t2 [clock microseconds]
   set T0 [expr {($t1 + ($t2-$t1)*$pars(tpos))/1e6}]
+
 
   # format data and time for the interface
   set Tf [clock format [expr int($T0)] -format $pars(tfmt)]
@@ -147,27 +194,52 @@ proc func_meas {} {
     }
   }
 
+
+  # filtering
+  set keep 1
+  if {$pars(stdev_filter)!={} &&\
+      [llength $D0] == [llength $DP] &&\
+      [llength $D0] == [llength $S0]} {
+    set keep 0
+    for {set i 0} {$i<[llength $D0]} {incr i} {
+      set dv [expr $pars(stdev_filter)*[lindex $S0 $i]]
+      if {abs([lindex $D0 $i]-[lindex $DP $i]) > $dv} {set keep 1}
+    }
+  }
+  if {$pars(filter_timeout)=={} || $TP=={} ||\
+      $T0-$TP > $pars(filter_timeout)} {set keep 1}
+  if {$keep == 0} return
+
+
+
+  # save old data
+  set TP $T0
+  set DP $D0
+
   # append data to timeplot
   time_plot add_data "$T0 $D0"
+
+  #
+  if {$pars(append_stdev) == {}} {set S0 {}}
 
   # put data to database
   if {$pars(db_dev)!={} && $pars(save)} {
 
     if { [llength $pars(db_name)]==1 } {
       # db_name is a single value: put everything into this database
-      $pars(db_dev) cmd put $pars(db_name) $T0 $D0
+      $pars(db_dev) cmd put $pars(db_name) $T0 $D0 $S0
       $pars(db_dev) cmd sync
     }\
     else {
       # db_name has multple names: sort data to these databases
       set i 0
       array unset data_lists
-      foreach db $pars(db_name) d $D0 {
+      foreach db $pars(db_name) d $D0 s $S0{
         if {$db == {} || $d == {}} continue
         if {[array names data_lists $db] == {}} {
           set data_lists($db) [expr $T0+$i*$pars(tconv)]
         }
-        append data_lists($db) " $d"
+        append data_lists($db) " $d $s"
         incr i
       }
       foreach db [array names data_lists] {
