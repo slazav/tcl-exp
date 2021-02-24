@@ -2,6 +2,9 @@
 # the maximum f0,a0 (using a simple 3-pt quadratic fit)
 # and q-factor Q=f0/df, where df is a width at a0*lvl.
 
+# There is a much more accurate program for doing Lorentzian
+# fits in pico_osc/fit_res.
+
 proc fit_res {fv av {lvl 0.70711}} {
   # find index of point with maximal amplitude
   set maxi 0
