@@ -214,10 +214,30 @@ proc func_meas {} {
   }
   if {$apars(navr)>1} { $pars(osc_dev) cmd avr_save $apars(sigfile) }
 
+
+  ## load signal
+  set ncols [sig_load sig $apars(sigfile)]
+
+  global sig_x
+  set min 0
+  set max $sig_x(max)
+  sig_xm seq $min $max [expr {($max-$min)/500}]
+  sig_ym1 expr {0.5*1e-3*$amp(0)*exp(-sig_xm*$rtau(0))}
+  sig_ym2 expr -sig_ym1
+
+  ## load FFT
+  set ret [exec sig_filter  -T $apars(fstart) -f fft_pow $apars(sigfile) -N 10000 -l]
+  fft_x set {}
+  fft_y set {}
+  foreach l [split $ret "\n"] {
+    fft_x append [lindex $l 0]
+    fft_y append [lindex $l 1]
+  }
+  fft_y expr {sqrt(fft_y)*1e9}
+
   set ret [exec sig_filter -T $apars(fstart) -f fitn $apars(sigfile)\
            -N $pars(nforks) -F $apars(fmin) -G $apars(fmax) ]
   set ret [split $ret "\n"]
-
 
   for {set i 0} {$i<$::pars(nforks)} {incr i} {
     set line [lindex $ret $i]
@@ -241,24 +261,6 @@ proc func_meas {} {
   ## push data to the time plot
   pl add_data $data
 
-  ## load signal
-  set ncols [sig_load sig $apars(sigfile)]
-
-  global sig_x
-  set min 0
-  set max $sig_x(max)
-  sig_xm seq $min $max [expr {($max-$min)/500}]
-  sig_ym1 expr {0.5*1e-3*$amp(0)*exp(-sig_xm*$rtau(0))}
-  sig_ym2 expr -sig_ym1
-  ## load FFT
-  set ret [exec sig_filter  -T $apars(fstart) -f fft_pow $apars(sigfile) -N 10000 -l]
-  fft_x set {}
-  fft_y set {}
-  foreach l [split $ret "\n"] {
-    fft_x append [lindex $l 0]
-    fft_y append [lindex $l 1]
-  }
-  fft_y expr {sqrt(fft_y)*1e9}
 
   # todo!
   if {$fre(0)>0} {
