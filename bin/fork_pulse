@@ -209,7 +209,7 @@ proc func_meas {} {
 
   for {set iavr 0} {$iavr<$apars(navr)} {incr iavr} {
     $pars(osc_dev) cmd block A $NP $N $dt $fname
-    $pars(gen_dev) write *TRG
+    $pars(gen_dev) cmd *TRG
     $pars(osc_dev) cmd wait
   }
   if {$apars(navr)>1} { $pars(osc_dev) cmd avr_save $apars(sigfile) }
