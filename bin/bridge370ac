@@ -1,13 +1,8 @@
 #!/usr/bin/wish
 
-package require Device
+package require Device2
 package require Exp;  # timeplot, monitor
 package require itcl;
-
-# this is needed to avoid program locking when
-# measurement and curve savind or loading are done
-# at the same time
-set Device::sync 1
 
 ##########################################################################
 ## read parameters from configuration file
