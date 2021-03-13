@@ -1,0 +1,260 @@
+#!/usr/bin/wish
+
+# Cryostat-specific interface for multiplexer measurements.
+# A few tabs: bath resistors, He level, demag magnet, etc.
+
+package require Device2
+package require Exp;  # timeplot, monitor
+
+##########################################################################
+## read parameters from configuration file
+
+set default_pars {
+  name         {Fridge4 multiplexer}  {program name}
+  gauge_dev    {}         {gauge device}
+  db_dev       {}         {database device}
+  tfmt         {%H:%M:%S} {time format string for the interface}
+  period       {1.0}      {measurement period}
+  plot_maxt    {600}      {timeplot span}
+}
+
+if {[llength $argv]>0 } {
+  read_conf [lindex $argv 0] pars $default_pars
+}\
+else {
+  foreach {name def title} $default_pars { set pars($name) $def }
+}
+
+tk appname "$pars(name)"
+
+##########################################################################
+##########################################################################
+set T0  {};      # last measured time (seconds)
+set D0  {};      # last measured data (list)
+
+array unset Df;  # formatted data (see -dfmt option)
+set Tf  {};  # current formatted time (-tfmt option)
+
+
+
+##########################################################################
+##########################################################################
+## functions for the monitor class
+
+# Open devices
+proc func_start {} {
+  global pars
+
+  if {$pars(db_dev)!={}} {
+    Device $pars(db_dev)
+  }
+
+  if {$pars(gauge_dev)!={}} {
+    Device $pars(gauge_dev)
+
+    # Channels 101-109: bath resistors
+    # Set delay to wait for stabilisation of filtered lines.
+    $pars(gauge_dev) cmd "CONF:RES AUTO,DEF (@101:109)"
+    $pars(gauge_dev) cmd "SENSE:RES:NPLC 10, (@101:109)"
+    $pars(gauge_dev) cmd "ROUTE:CHAN:DEL 0.2,   (@101:109)"
+
+    # Channels 112: still resistor
+    # Channels 118: He level
+    $pars(gauge_dev) cmd "CONF:VOLT:DC 10,DEF (@112,118)"
+    $pars(gauge_dev) cmd "SENSE:VOLT:DC:NPLC 10, (@112,118)"
+    $pars(gauge_dev) cmd "ROUTE:CHAN:DEL 0.2,   (@112,118)"
+
+    # channels to read
+    $pars(gauge_dev) cmd "ROUT:SCAN? (@101:109,112,118)"
+  }
+}
+
+# Close devices
+proc func_stop {} {
+  global pars
+  if {$pars(gauge_dev)!={}} { DeviceDelete $pars(dev) }
+  if {$pars(db_dev)!={}}    { DeviceDelete $pars(db_dev) }
+}
+
+
+# Do a single measurement, return data
+proc func_meas {} {
+  global pars dev T0 D0 Tf Df
+
+  set T0 [expr [clock microseconds]/1e6]
+  if {$pars(gauge_dev) eq {}} {
+    set D0 {}
+    for {set i 0} {$i < 14} {incr i} {
+      lappend D0 [expr {1000*rand() + 100*$i}]
+    }
+  }\
+  else {
+    set D0 [$pars(gauge_dev) cmd "READ?"]
+    set D0 [split $D0, ","]
+  }
+
+  # format data and time for the interface
+  set Tf [clock format [expr int($T0)] -format $pars(tfmt)]
+
+  for {set i 1} {$i <= 9} {incr i} {
+    set Df(R$i) [format "%.2f" [lindex $D0 $i]]
+  }
+  set Df(he_level) [format "%.2f" [lindex $D0 10]]
+  set Df(demag_v)  [format "%.2f" [lindex $D0 11]]
+  set Df(demag_i)  [format "%.2f" [lindex $D0 12]]
+  set Df(demag_ps) [format "%.2f" [lindex $D0 13]]
+
+  # append data to timeplot
+  tplot_rbath    add_data [list $T0 {*}[lrange $D0 0 8]]
+  tplot_he_level add_data [list $T0 [lindex $D0 9]]
+  tplot_demag    add_data [list $T0 {*}[lrange $D0 10 12]]
+
+  # put data to database
+  if {$pars(db_dev)!={}} {
+    $pars(db_dev) cmd put_flt Rbath01 [lindex $D0 0]
+    $pars(db_dev) cmd put_flt Rbath02 [lindex $D0 1]
+    $pars(db_dev) cmd put_flt Rbath03 [lindex $D0 2]
+    $pars(db_dev) cmd put_flt Rbath04 [lindex $D0 3]
+    $pars(db_dev) cmd put_flt Rbath05 [lindex $D0 4]
+    $pars(db_dev) cmd put_flt Rbath06 [lindex $D0 5]
+    $pars(db_dev) cmd put_flt Rbath07 [lindex $D0 6]
+    $pars(db_dev) cmd put_flt Rbath08 [lindex $D0 7]
+    $pars(db_dev) cmd put_flt Rbath09 [lindex $D0 8]
+
+    $pars(db_dev) cmd put_flt he_level  [lindex $D0 9]
+    $pars(db_dev) cmd put_flt demag_v   [lindex $D0 10]
+    $pars(db_dev) cmd put_flt demag_i   [lindex $D0 11]
+    $pars(db_dev) cmd put_flt demag_ps  [lindex $D0 12]
+    $pars(db_dev) cmd sync
+  }
+}
+
+# Build GUI frame in <root> (user-supplied function)
+proc func_mkint {w} {
+  global pars Tf Df
+
+  blt::tabset $w.tabs
+  grid $w.tabs -sticky wens
+  grid rowconfigure $w 0 -weight 1
+  grid columnconfigure $w 0 -weight 1
+
+  ############################
+  ### Rbath frame
+  set f_rbath $w.tabs.rbath
+  frame $f_rbath
+  $w.tabs insert end rbath -window $f_rbath\
+     -anchor n -text "Bath resistors" -fill both -padx 3 -pady 3
+
+  labelframe $f_rbath.tab -borderwidth 1
+  grid $f_rbath.tab -column 0 -row 0 -sticky ns
+
+  label $f_rbath.tab.lt -text "time:"
+  label $f_rbath.tab.vt -fg darkgreen -font {-size 12} -textvariable Tf -width 8
+  grid $f_rbath.tab.lt $f_rbath.tab.vt -sticky w
+  frame $f_rbath.tab.hsep -relief groove -borderwidth 1 -height 2
+  grid $f_rbath.tab.hsep -columnspan 2 -sticky we -pady 2
+
+  set max_rbath 9
+  for {set n 1} {$n<=$max_rbath} {incr n} {
+    label $f_rbath.tab.l$n -text "R$n:"
+    label $f_rbath.tab.v$n -fg darkgreen -font {-size 12} -textvariable Df(R$n) -width 10
+    grid $f_rbath.tab.l$n $f_rbath.tab.v$n -sticky w
+  }
+
+  TimePlot tplot_rbath $f_rbath.tplot\
+   -ncols      $max_rbath\
+   -maxt       $pars(plot_maxt)\
+   -colors     {}\
+   -titles     {R1 R2 R3 R4 R5 R6 R7 R8 R9}\
+   -names      {R1 R2 R3 R4 R5 R6 R7 R8 R9}\
+   -symbols    {}\
+   -ssizes     {}\
+   -fmts       %.2f\
+   -zstyles    xy
+
+  grid $f_rbath.tplot -column 1 -row 0 -sticky wens
+  grid rowconfigure $f_rbath 0 -weight 1
+  grid columnconfigure $f_rbath 1 -weight 1
+
+  ############################
+  ### He level frame
+
+  set f_hlvl $w.tabs.he_level
+  frame $f_hlvl
+  $w.tabs insert end he_level -window $f_hlvl\
+     -anchor n -text "He level" -fill both -padx 3 -pady 3
+
+  labelframe $f_hlvl.tab -borderwidth 1
+  grid $f_hlvl.tab -sticky we
+
+  label $f_hlvl.tab.tl -text "time:"
+  label $f_hlvl.tab.t -fg darkgreen -font {-size 12} -textvariable Tf -width 8
+  label $f_hlvl.tab.vl -text "value:"
+  label $f_hlvl.tab.v -fg darkgreen -font {-size 12} -textvariable Df(he_level) -width 8
+  pack $f_hlvl.tab.tl $f_hlvl.tab.t $f_hlvl.tab.vl $f_hlvl.tab.v -side left
+
+  TimePlot tplot_he_level $f_hlvl.tplot\
+   -ncols      1\
+   -maxt       $pars(plot_maxt)\
+   -colors     {}\
+   -names      {level}\
+   -titles     {{He level}}\
+   -symbols    {}\
+   -ssizes     {}\
+   -fmts       %.2f\
+   -zstyles    xy
+
+  grid $f_hlvl.tplot -sticky wens
+  grid rowconfigure $f_hlvl 1 -weight 1
+  grid columnconfigure $f_hlvl 0 -weight 1
+
+  ### Demag frame
+
+  set f_demag $w.tabs.demag
+  frame $f_demag
+  $w.tabs insert end demag -window $f_demag\
+     -anchor n -text "Demag" -fill both -padx 3 -pady 3
+
+  labelframe $f_demag.tab -borderwidth 1
+  grid $f_demag.tab -sticky we
+
+  label $f_demag.tab.tl -text "time:"
+  label $f_demag.tab.t -fg darkgreen -font {-size 12} -textvariable Tf -width 8
+  label $f_demag.tab.l1 -text "V:"
+  label $f_demag.tab.v1 -fg darkgreen -font {-size 12} -textvariable Df(demag_v) -width 8
+  label $f_demag.tab.l2 -text "I:"
+  label $f_demag.tab.v2 -fg darkgreen -font {-size 12} -textvariable Df(demag_i) -width 8
+  label $f_demag.tab.l3 -text "PS:"
+  label $f_demag.tab.v3 -fg darkgreen -font {-size 12} -textvariable Df(demag_ps) -width 8
+  pack $f_demag.tab.tl $f_demag.tab.t\
+       $f_demag.tab.l1 $f_demag.tab.v1\
+       $f_demag.tab.l2 $f_demag.tab.v2\
+       $f_demag.tab.l3 $f_demag.tab.v3\
+       -side left
+
+  TimePlot tplot_demag $f_demag.tplot\
+   -ncols      3\
+   -maxt       $pars(plot_maxt)\
+   -colors     {}\
+   -names      {{V} {I} {PS}}\
+   -titles     {{V} {I} {PS}}\
+   -symbols    {}\
+   -ssizes     {}\
+   -fmts       %.2f\
+   -zstyles    xy
+
+  grid $f_demag.tplot -sticky wens
+  grid rowconfigure $f_demag 1 -weight 1
+  grid columnconfigure $f_demag 0 -weight 1
+}
+
+
+##########################################################################
+##########################################################################
+## create the monitor class
+Monitor m .m -name $pars(name) -period $pars(period) -onoff 1\
+  -func_start func_start -func_stop func_stop\
+  -func_meas func_meas -func_mkint func_mkint\
+  -show_ctl 1 -show_title 1 -verb 0
+pack .m -expand 1 -fill both
+wm protocol . WM_DELETE_WINDOW { m do_exit }
