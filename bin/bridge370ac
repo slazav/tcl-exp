@@ -155,7 +155,8 @@ itcl::class LakeShore370AC {
 
   # read header, returns name,serial,
   method get_crv_hdr {n} {
-    set r [split [$dev cmd CRVHDR? $n] ,]
+    set d [lindex [$dev cmd CRVHDR? $n] 0]
+    set r [split $d ,]
     set name   [lindex $r 0]
     set serial [lindex $r 1]
     set fmt    [trim_num [lindex $r 2]]
