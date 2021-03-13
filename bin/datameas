@@ -31,6 +31,7 @@ set default_pars {
                            the column, append - append at the end of data list}
 
   avrg         {1}        {do multiple measurements, calculate mean value and its standard deviation}
+  avrg_delay   {0}        {delay between measurements in avrg mode, s}
   stdev_filter {}         {If non-empty use StDev filter: skip points if they are closer then K*st.deviation\
                            from previous value. Value K is taken from the parameter.}
   filter_timeout {10}     {do not skip point if distance from previous is larger then filter_timeout, [s]}
@@ -160,6 +161,7 @@ proc func_meas {} {
     # its standard deviation.
     set vals {}
     for {set n 0} {$n<$pars(avrg)} {incr n} {
+      if {$pars(avrg_delay)!={}} {after [expr int($pars(avrg_delay)*1000)]}
       set D0 [data_conv [$dev get]]
       for {set i 0} {$i<[llength $D0]} {incr i} {
         lset vals $i end+1 [lindex $D0 $i]
