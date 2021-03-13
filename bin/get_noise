@@ -1,6 +1,6 @@
 #!/usr/bin/tclsh
 
-package require Device 1.3
+package require Device2
 package require xBlt
 
 # Script for measuring noise spectrum with an oscilloscope
@@ -93,7 +93,7 @@ for {set i 0} {$i<$avr} {incr i} {
 }
 vys expr vys/$avr
 
-exec rm -f -- $pref
+#exec rm -f -- $pref
 
 puts "# freq \[Hz\]  noise density \[V^2/Hz\]"
 for {set i 0} {$i<[vx length]} {incr i} {
