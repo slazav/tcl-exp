@@ -1,0 +1,17 @@
+#!/usr/bin/wish
+
+source widget_ac_source.tcl
+source widgets.tcl
+
+widget_ac_source w .g\
+ -dev   TEST\
+ -title {Generator}\
+ -show_offs 1\
+ -show_phase 1\
+
+pack .g
+
+set state 0
+checkbutton .onoff -text "On/Off" -variable state -command {w enable $state}
+pack .onoff
+
