@@ -57,7 +57,7 @@ itcl::class widget_ac_source {
     xblt::parse_options "widget_ac_source" $args $options
 
     # check parameters
-    if {$dev_name eq {}} { error "gauge_dev is empty" }
+    if {$dev_name eq {}} { error "ac_source: device name is empty" }
 
     # Main frame:
     set root $tkroot
