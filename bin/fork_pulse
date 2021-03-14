@@ -541,7 +541,7 @@ proc mk_pars_frame {root} {
 
 proc func_mkint {w} {
   mk_meas_frame $w.meas
-  pack $w.meas -fill x -expand 1
+  pack $w.meas -fill x -expand 0
 
   blt::tabset $w.tabs -side top
 
@@ -569,8 +569,7 @@ proc func_mkint {w} {
 Monitor m .m -name $pars(name) -period $pars(period) -onoff $pars(onoff)\
   -func_start func_start -func_stop func_stop\
   -func_meas func_meas -func_mkint func_mkint
-
-pack .m
+pack .m -expand 1 -fill both
 m startstop; # check devices, update osc range setting
 wm protocol . WM_DELETE_WINDOW { m do_exit }
 
