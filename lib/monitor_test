@@ -14,6 +14,13 @@ proc meas {} {
       displayed in the status line of the program..."}
 }
 
+proc meas_e {} {
+  if {$::err1} {error "can't measure: error checkbox is set!\
+      It should be a really long error message to test how is it\
+      displayed in the status line of the program..."}
+  puts "OK"
+}
+
 # redefine mkint commend
 proc mkint {w} {
   checkbutton $w.e1 -text "measurement error" -variable ::err1
@@ -21,12 +28,11 @@ proc mkint {w} {
 }
 
 
-
 Monitor m .m -name {Monitor test} -period 10\
-  -func_meas meas -func_mkint mkint
+  -func_meas meas -func_mkint mkint -func_meas_e meas_e
 
 pack .m -expand 1 -fill both
 wm protocol . WM_DELETE_WINDOW { m do_exit }
 wm geometry . 300x100
 
- m startstop
+#m startstop

@@ -14,7 +14,11 @@ Options:
 * `-func_start` -- start function
 * `-func_stop`  -- stop function
 * `-func_meas`  -- measure function
+* `-func_meas_e`-- end-of-measure function, executed just before the next step
 * `-func_mkint` -- make interface function (argumentL: widget path)
+* `-wait_meas`  --  keep delay between func_meas and finc_meas_e when pressing restart/single/stop button:
+*                 0 (default) - pressing a button will stop waiting and start finc_meas_e;
+*                 1 - pressing a button fill have effect after finishing the measurement with normal delay.
 * `-show_ctl`   -- show control panel, buttons and period setting (default: 1)
 * `-show_title` -- show title panel (default: 1)
 * `-verb`       -- verbosity level (0: show only errors in the status line,

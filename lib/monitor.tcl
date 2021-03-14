@@ -14,7 +14,11 @@ package require xBlt; # options
 ##   -func_start   start function
 ##   -func_stop    stop function
 ##   -func_meas    measure function
+##   -func_meas_e  end-of-measurement function, run just before the next step
 ##   -func_mkint   make interface function (argument: widget path)
+##   -wait_meas    keep delay between func_meas and finc_meas_e when pressing restart/single/stop button:
+##                 0 (default) - pressing a button will stop waiting and start finc_meas_e;
+##                 1 - pressing a button fill have effect after finishing the measurement with normal delay.
 ##   -show_ctl     show control panel, buttons and period setting (default: 1)
 ##   -show_title   show title panel (default: 1)
 ##   -verb         verbosity level (0: show only errors in the status line,
@@ -25,15 +29,17 @@ package require xBlt; # options
 
 itcl::class Monitor {
 
-  variable onoff;          # on/off switch
   variable is_opened 0;    # are devices opened
+  variable onoff_fl;       # set to 1 to start measurement, 0 to stop
   variable exit_fl 0;      # set to 1 to exit the program
   variable loop_handle {}; # non-empty only while waiting for next measurement
+  variable wait_meas {};   # does single/stop/restart buttons keep delay between func_meas and finc_meas_e
   variable root {};        # tk root widget
   # default function handlers
   variable func_start;
   variable func_stop;
   variable func_meas;
+  variable func_meas_e;
   variable func_mkint;
   # status widget
   variable status_w;
@@ -62,6 +68,10 @@ itcl::class Monitor {
   # Can throw an error.
   method def_func_meas {} { puts "Measure" }
 
+  # End-of measurement function (if needed).
+  # Will be run just befor the next step.
+  method def_func_meas_e {} { }
+
   # Build GUI frame in <wid> (user-supplied function)
   method def_func_mkint {wid} { }
 
@@ -72,11 +82,13 @@ itcl::class Monitor {
     set options [list \
       -name          name         {Default}\
       -period        period       {1.0}\
-      -onoff         onoff        0\
+      -onoff         onoff_fl     0\
       -func_start    func_start   def_func_start\
       -func_stop     func_stop    def_func_stop\
       -func_meas     func_meas    def_func_meas\
+      -func_meas_e   func_meas_e  {}\
       -func_mkint    func_mkint   {}\
+      -wait_meas     wait_meas    0\
       -show_ctl      show_ctl   1\
       -show_title    show_title 1\
       -verb          verb       1\
@@ -134,8 +146,8 @@ itcl::class Monitor {
     grid rowconfigure $root 1 -weight 1
     grid columnconfigure $root 0 -weight 1
 
-    onoff_btn $onoff
-    main_loop
+    $status_w set_img square red
+    if {$onoff_fl} {main_loop}
   }
 
   # validate function for the period field
@@ -166,34 +178,23 @@ itcl::class Monitor {
   }
 
   ##########################
+  ## main loop
   method main_loop {} {
     set loop_handle {}
     # Open devices if needed, return on failure
-    if {$onoff && !$is_opened} {
+    if {$onoff_fl && !$is_opened} {
       set is_opened 1
       if {$verb>0} {set_status "Starting the measurement, opening devices..."}
       set ::errorInfo {}
       run_cmd $func_start
       if {$::errorInfo != {}} {
         set is_opened 0
-        onoff_btn 0
+        set onoff_fl 0
         set_status "Error while starting: $::errorInfo" red
         return
       }
+      $status_w set_img triangle_right green
     }
-
-    # Close devices if needed
-    if {(!$onoff || $exit_fl) && $is_opened} {
-      # stop do not modify status to keep previous message if any
-      set ::errorInfo {}
-      run_cmd $func_stop
-      if {$::errorInfo != {}} {
-        set_status "Error while stopping: $::errorInfo" red
-      }
-      set is_opened 0
-    }
-    if {$exit_fl} {exit}
-    if {!$onoff} {return}
 
     # Do the measurement
     if {$verb>0} {set_status "Measuring..."}
@@ -207,11 +208,34 @@ itcl::class Monitor {
       set period [expr {$dt/1000.}]
     }
     if {$::errorInfo == {}} {
-      if {$verb>0} {set_status "Waiting for the next measurement ([expr $dt/1000.0] s)..."}
+      if {$verb>0} {set_status "Waiting ([expr $dt/1000.0] s)..."}
     } else {
       set_status "Error: $::errorInfo" red
     }
-    set loop_handle [after $dt $this main_loop]
+    set loop_handle [after $dt $this main_loop_e]
+  }
+
+  # Second part of the mail loop, executed after delay,
+  # just before the next step.
+  method main_loop_e {} {
+    run_cmd $func_meas_e
+    set_status {}
+
+    # Close devices if needed
+    if {(!$onoff_fl || $exit_fl) && $is_opened} {
+      # stop do not modify status to keep previous message if any
+      set ::errorInfo {}
+      run_cmd $func_stop
+      if {$::errorInfo != {}} {
+        set_status "Error while stopping: $::errorInfo" red
+      }
+      set is_opened 0
+      $status_w set_img square red
+    }
+    if {$exit_fl} {exit}
+    if {!$onoff_fl} {return}
+
+    main_loop
   }
 
   #########################
@@ -239,54 +263,36 @@ itcl::class Monitor {
   }
 
   #########################
-  ## Low-level method for switching on/off button.
-  ## If you want to switch the measurements
-  ## use restart/stop/single methods
-  method onoff_btn {v} {
-    set onoff $v
-    if {$root == {}} return
-    if {$onoff} { $status_w set_img triangle_right green
-    } else {      $status_w set_img square red }
-  }
-
-  #########################
-  ## method run when on/off button is pressed
-  method on_onoff {} {
-    onoff_btn $onoff
-    # Run measurement loop if button was pressed and
-    # measurement is not running (remember that user can press the button
-    # faster then period setting)
-    if {$onoff && !$is_opened} { main_loop }
-    # If measurement is switched off and we are waiting for
-    # next measurement, then interrupt the waiting and
-    # restart main_loop to close devices
-    if {!$onoff && $is_opened && $loop_handle != {}} {
-      after cancel $loop_handle; $this main_loop }
-  }
-
-  #########################
   ## Restart the measurement
   method restart {} {
-    # if measurement is running do nothing
-    if {$onoff && $loop_handle == {}} { return }
-
     # If we are waiting for a next measurement interrupt the waiting
-    if {$loop_handle != {}} { after cancel $loop_handle; }
+    if {$loop_handle != {} && !$wait_meas} {
+      after cancel $loop_handle;
+      set loop_handle {}
+      main_loop_e
+    }
+
+    # if measurement is running do nothing
+    if {$is_opened} { return }
 
     # Start measurement:
-    onoff_btn 1
+    set onoff_fl 1
     main_loop
   }
 
   #########################
   ## Stop the measurement
   method stop {} {
-    onoff_btn 0
-    if {$::errorInfo == {}} {set_status {}}
-    if {!$is_opened} { return }
-    if {$loop_handle != {}} {
+    set onoff_fl 0
+    if {$::errorInfo != {}} {return}
+    if {!$is_opened} { set_status ""}\
+    else { set_status "Stopping..."}
+
+    # If we are waiting for a next measurement interrupt the waiting
+    if {$loop_handle != {} && !$wait_meas} {
       after cancel $loop_handle;
-      $this main_loop
+      set loop_handle {}
+      main_loop_e
     }
   }
 
@@ -294,7 +300,7 @@ itcl::class Monitor {
   ## Run a single measurement:
   method single {} {
     restart
-    stop
+    set onoff_fl 0
   }
 
   #########################
