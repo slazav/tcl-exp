@@ -3,7 +3,8 @@
 
 set _name    Exp
 set _version 1.0
-set _files   {sweeper timeplot statusbar read_conf fit_res manual_db monitor dataconvs widgets temp_curve}
+set _files   {sweeper timeplot statusbar read_conf fit_res manual_db\
+              monitor dataconvs widgets temp_curve widget_ac_source}
 
 set _pcmd {}
 foreach _f $_files { lappend _pcmd "source [file join $dir $_f.tcl]" }
