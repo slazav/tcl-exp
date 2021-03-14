@@ -1,0 +1,42 @@
+#!/usr/bin/wish
+
+source widget_sweep.tcl
+source widgets.tcl
+
+widget_sweep w .g\
+ -title {Sweep test}\
+ -limit_min 0\
+ -limit_max 125\
+ -vmin 0 -vmax 100 -npts 21 -dt 0.5 -mode "Up"
+
+pack .g
+
+
+# There are two functions to run the sweep:
+#  step_set  - set parameter
+#  step_meas - do the measurement after delay
+proc step_set {} {
+
+  # do sweeping step
+  w do_step
+
+  # Are we at the first step?
+  # Here we can prepare some storage for data
+  if {[w is_first]} {puts "start sweep"}
+
+  if {[w is_on]} {
+    puts "set [w get_val]"
+    after [w get_delay] step_meas
+  }\
+  else {
+    after 200 step_set
+  }
+}
+
+proc step_meas {} {
+  puts "meas [w get_val]"
+  if {[w is_last]} {puts "end sweep"}
+  after 100 step_set
+}
+
+step_set
