@@ -1,6 +1,6 @@
 # Configurable interface for ac_source DeviceRole
 #
-# Constructor: ac_source_widget <name> <tkroot> <options>
+# Constructor: widget_ac_source <name> <tkroot> <options>
 # Options:
 #  -d, -dev    -- ac_source device name (default: TEST)
 #  -t, -title  -- frame title (default: {})
@@ -10,7 +10,6 @@
 # Methods:
 #
 #   enable 1|0  -- open/close device, activate/deactivate interface (no effect on the generator settings)
-#   power 1|0  -- turn on/off signal
 #   set_freq <v>
 #   get_freq
 #   set_volt <v>
@@ -19,7 +18,9 @@
 #   get_offs
 #   set_phase <v>
 #   get_phase
-#   set_ac <freq> <volt> [<offs>]
+#   set_out 0|1   -- set generator output state (on/off)
+#   get_out
+#   set_ac <freq> <volt> [<offs>] [<phase>]
 
 package require xBlt
 package require itcl
