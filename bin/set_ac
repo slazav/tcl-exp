@@ -24,5 +24,6 @@ set options [list \
 xblt::parse_options "get_gain" $argv $options
 set gen [DeviceRole $dev ac_source]
 
-if {$off} {$gen off}\
-else {$gen set_ac $freq $volt $offs}
+$gen set_out [expr $off?0:1]
+
+if {!$off} { $gen set_ac $freq $volt $offs }
