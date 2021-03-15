@@ -11,7 +11,7 @@
 #   -vmin -vmax -npts -dt -mode -- initial values for interface entries
 #
 # Methods:
-#   enable 0|1 -- activate/deactivate widget (default - active)
+#   readonly 0|1 -- activate/deactivate widget (default - active)
 #   reset {}     -- start new sweep
 #   do_step {}   -- do a step
 #   get_val {}   -- get sweeping parameter value
@@ -102,7 +102,7 @@ itcl::class widget_sweep {
 
 
   # activate/deactivate interface
-  method enable {{state 1}} {
+  method readonly {{state 1}} {
     if {$state} { widget_state $root normal }\
     else { widget_state $root disabled }
   }

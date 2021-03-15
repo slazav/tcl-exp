@@ -9,7 +9,8 @@
 #
 # Methods:
 #
-#   enable 1|0  -- open/close device, activate/deactivate interface (no effect on the generator settings)
+#   readonly 1|0  -- activate/deactivate interface
+#   enable 1|0  -- open/close device (no effect on the generator settings)
 #   set_freq <v>
 #   get_freq
 #   set_volt <v>
@@ -92,18 +93,22 @@ itcl::class widget_ac_source {
     widget_state $root disabled
   }
 
+  # activate/deactivate interface
+  method readonly {{state 1}} {
+    if {$state} { widget_state $root disabled }\
+    else { widget_state $root normal }
+  }
 
-  # activate/deactivate interface, open/close device
+  # same + open/close device
   method enable {{state 1}} {
+    readonly $state
     if {$state} {
       if {$dev eq {}} { set dev [DeviceRole $dev_name ac_source] }
       on_update
-      widget_state $root normal
     }\
     else {
       if {$dev != {}} { itcl::delete object $dev }
       set dev {}
-      widget_state $root disabled
     }
   }
 
