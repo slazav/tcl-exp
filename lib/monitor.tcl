@@ -311,4 +311,7 @@ itcl::class Monitor {
     stop
   }
 
+  method get_period {} {return $period}
+  method set_period {v} {set period $v}
+
 }
