@@ -3,7 +3,7 @@
 # Cryostat-specific interface for multiplexer measurements.
 # A few tabs: bath resistors, He level, demag magnet, etc.
 
-package require Device2
+package require DeviceRole
 package require Exp;  # timeplot, monitor
 
 ##########################################################################
@@ -54,25 +54,29 @@ proc func_start {} {
 
     # Channels 101-109: bath resistors
     # Set delay to wait for stabilisation of filtered lines.
-    $pars(gauge_dev) cmd "CONF:RES AUTO,DEF (@101:109)"
-    $pars(gauge_dev) cmd "SENSE:RES:NPLC 10, (@101:109)"
-    $pars(gauge_dev) cmd "ROUTE:CHAN:DEL 0.2,   (@101:109)"
+    dev_check $pars(gauge_dev) "CONF:RES AUTO,DEF, (@101:109)"
+    dev_check $pars(gauge_dev) "SENSE:RES:NPLC 1, (@101:109)"
+    dev_check $pars(gauge_dev) "ROUTE:CHAN:DEL 0.1,   (@101:109)"
 
-    # Channels 112: still resistor
+    # Channels 112: demag_i
+    dev_check $pars(gauge_dev) "CONF:VOLT:DC AUTO,DEF, (@112:114)"
+    dev_check $pars(gauge_dev) "SENSE:VOLT:DC:NPLC 1, (@112:114)"
+    dev_check $pars(gauge_dev) "ROUTE:CHAN:DEL 0,   (@112:114)"
+
     # Channels 118: He level
-    $pars(gauge_dev) cmd "CONF:VOLT:DC 10,DEF (@112,118)"
-    $pars(gauge_dev) cmd "SENSE:VOLT:DC:NPLC 10, (@112,118)"
-    $pars(gauge_dev) cmd "ROUTE:CHAN:DEL 0.2,   (@112,118)"
+    dev_check $pars(gauge_dev) "CONF:VOLT:DC AUTO,DEF, (@118)"
+    dev_check $pars(gauge_dev) "SENSE:VOLT:DC:NPLC 10, (@118)"
+    dev_check $pars(gauge_dev) "ROUTE:CHAN:DEL 0,   (@118)"
 
     # channels to read
-    $pars(gauge_dev) cmd "ROUT:SCAN? (@101:109,112,118)"
+    dev_check $pars(gauge_dev) "ROUT:SCAN (@101:109,112:114,118)"
   }
 }
 
 # Close devices
 proc func_stop {} {
   global pars
-  if {$pars(gauge_dev)!={}} { DeviceDelete $pars(dev) }
+  if {$pars(gauge_dev)!={}} { DeviceDelete $pars(gauge_dev) }
   if {$pars(db_dev)!={}}    { DeviceDelete $pars(db_dev) }
 }
 
@@ -96,35 +100,60 @@ proc func_meas {} {
   # format data and time for the interface
   set Tf [clock format [expr int($T0)] -format $pars(tfmt)]
 
-  for {set i 1} {$i <= 9} {incr i} {
-    set Df(R$i) [format "%.2f" [lindex $D0 $i]]
+  # replace large values with NaN
+  for {set i 0} {$i < [llength $D0]} {incr i} {
+    if {[lindex $D0 $i] > 1e30} {
+      lset D0 $i NaN
+    }
   }
-  set Df(he_level) [format "%.2f" [lindex $D0 10]]
-  set Df(demag_v)  [format "%.2f" [lindex $D0 11]]
-  set Df(demag_i)  [format "%.2f" [lindex $D0 12]]
-  set Df(demag_ps) [format "%.2f" [lindex $D0 13]]
+
+  # fill array D
+  array unset D
+  for {set i 1} {$i <=9} {incr i} {
+    set D(R$i) [lindex $D0 [expr $i-1]]
+  }
+  set D(demag_i)  [lindex $D0 9]
+  set D(demag_v)  [lindex $D0 10]
+  set D(demag_ps) [lindex $D0 11]
+  set D(he_level) [lindex $D0 12]
+
+  # convert He level, same units as on the screen (cm)
+  set D(he_level) [expr {($D(he_level)-1.15e-3)/(1.093-1.15e-3)*547.0}]
+
+  # convert demag current, same units as on the screen (A)
+  set D(demag_i) [expr {$D(demag_i)/0.14374*69.0}]
+
+  # format data
+  for {set i 1} {$i <= 9} {incr i} {
+    if {$D(R$i) != $D(R$i)} {
+      set Df(R$i) NaN
+    } else {
+      set Df(R$i) [format "%.2f" $D(R$i)]
+    }
+  }
+  set Df(he_level) [format "%.2f" $D(he_level)]
+  set Df(demag_v)  [format "%.2f" $D(demag_v) ]
+  set Df(demag_i)  [format "%.2f" $D(demag_i) ]
+  set Df(demag_ps) [format "%.2f" $D(demag_ps)]
 
   # append data to timeplot
-  tplot_rbath    add_data [list $T0 {*}[lrange $D0 0 8]]
-  tplot_he_level add_data [list $T0 [lindex $D0 9]]
-  tplot_demag    add_data [list $T0 {*}[lrange $D0 10 12]]
+  for {set i 1} {$i <= 9} {incr i} {
+    if {$D(R$i) != $D(R$i)} continue
+    tplot_rbath add_data_sep R$i $T0 $D(R$i)
+  }
+  tplot_he_level add_data [list $T0 $D(he_level)]
+  tplot_demag    add_data [list $T0$D(demag_i) $D(demag_v)  $D(demag_ps)]
 
   # put data to database
   if {$pars(db_dev)!={}} {
-    $pars(db_dev) cmd put_flt Rbath01 [lindex $D0 0]
-    $pars(db_dev) cmd put_flt Rbath02 [lindex $D0 1]
-    $pars(db_dev) cmd put_flt Rbath03 [lindex $D0 2]
-    $pars(db_dev) cmd put_flt Rbath04 [lindex $D0 3]
-    $pars(db_dev) cmd put_flt Rbath05 [lindex $D0 4]
-    $pars(db_dev) cmd put_flt Rbath06 [lindex $D0 5]
-    $pars(db_dev) cmd put_flt Rbath07 [lindex $D0 6]
-    $pars(db_dev) cmd put_flt Rbath08 [lindex $D0 7]
-    $pars(db_dev) cmd put_flt Rbath09 [lindex $D0 8]
-
-    $pars(db_dev) cmd put_flt he_level  [lindex $D0 9]
-    $pars(db_dev) cmd put_flt demag_v   [lindex $D0 10]
-    $pars(db_dev) cmd put_flt demag_i   [lindex $D0 11]
-    $pars(db_dev) cmd put_flt demag_ps  [lindex $D0 12]
+    for {set i 1} {$i <= 9} {incr i} {
+      if {$D(R$i) != $D(R$i)} continue
+      $pars(db_dev) cmd put_flt Rbath0$i $D(R$i)
+    }
+    $pars(db_dev) cmd put_flt he_level  $D(he_level)
+    $pars(db_dev) cmd put_flt demag_i   $D(demag_i)
+    $pars(db_dev) cmd put_flt demag_v   $D(demag_v)
+    $pars(db_dev) cmd put_flt demag_ps  $D(demag_ps)
     $pars(db_dev) cmd sync
   }
 }
@@ -160,7 +189,6 @@ proc func_mkint {w} {
     label $f_rbath.tab.v$n -fg darkgreen -font {-size 12} -textvariable Df(R$n) -width 10
     grid $f_rbath.tab.l$n $f_rbath.tab.v$n -sticky w
   }
-
   TimePlot tplot_rbath $f_rbath.tplot\
    -ncols      $max_rbath\
    -maxt       $pars(plot_maxt)\
@@ -170,7 +198,8 @@ proc func_mkint {w} {
    -symbols    {}\
    -ssizes     {}\
    -fmts       %.2f\
-   -zstyles    xy
+   -zstyles    xy\
+   -separate   1
 
   grid $f_rbath.tplot -column 1 -row 0 -sticky wens
   grid rowconfigure $f_rbath 0 -weight 1
@@ -202,7 +231,6 @@ proc func_mkint {w} {
    -symbols    {}\
    -ssizes     {}\
    -fmts       %.2f\
-   -zstyles    xy
 
   grid $f_hlvl.tplot -sticky wens
   grid rowconfigure $f_hlvl 1 -weight 1
@@ -220,10 +248,10 @@ proc func_mkint {w} {
 
   label $f_demag.tab.tl -text "time:"
   label $f_demag.tab.t -fg darkgreen -font {-size 12} -textvariable Tf -width 8
-  label $f_demag.tab.l1 -text "V:"
-  label $f_demag.tab.v1 -fg darkgreen -font {-size 12} -textvariable Df(demag_v) -width 8
-  label $f_demag.tab.l2 -text "I:"
-  label $f_demag.tab.v2 -fg darkgreen -font {-size 12} -textvariable Df(demag_i) -width 8
+  label $f_demag.tab.l1 -text "I:"
+  label $f_demag.tab.v1 -fg darkgreen -font {-size 12} -textvariable Df(demag_i) -width 8
+  label $f_demag.tab.l2 -text "V:"
+  label $f_demag.tab.v2 -fg darkgreen -font {-size 12} -textvariable Df(demag_v) -width 8
   label $f_demag.tab.l3 -text "PS:"
   label $f_demag.tab.v3 -fg darkgreen -font {-size 12} -textvariable Df(demag_ps) -width 8
   pack $f_demag.tab.tl $f_demag.tab.t\
@@ -236,12 +264,11 @@ proc func_mkint {w} {
    -ncols      3\
    -maxt       $pars(plot_maxt)\
    -colors     {}\
-   -names      {{V} {I} {PS}}\
-   -titles     {{V} {I} {PS}}\
+   -names      {{I} {V} {PS}}\
+   -titles     {{I} {V} {PS}}\
    -symbols    {}\
    -ssizes     {}\
    -fmts       %.2f\
-   -zstyles    xy
 
   grid $f_demag.tplot -sticky wens
   grid rowconfigure $f_demag 1 -weight 1
