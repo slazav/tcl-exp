@@ -18,7 +18,7 @@
 #   is_first {}  -- is it the first point of a sweep? (should be called after do_step)
 #   is_last {}   -- is it the last point of a sweep? (should be called after do_step)
 #   is_on {}     -- is sweep in progress
-#   get_del {}   -- get delay until the measurement
+#   get_del {}   -- get delay until the measurement [s]
 #
 # For usage example see widget_sweep_test program
 
@@ -162,10 +162,10 @@ itcl::class widget_sweep {
   method get_val {} {return $v}
 
   method get_delay {} {
-    if {$dir == 0} {return [expr int($dt0*1e3)]}
+    if {$dir == 0} {return [expr $dt0]}
     set dt1 [expr [clock microseconds]/1e6 - $t1]
     if {$dt1 > $dt} {return 0}
-    return [expr int(($dt-$dt1)*1e3)]
+    return [expr $dt-$dt1]
   }
 
 }
