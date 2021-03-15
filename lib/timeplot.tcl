@@ -323,7 +323,7 @@ itcl::class TimePlot {
 
     # column number
     set nc [lsearch -exact $names $col];
-    if {$nc <0} {error: "add_data_sep: unknown column name: $col. Use one of ($names)"}
+    if {$nc <0} {error "add_data_sep: unknown column name: $col. Use one of ($names)"}
 
     # add data to BLT vectors
     "$this:T$nc" append $tstamp
