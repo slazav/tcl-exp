@@ -61,6 +61,8 @@ itcl::class widget_sweep {
       {-t -title}    title     {}\
       {-vmin}        vmin_i      0\
       {-vmax}        vmax_i      10\
+      {-vmin_label}  vmin_label {V1}\
+      {-vmax_label}  vmax_label {V2}\
       {-npts}        npts_i      11\
       {-dt}          dt_i        1\
       {-mode}        mode_i    "OFF"\
@@ -75,9 +77,9 @@ itcl::class widget_sweep {
     set root $tkroot
     labelframe $root -text $title -font {-weight bold -size 10}
 
-    label $root.vmin_l -text "V1"
+    label $root.vmin_l -text $vmin_label
     entry $root.vmin -width 12 -textvariable [itcl::scope vmin_i]
-    label $root.vmax_l -text "V1"
+    label $root.vmax_l -text $vmax_label
     entry $root.vmax -width 12 -textvariable [itcl::scope vmax_i]
     grid $root.vmin_l $root.vmin $root.vmax_l $root.vmax\
       -padx 5 -pady 2 -sticky e
