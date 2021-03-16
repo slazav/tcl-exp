@@ -26,7 +26,7 @@ proc step_set {} {
 
   if {[w is_on]} {
     puts "set [w get_val]"
-    after [w get_delay] step_meas
+    after [expr int(1000*[w get_delay])] step_meas
   }\
   else {
     after 200 step_set
