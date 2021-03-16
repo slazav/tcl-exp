@@ -197,9 +197,10 @@ itcl::class Monitor {
     }
 
     # Do the measurement
-    if {$verb>0} {set_status "Measuring..."}
+    if {$verb>0 && $::errorInfo == {}} {set_status "Measuring..."}
     set ::errorInfo {}
     run_cmd $func_meas
+    if {$::errorInfo != {}} {set_status "Error: $::errorInfo" red}
 
     # Set up the next iteration
     if {[regexp {^[0-9.]+$} $period]} {
@@ -207,10 +208,9 @@ itcl::class Monitor {
     } else {
       set period [expr {$dt/1000.}]
     }
-    if {$::errorInfo == {}} {
-      if {$verb>0} {set_status "Waiting ([expr $dt/1000.0] s)..."}
-    } else {
-      set_status "Error: $::errorInfo" red
+
+    if {$verb>0 && $::errorInfo == {}} {
+      set_status "Waiting ([expr $dt/1000.0] s)..."
     }
     set loop_handle [after $dt $this main_loop_e]
   }
@@ -219,7 +219,8 @@ itcl::class Monitor {
   # just before the next step.
   method main_loop_e {} {
     run_cmd $func_meas_e
-    set_status {}
+    if {$::errorInfo != {}} {set_status "Error: $::errorInfo" red}\
+    else {set_status {}}
 
     # Close devices if needed
     if {(!$onoff_fl || $exit_fl) && $is_opened} {
