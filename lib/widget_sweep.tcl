@@ -21,6 +21,8 @@
 #   is_on {}      -- is sweep in progress
 #   get_del {}    -- get delay until the measurement [s]
 #
+#   get_vmin, set_vmin, get_vmax, set_vmax -- get/set parameters
+#
 # For usage example see widget_sweep_test program
 
 package require xBlt
@@ -167,6 +169,11 @@ itcl::class widget_sweep {
   method is_on {}    { return [expr {$dir != 0}] }
 
   method get_val {} {return $v}
+
+  method get_vmin {} {return $vmin_i}
+  method get_vmax {} {return $vmax_i}
+  method set_vmin {v} {set vmin_i $v}
+  method set_vmax {v} {set vmax_i $v}
 
   method get_delay {} {
     if {$dir == 0} {return [expr $dt0]}
