@@ -11,14 +11,15 @@
 #   -vmin -vmax -npts -dt -mode -- initial values for interface entries
 #
 # Methods:
-#   readonly 0|1 -- activate/deactivate widget (default - active)
-#   reset {}     -- start new sweep
-#   do_step {}   -- do a step
-#   get_val {}   -- get sweeping parameter value
-#   is_first {}  -- is it the first point of a sweep? (should be called after do_step)
-#   is_last {}   -- is it the last point of a sweep? (should be called after do_step)
-#   is_on {}     -- is sweep in progress
-#   get_del {}   -- get delay until the measurement [s]
+#   readonly 0|1  -- activate/deactivate widget (default - active)
+#   restart {}    -- start new sweep
+#   do_step {}    -- do a step
+#   get_val {}    -- get sweeping parameter value
+#   is_first {}   -- is it the first point of a sweep? (should be called after do_step)
+#   is_last {}    -- is it the last point of a normal sweep? (should be called after do_step)
+#   is_restart {} -- is it the last point of restarted sweep? (should be called after do_step)
+#   is_on {}      -- is sweep in progress
+#   get_del {}    -- get delay until the measurement [s]
 #
 # For usage example see widget_sweep_test program
 
@@ -43,6 +44,7 @@ itcl::class widget_sweep {
   variable dv 0;  # step
   variable  v 0;  # current value
   variable dir   1
+  variable restart_fl 0
 
   # interface values
   variable vmin_i  0
@@ -95,8 +97,8 @@ itcl::class widget_sweep {
     ttk::combobox $root.mode -width 9 -textvariable [itcl::scope mode_i] -state readonly
     $root.mode  configure -values {"OFF" "Up" "Down" "Both"}
 
-    # Apply/Reset buttons
-    button $root.rbtn -text "Reset" -command "$this reset"
+    # Apply/restart buttons
+    button $root.rbtn -text "Restart" -command "$this restart"
     grid $root.rbtn $root.mode -padx 3 -pady 3 -columnspan 2
 
     widget_bg $root #E0F0E0
@@ -109,9 +111,10 @@ itcl::class widget_sweep {
     else { widget_state $root disabled }
   }
 
-  # reset sweep
-  method reset {} {
+  # restart sweep
+  method restart {} {
     set cnt 0
+    set restart_fl 1
   }
 
   method do_step {} {
@@ -150,6 +153,7 @@ itcl::class widget_sweep {
       }
     }
 
+    set restart_fl 0
     set v [expr {$v0 + $dir*$dv*$cnt}]
     if {$dir != 0} {incr cnt}
     if {$cnt >= $npts} {set cnt 0}
@@ -158,7 +162,8 @@ itcl::class widget_sweep {
 
   # should be called after do_step
   method is_first {} { return [expr {$cnt == 1}] }
-  method is_last {}  { return [expr {$cnt == 0 && $dir != 0}] }
+  method is_last {}    { return [expr {$cnt == 0 && $dir != 0 && !$restart_fl}] }
+  method is_restart {} { return [expr {$cnt == 0 && $dir != 0 && $restart_fl}] }
   method is_on {}    { return [expr {$dir != 0}] }
 
   method get_val {} {return $v}

@@ -35,7 +35,8 @@ proc step_set {} {
 
 proc step_meas {} {
   puts "meas [w get_val]"
-  if {[w is_last]} {puts "end sweep"}
+  if {[w is_last]}    {puts "end sweep"}
+  if {[w is_restart]} {puts "restart sweep"}
   after 100 step_set
 }
 
