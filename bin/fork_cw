@@ -1,0 +1,391 @@
+#!/usr/bin/wish
+
+# New inrterface for CW measurements of tuning forks, vibrating wires and similar
+# resonators.
+
+# Result database:
+# - drive [generator setting]
+# - 
+
+package require DeviceRole
+package require Exp;  # timeplot, monitor
+
+##########################################################################
+## Read parameters from configuration file.
+## Devault values can be used for testing, without any devices.
+
+set default_pars {
+  name         {fork_cw}  {program name}
+  gauge_dev    {TEST}     {gauge device}
+  gen_dev      {TEST}     {generator device}
+  db_dev       {}         {database device}
+  res_db       {}         {result database}
+  sweep_db     {}         {sweep database}
+  limit_fmin   {0}        {sweep low limit}
+  limit_fmax   {inf}      {sweep high limit}
+  fmin         {600}      {starting value for sweep low end}
+  fmax         {1500}     {starting value for sweep high end}
+  npts         {101}      {starting value for sweep number of points}
+  dt           {0.1}      {starting value for measurement period}
+  tfmt         {%H:%M:%S} {time format string for the interface}
+  amp_fmt      {%.3e}     {amp format string for the interface}
+  fre_fmt      {%.3f}     {fre format string for the interface}
+  wid_fmt      {%.3f}     {wid format string for the interface}
+  plot_maxt    {600}      {timeplot span}
+  adj_freq     {0}        {adjust central frequency, 0|1}
+  adj_fspan    {0}        {adjust frequency span, 0|1}
+  adj_drive    {0}        {adjust drive, 0|1}
+  fspan_size   {6}        {frequency span / width}
+  amp_target   {1}        {amplitude target}
+}
+
+if {[llength $argv]>0 } {
+  read_conf [lindex $argv 0] pars $default_pars
+}\
+else {
+  foreach {name def title} $default_pars { set pars($name) $def }
+}
+
+tk appname "$pars(name)"
+
+##########################################################################
+##########################################################################
+
+# last measurel values
+set fre {};
+set wid {};
+set amp {};
+
+# formatted values
+set fre_f {};
+set wid_f {};
+set amp_f {};
+
+
+##########################################################################
+## functions for the monitor class
+
+# Open devices
+proc func_start {} {
+  global pars
+  # puts "start"
+  if {$pars(db_dev)!={}}    { Device $pars(db_dev) }
+  if {$pars(gauge_dev)!={}} { DeviceRole $pars(gauge_dev) gauge}
+  if {$pars(gen_dev)!={}}   { DeviceRole $pars(gen_dev) ac_source}
+}
+
+# Close devices
+proc func_stop {} {
+  global pars
+  # puts "stop"
+  if {$pars(gen_dev)!={}}   { DeviceDelete $pars(gen_dev) }
+  if {$pars(gauge_dev)!={}} { DeviceDelete $pars(gauge_dev) }
+  if {$pars(db_dev)!={}}    { DeviceDelete $pars(db_dev) }
+}
+
+
+# This function is executed in the beginning of each step.
+# Here we get new frequncy and delay from sweeper and change
+# generator frequency.
+proc func_meas {} {
+  global pars
+  sweep_pan do_step
+
+  # set generator panel to readonly state when sweeper is active
+  gen_pan readonly [sweep_pan is_on]
+
+  # set generator frequency
+  gen_pan set_freq [sweep_pan get_val]
+
+  # set monitor period
+  mon set_period [sweep_pan get_delay]
+}
+
+# blt vectors for fit result
+blt::vector create fitf
+blt::vector create fitx
+blt::vector create fity
+blt::vector create oldf
+blt::vector create oldx
+blt::vector create oldy
+
+# This function is executed after the delay, just before
+# the next step. Here we measure the new value and collect data.
+proc func_meas_e {} {
+  global pars
+  global fre wid amp
+  global fre_f wid_f amp_f
+
+  ####################
+  if {[sweep_pan is_first]} {
+    #puts "start sweep"
+    tplot_sweep clear
+  }
+
+  ####################
+  # do the measurement
+  set t [expr [clock microsecond]/1e6]
+  set f [sweep_pan get_val]
+
+  if {[sweep_pan is_on]} {
+    if {$pars(gauge_dev) eq "TEST"} {
+      set f0 1024
+      set df 64
+      set F 1
+      set N 1e-7
+      # Random number with normal distribution (see Muller_transform):
+      set N [expr $N*sqrt(-2.0 * log(rand()))*cos(2*3.1415926*rand())]
+      set x [expr {$N + $F*($f*$df)/(($f0**2-$f**2)**2 + ($f*$df)**2)}]
+      set y [expr {$N + $F*($f0**2-$f**2)/(($f0**2-$f**2)**2 + ($f*$df)**2)}]
+    }\
+    else {
+      set v [$pars(gauge_dev) get]
+      set x [lindex $v 0]
+      set y [lindex $v 1]
+    }
+    tplot_sweep add_data [list $t $f $x $y]
+  }
+
+  ####################
+  # finish the sweep
+
+  if {[sweep_pan is_restart]} {return}
+
+  if {[sweep_pan is_last] } {
+    #puts "stop sweep"
+
+    # get data from timeplot (BLT-vectors):
+    set tv [tplot_sweep get_tvec]
+    set fv [tplot_sweep get_dvec 0]
+    set xv [tplot_sweep get_dvec 1]
+    set yv [tplot_sweep get_dvec 2]
+
+    # do fit
+    set conn [open "| fit_res" RDWR]
+    fconfigure $conn -blocking true -buffering line
+    for {set i 0} {$i < [$tv length]} {incr i} {
+      puts $conn "[$tv index $i] [$fv index $i] [$xv index $i] [$yv index $i]"
+    }
+    close $conn write
+    set res [gets $conn]
+    close $conn
+
+    # result, 14 values:
+    # time, f_error, A, Ae, B, Be, C, Ce, D, De, f, fe, df, dfe
+    set tim [expr [lindex $res 0]]
+    set drv [expr sqrt([lindex $res 6]**2 + [lindex $res 8]**2)]
+    set fre [expr [lindex $res 10]]
+    set wid [expr [lindex $res 12]]
+    set amp [expr {$drv/$fre/$wid}]
+
+    # formatted values for interface
+    set fre_f [format $pars(fre_fmt) $fre]
+    set wid_f [format $pars(wid_fmt) $wid]
+    set amp_f [format $pars(amp_fmt) $amp]
+
+    # values for result time plot
+    tplot_res add_data [list $tim $wid $fre $amp]
+
+    # put values into database
+    if {$pars(db_dev)!={} && $pars(res_db)!={}} {
+      $pars(db_dev) cmd put $pars(res_db) $tim [gen_pan get_volt] [lrange $res 1 end]
+    }
+
+    if {$pars(db_dev)!={} && $pars(sweep_db)!={}} {
+      for {set i 0} {$i < [$tv length]} {incr i} {
+        $pars(db_dev) cmd put $pars(sweep_db) [$tv index $i] [$fv index $i] [$xv index $i] [$yv index $i]
+      }
+    }
+
+    # update plot
+    set G [tplot_sweep get_graph]
+
+    # delete previous fits
+    if {[$G element names fitx] != {}} {$G element delete fitx}
+    if {[$G element names fity] != {}} {$G element delete fity}
+    if {[$G element names oldx] != {}} {$G element delete oldx}
+    if {[$G element names oldy] != {}} {$G element delete oldy}
+
+    # add new fits
+    set f1 [$fv index 0]
+    set f2 [$fv index end]
+    fitf seq $f1 $f2 [expr ($f2-$f1)/1024]
+    fitx expr {$drv*($fre^2-fitf^2)/(($fre^2-fitf^2)^2 + (fitf*$wid)^2)}
+    fity expr {$drv*(fitf*$wid)/(($fre^2-fitf^2)^2 + (fitf*$wid)^2)}
+
+    $G element create fitx -outline black -mapx xF -mapy y\
+       -xdata fitf -ydata fitx -symbol {}
+    $G element create fity -outline black -mapx xF -mapy y\
+       -xdata fitf -ydata fity -symbol {}
+
+    oldf expr $fv
+    oldx expr $xv
+    oldy expr $yv
+    $G element create oldx -color #FF8080 -pixel 1.5 -mapx xF -mapy y\
+       -xdata oldf -ydata oldx -symbol circle
+    $G element create oldy -color #8080FF -pixel 1.5 -mapx xF -mapy y\
+       -xdata oldf -ydata oldy -symbol circle
+
+    # Adjust values.
+    # Note that sweep_pan set interface values which are validated
+    # and applied on the next step.
+    if {$pars(adj_freq)} {
+      set f1 [sweep_pan get_vmin]
+      set f2 [sweep_pan get_vmax]
+      set sh [expr $fre-($f1+$f2)/2.0]
+      set f1 [expr $f1+$sh]
+      set f2 [expr $f2+$sh]
+      sweep_pan set_vmin [format $pars(fre_fmt) $f1]
+      sweep_pan set_vmax [format $pars(fre_fmt) $f2]
+    }
+    if {$pars(adj_fspan)} {
+      set f1 [sweep_pan get_vmin]
+      set f2 [sweep_pan get_vmax]
+      set fcnt [expr ($f1+$f2)/2.0]
+      set span [expr $wid*$pars(fspan_size)]
+      set f1 [expr $fcnt - $span/2.0]
+      set f2 [expr $fcnt + $span/2.0]
+      sweep_pan set_vmin [format $pars(fre_fmt) $f1]
+      sweep_pan set_vmax [format $pars(fre_fmt) $f2]
+    }
+    if {$pars(adj_drive)} {
+      set v [gen_pan get_volt]
+      gen_pan set_volt [expr $v*$pars(amp_target)/$amp]
+    }\
+    else {
+      set pars(amp_target) [format %.4e $amp]
+    }
+  }
+}
+
+# Build GUI frame in <root>
+proc func_mkint {w} {
+  global pars Tf Df
+
+
+  ############################
+  # top frame with measurement results
+  frame $w.res
+  pack $w.res -fill x -expand 0
+
+  labelframe $w.res.fre -text {Frequency [Hz]}
+  label $w.res.fre.val -textvariable fre_f -font {-size 15} -text 0
+  pack $w.res.fre.val
+
+  labelframe $w.res.wid -text {Width [Hz]}
+  label $w.res.wid.val -textvariable wid_f  -font {-size 15} -text 0
+  pack $w.res.wid.val
+
+  labelframe $w.res.amp -text {Amplitude [V]}
+  label $w.res.amp.val -textvariable amp_f  -font {-size 15} -text 0
+  pack $w.res.amp.val
+
+  pack $w.res.fre $w.res.wid $w.res.amp -side left -fill x -expand 1
+
+  ############################
+  # tabs
+  blt::tabset $w.tabs
+  pack $w.tabs -fill both -expand 1
+
+  ############################
+  ### measurement frame
+  set f_meas $w.tabs.meas
+  frame $f_meas
+  $w.tabs insert end meas -window $f_meas\
+     -anchor n -text "Measurement" -fill both -padx 3 -pady 3
+
+  # configuration panel on the left side
+  frame $f_meas.conf
+  grid $f_meas.conf -column 0 -row 0 -sticky nwes
+
+  # generator panel
+  widget_ac_source gen_pan $f_meas.conf.gen -title "Generator:"\
+    -show_offs 0 -show_phase 0 -dev $pars(gen_dev)
+  pack $f_meas.conf.gen -expand 0 -fill x -anchor ne
+  gen_pan enable
+
+  # lock-in panel
+  #...
+
+  # sweep panel
+  widget_sweep sweep_pan $f_meas.conf.sw\
+    -title "Sweeps:"\
+    -vmin_label "F1" -vmax_label "F2"\
+    -vmin $pars(fmin) -vmax $pars(fmax)\
+    -limit_min $pars(limit_fmin)\
+    -limit_max $pars(limit_fmax)\
+    -npts $pars(npts)\
+    -dt   $pars(dt)\
+
+  pack $f_meas.conf.sw -expand 0 -fill x -anchor ne
+
+  # adjust panel
+  set ajd_pan $f_meas.conf.adj
+  labelframe $ajd_pan -text "Adjust:" -font {-weight bold -size 10}
+  checkbutton $ajd_pan.f0  -text "Central frequency" -variable pars(adj_freq)
+  checkbutton $ajd_pan.df  -text "Frequency span" -variable pars(adj_fspan)
+  checkbutton $ajd_pan.drv -text "Drive (constant amplitude)" -variable pars(adj_drive)
+
+  label $ajd_pan.df_l -text "Span size in line widths:"
+  entry $ajd_pan.df_v -width 12 -textvariable pars(fspan_size)
+
+  label $ajd_pan.am_l -text "Target amplitude:"
+  entry $ajd_pan.am_v -width 12 -textvariable pars(amp_target)
+
+  grid $ajd_pan.f0  -sticky nw -columnspan 2
+  grid $ajd_pan.df  -sticky nw -columnspan 2
+  grid $ajd_pan.df_l $ajd_pan.df_v -sticky nw -padx 5 -pady 2
+  grid $ajd_pan.drv -sticky nw -columnspan 2
+  grid $ajd_pan.am_l $ajd_pan.am_v -sticky nw -padx 5 -pady 2
+
+  widget_bg $ajd_pan #E0F0F0
+  pack $ajd_pan -expand 0 -fill x -anchor ne
+
+
+  # sweep timeplot (4 columns: f, x, y, a)
+  TimePlot tplot_sweep $f_meas.tplot\
+   -ncols      3\
+   -maxt       3600\
+   -colors     {black red blue}\
+   -names      {F X Y}\
+   -titles     {F X Y}\
+   -symbols    {circle circle circle circle}\
+   -ssizes     {}\
+   -fmts       %.2f\
+   -plots_x     {F}\
+   -plots_y     {{X Y}}\
+   -zstyles    xy
+
+  grid $f_meas.tplot -column 1 -row 0 -sticky wens
+  grid rowconfigure $f_meas 0 -weight 1
+  grid columnconfigure $f_meas 1 -weight 1
+
+  ############################
+  ### Timeplot
+
+  TimePlot tplot_res $w.tabs.tplot\
+   -ncols      3\
+   -maxt       $pars(plot_maxt)\
+   -colors     {}\
+   -names      {W F A}\
+   -titles     {W F A}\
+   -symbols    {circle circle circle}\
+   -ssizes     {}\
+   -fmts       {$pars(wid_fmt) $pars(fre_fmt) $pars(amp_fmt)}\
+
+  $w.tabs insert end tplot_res -window $w.tabs.tplot\
+     -anchor n -text "Time Plot" -fill both -padx 3 -pady 3
+
+}
+
+
+##########################################################################
+##########################################################################
+## create the monitor class
+Monitor mon .m -name $pars(name) -period 1 -onoff 1\
+  -func_start func_start -func_stop func_stop\
+  -func_meas func_meas -func_meas_e func_meas_e -func_mkint func_mkint\
+  -show_ctl 0 -show_title 1 -verb 0 -wait_meas 1
+
+pack .m -expand 1 -fill both
+wm protocol . WM_DELETE_WINDOW { mon do_exit }
