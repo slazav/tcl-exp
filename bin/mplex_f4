@@ -11,7 +11,8 @@ package require Exp;  # timeplot, monitor
 
 set default_pars {
   name         {Fridge4 multiplexer}  {program name}
-  gauge_dev    {}         {gauge device}
+  mplex_dev    {}         {gauge device, agilent multiplexer}
+  capbr_dev    {}         {capacitance bridge}
   db_dev       {}         {database device}
   tfmt         {%H:%M:%S} {time format string for the interface}
   period       {1.0}      {measurement period}
@@ -34,7 +35,7 @@ set D0  {};      # last measured data (list)
 
 array unset Df;  # formatted data (see -dfmt option)
 set Tf  {};  # current formatted time (-tfmt option)
-
+set capbr_d {}
 
 
 ##########################################################################
@@ -43,58 +44,68 @@ set Tf  {};  # current formatted time (-tfmt option)
 
 # Open devices
 proc func_start {} {
-  global pars
+  global pars capbr_d
 
   if {$pars(db_dev)!={}} {
     Device $pars(db_dev)
   }
 
-  if {$pars(gauge_dev)!={}} {
-    Device $pars(gauge_dev)
+  if {$pars(mplex_dev)!={}} {
+    Device $pars(mplex_dev)
+    set capbr_d [DeviceRole $pars(capbr_dev) gauge]
 
     # Channels 101-109: bath resistors
     # Set delay to wait for stabilisation of filtered lines.
-    dev_check $pars(gauge_dev) "CONF:RES AUTO,DEF, (@101:109)"
-    dev_check $pars(gauge_dev) "SENSE:RES:NPLC 1, (@101:109)"
-    dev_check $pars(gauge_dev) "ROUTE:CHAN:DEL 0.1,   (@101:109)"
+    dev_check $pars(mplex_dev) "CONF:RES AUTO,DEF, (@101:109)"
+    dev_check $pars(mplex_dev) "SENSE:RES:NPLC 1, (@101:109)"
+    dev_check $pars(mplex_dev) "ROUTE:CHAN:DEL 0.1,   (@101:109)"
 
     # Channels 112: demag_i
-    dev_check $pars(gauge_dev) "CONF:VOLT:DC AUTO,DEF, (@112:114)"
-    dev_check $pars(gauge_dev) "SENSE:VOLT:DC:NPLC 1, (@112:114)"
-    dev_check $pars(gauge_dev) "ROUTE:CHAN:DEL 0,   (@112:114)"
+    dev_check $pars(mplex_dev) "CONF:VOLT:DC AUTO,DEF, (@112:114)"
+    dev_check $pars(mplex_dev) "SENSE:VOLT:DC:NPLC 1, (@112:114)"
+    dev_check $pars(mplex_dev) "ROUTE:CHAN:DEL 0,   (@112:114)"
 
     # Channels 118: He level
-    dev_check $pars(gauge_dev) "CONF:VOLT:DC AUTO,DEF, (@118)"
-    dev_check $pars(gauge_dev) "SENSE:VOLT:DC:NPLC 10, (@118)"
-    dev_check $pars(gauge_dev) "ROUTE:CHAN:DEL 0,   (@118)"
+    dev_check $pars(mplex_dev) "CONF:VOLT:DC AUTO,DEF, (@118)"
+    dev_check $pars(mplex_dev) "SENSE:VOLT:DC:NPLC 10, (@118)"
+    dev_check $pars(mplex_dev) "ROUTE:CHAN:DEL 0,   (@118)"
 
     # channels to read
-    dev_check $pars(gauge_dev) "ROUT:SCAN (@101:109,112:114,118)"
+    dev_check $pars(mplex_dev) "ROUT:SCAN (@101:109,112:114,118)"
   }
 }
 
 # Close devices
 proc func_stop {} {
   global pars
-  if {$pars(gauge_dev)!={}} { DeviceDelete $pars(gauge_dev) }
+  if {$pars(mplex_dev)!={}} { DeviceDelete $pars(mplex_dev) }
   if {$pars(db_dev)!={}}    { DeviceDelete $pars(db_dev) }
 }
 
 
 # Do a single measurement, return data
 proc func_meas {} {
-  global pars dev T0 D0 Tf Df
+  global pars capbr_d T0 D0 D1 Tf Df D1f
 
   set T0 [expr [clock microseconds]/1e6]
-  if {$pars(gauge_dev) eq {}} {
+  if {$pars(mplex_dev) eq {}} {
     set D0 {}
     for {set i 0} {$i < 14} {incr i} {
       lappend D0 [expr {1000*rand() + 100*$i}]
     }
   }\
   else {
-    set D0 [$pars(gauge_dev) cmd "READ?"]
+    set D0 [$pars(mplex_dev) cmd "READ?"]
     set D0 [split $D0, ","]
+  }
+
+  if {$capbr_d eq {}} {
+    for {set i 0} {$i < 2} {incr i} {
+      lappend D1 [expr {1000*rand() + 100*$i}]
+    }
+  }\
+  else {
+    set D1 [$capbr_d get]
   }
 
   # format data and time for the interface
@@ -116,6 +127,8 @@ proc func_meas {} {
   set D(demag_v)  [lindex $D0 10]
   set D(demag_ps) [lindex $D0 11]
   set D(he_level) [lindex $D0 12]
+  set D(press_cell_c) [lindex $D1 0]
+  set D(press_cell_l) [lindex $D1 1]
 
   # convert He level, same units as on the screen (cm)
   set D(he_level_cnv) [expr {($D(he_level)-1.15e-3)/(1.093-1.15e-3)*547.0}]
@@ -135,6 +148,8 @@ proc func_meas {} {
   set Df(demag_v)  [format "%.2f" $D(demag_v) ]
   set Df(demag_i)  [format "%.2f" $D(demag_i_cnv) ]
   set Df(demag_ps) [format "%.2f" $D(demag_ps)]
+  set Df(press_cell_c) $D(press_cell_c)
+  set Df(press_cell_l) $D(press_cell_l)
 
   # append data to timeplot
   for {set i 1} {$i <= 9} {incr i} {
@@ -143,6 +158,7 @@ proc func_meas {} {
   }
   tplot_he_level add_data [list $T0 $D(he_level_cnv)]
   tplot_demag    add_data [list $T0 $D(demag_i_cnv) $D(demag_v) $D(demag_ps)]
+  tplot_pcell    add_data [list $T0 $D(press_cell_c) $D(press_cell_l)]
 
   # put data to database
   if {$pars(db_dev)!={}} {
@@ -154,6 +170,7 @@ proc func_meas {} {
     $pars(db_dev) cmd put_flt demag_i  $T0 $D(demag_i)  $D(demag_i_cnv)
     $pars(db_dev) cmd put_flt demag_v  $T0 $D(demag_v)
     $pars(db_dev) cmd put_flt demag_ps $T0 $D(demag_ps)
+    $pars(db_dev) cmd put_flt press_cell_cap $T0 $D(press_cell_c) $D(press_cell_l)
     $pars(db_dev) cmd sync
   }
 }
@@ -273,6 +290,42 @@ proc func_mkint {w} {
   grid $f_demag.tplot -sticky wens
   grid rowconfigure $f_demag 1 -weight 1
   grid columnconfigure $f_demag 0 -weight 1
+
+  ### PressCell frame
+
+  set f_pcell $w.tabs.pcell
+  frame $f_pcell
+  $w.tabs insert end pcell -window $f_pcell\
+     -anchor n -text "Pcell" -fill both -padx 3 -pady 3
+
+  labelframe $f_pcell.tab -borderwidth 1
+  grid $f_pcell.tab -sticky we
+
+  label $f_pcell.tab.tl -text "time:"
+  label $f_pcell.tab.t -fg darkgreen -font {-size 12} -textvariable Tf -width 8
+  label $f_pcell.tab.l1 -text "C:"
+  label $f_pcell.tab.v1 -fg darkgreen -font {-size 12} -textvariable Df(press_cell_c) -width 8
+  label $f_pcell.tab.l2 -text "L:"
+  label $f_pcell.tab.v2 -fg darkgreen -font {-size 12} -textvariable Df(press_cell_l) -width 8
+  pack $f_pcell.tab.tl $f_pcell.tab.t\
+       $f_pcell.tab.l1 $f_pcell.tab.v1\
+       $f_pcell.tab.l2 $f_pcell.tab.v2\
+       -side left
+
+  TimePlot tplot_pcell $f_pcell.tplot\
+   -ncols      2\
+   -maxt       $pars(plot_maxt)\
+   -colors     {}\
+   -names      {{C} {L}}\
+   -titles     {{C,pF} {L,nS}}\
+   -symbols    {}\
+   -ssizes     {}\
+   -fmts       %.6f\
+
+  grid $f_pcell.tplot -sticky wens
+  grid rowconfigure $f_pcell 1 -weight 1
+  grid columnconfigure $f_pcell 0 -weight 1
+
 }
 
 
