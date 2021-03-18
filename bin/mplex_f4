@@ -118,10 +118,10 @@ proc func_meas {} {
   set D(he_level) [lindex $D0 12]
 
   # convert He level, same units as on the screen (cm)
-  set D(he_level) [expr {($D(he_level)-1.15e-3)/(1.093-1.15e-3)*547.0}]
+  set D(he_level_cnv) [expr {($D(he_level)-1.15e-3)/(1.093-1.15e-3)*547.0}]
 
   # convert demag current, same units as on the screen (A)
-  set D(demag_i) [expr {$D(demag_i)/0.14374*69.0}]
+  set D(demag_i_cnv) [expr {$D(demag_i)/0.14374*69.0}]
 
   # format data
   for {set i 1} {$i <= 9} {incr i} {
@@ -131,9 +131,9 @@ proc func_meas {} {
       set Df(R$i) [format "%.2f" $D(R$i)]
     }
   }
-  set Df(he_level) [format "%.2f" $D(he_level)]
+  set Df(he_level) [format "%.2f" $D(he_level_cnv)]
   set Df(demag_v)  [format "%.2f" $D(demag_v) ]
-  set Df(demag_i)  [format "%.2f" $D(demag_i) ]
+  set Df(demag_i)  [format "%.2f" $D(demag_i_cnv) ]
   set Df(demag_ps) [format "%.2f" $D(demag_ps)]
 
   # append data to timeplot
@@ -141,19 +141,19 @@ proc func_meas {} {
     if {$D(R$i) != $D(R$i)} continue
     tplot_rbath add_data_sep R$i $T0 $D(R$i)
   }
-  tplot_he_level add_data [list $T0 $D(he_level)]
-  tplot_demag    add_data [list $T0$D(demag_i) $D(demag_v)  $D(demag_ps)]
+  tplot_he_level add_data [list $T0 $D(he_level_cnv)]
+  tplot_demag    add_data [list $T0 $D(demag_i_cnv) $D(demag_v) $D(demag_ps)]
 
   # put data to database
   if {$pars(db_dev)!={}} {
     for {set i 1} {$i <= 9} {incr i} {
       if {$D(R$i) != $D(R$i)} continue
-      $pars(db_dev) cmd put_flt Rbath0$i $D(R$i)
+      $pars(db_dev) cmd put_flt Rbath$i $T0 $D(R$i)
     }
-    $pars(db_dev) cmd put_flt he_level  $D(he_level)
-    $pars(db_dev) cmd put_flt demag_i   $D(demag_i)
-    $pars(db_dev) cmd put_flt demag_v   $D(demag_v)
-    $pars(db_dev) cmd put_flt demag_ps  $D(demag_ps)
+    $pars(db_dev) cmd put_flt he_level $T0 $D(he_level) $D(he_level_cnv)
+    $pars(db_dev) cmd put_flt demag_i  $T0 $D(demag_i)  $D(demag_i_cnv)
+    $pars(db_dev) cmd put_flt demag_v  $T0 $D(demag_v)
+    $pars(db_dev) cmd put_flt demag_ps $T0 $D(demag_ps)
     $pars(db_dev) cmd sync
   }
 }
