@@ -15,7 +15,7 @@ set default_pars {
   capbr_dev    {}         {capacitance bridge}
   db_dev       {}         {database device}
   tfmt         {%H:%M:%S} {time format string for the interface}
-  period       {1.0}      {measurement period}
+  period       {10}       {measurement period}
   plot_maxt    {600}      {timeplot span}
 }
 
