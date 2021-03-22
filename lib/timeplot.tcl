@@ -67,7 +67,7 @@ itcl::class TimePlot {
       lappend titles [lindex $names $i] }
 
     # create automatic column colors if needed
-    set defcolors {red green blue cyan magenta yellow\
+    set defcolors {red green blue cyan magenta orange\
       darkred darkgreen darkblue darkcyan darkmagenta black}
     for {set i [llength $colors]} {$i < $ncols} {incr i} {
       set c [lindex $defcolors [expr {$i%[llength $defcolors]} ] ]
