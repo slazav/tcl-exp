@@ -134,7 +134,7 @@ proc func_meas {} {
   set D(he_level_cnv) [expr {($D(he_level)-1.15e-3)/(1.093-1.15e-3)*547.0}]
 
   # convert demag current, same units as on the screen (A)
-  set D(demag_i_cnv) [expr {$D(demag_i)/0.14374*69.0}]
+  set D(demag_i_cnv) [expr {$D(demag_i)/2.0569e-3}]
 
   # format data
   for {set i 1} {$i <= 9} {incr i} {
