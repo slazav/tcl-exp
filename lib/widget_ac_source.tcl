@@ -167,7 +167,7 @@ itcl::class widget_ac_source {
   method set_ac {f v {o 0} {p {}}} {
     if {$dev eq {}} return {}
     $dev set_ac $f $v $o $p
-    update
+    on_update
   }
 
   method set_volt {v} {
