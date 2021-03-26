@@ -101,7 +101,7 @@ itcl::class widget_ac_source {
 
   # same + open/close device
   method enable {{state 1}} {
-    readonly $state
+    readonly [expr !$state]
     if {$state} {
       if {$dev eq {}} { set dev [DeviceRole $dev_name ac_source] }
       on_update
