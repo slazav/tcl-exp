@@ -9,7 +9,7 @@
 #   -vmin -vmax -npts -dt -mode   -- initial values for interface entries.
 #   -limit_min -limit_max   -- min/max limit for the parameter.
 #   -vmin_label -vmax_label -- interface labels for min/max values
-#   -mode -- sweep mode ("OFF" "Up" "Down" "Both")
+#   -mode -- sweep mode ("OFF" "Up" "Down" "Both", "Pair")
 #   -idle_delay -- delay in OFF mode
 #   -bar_w -bar_h -- dimensions of the progress bar. Defaultt 256,10. Set to 0 to hide the bar.
 #
@@ -44,7 +44,8 @@ itcl::class widget_sweep {
   variable dt0   1
   variable t1    0
 
-  variable cnt 0; # point counter
+  variable cnt  0; # point counter
+  variable scnt 0; # sweep counter (reset by mode change or reset button)
   variable v0  0; # start of the current sweep
   variable dv 0;  # step
   variable  v 0;  # current value
@@ -110,7 +111,8 @@ itcl::class widget_sweep {
 
     # mode combobox
     ttk::combobox $root.mode -width 9 -textvariable [itcl::scope mode_i] -state readonly
-    $root.mode  configure -values {"OFF" "Up" "Down" "Both"}
+    bind $root.mode <<ComboboxSelected>> "set [itcl::scope scnt] 0"
+    $root.mode  configure -values {"OFF" "Up" "Down" "Both" "Pair"}
 
     # Apply/restart buttons
     button $root.rbtn -text "Restart" -command "$this restart"
@@ -121,11 +123,12 @@ itcl::class widget_sweep {
 
   method update_bar {} {
     if {$bar_w>0} {
+      $root.bar delete data
+      if {$mode_i eq "OFF" && $cnt==0} return
       set x [expr {($v-$vmin)/($vmax-$vmin)}]
       if {$x<0 || $x>1} return
       set x1 [expr {$bar_w*$x - $bar_h/2}]
       set x2 [expr {$bar_w*$x + $bar_h/2}]
-      $root.bar delete data
       #$root.bar create oval $x1 1 $x2 $bar_h -fill green -outline black -tags data
       $root.bar create polygon $x1 1 $x1 $bar_h $x2 $bar_h $x2 1 -fill green -outline black -tags data
     }
@@ -140,12 +143,14 @@ itcl::class widget_sweep {
   # restart sweep
   method restart {} {
     set cnt 0
+    set scnt 0
     set restart_fl 1
   }
 
   method do_step {} {
     # start new sweep
     if {$cnt == 0} {
+      incr scnt
 
       # set direction
       switch $mode_i {
@@ -153,6 +158,7 @@ itcl::class widget_sweep {
         "Up"   {set dir +1}
         "Down" {set dir -1}
         "Both" {set dir [expr {$dir!=0? -$dir:1}]}
+        "Pair" {set dir [expr {$scnt%2? +1:-1}]}
         default {error "unknown sweep mode: $mode_i"}
       }
       if {$dir != 0} {
@@ -183,7 +189,10 @@ itcl::class widget_sweep {
     set v [expr {$v0 + $dir*$dv*$cnt}]
     update_bar
     if {$dir != 0} {incr cnt}
-    if {$cnt >= $npts} {set cnt 0}
+    if {$cnt >= $npts} {
+      set cnt 0
+      if {$mode_i eq "Pair" && $scnt>1} { set mode_i "OFF" }
+    }
     set t1 [expr [clock microseconds]/1e6]
   }
 
