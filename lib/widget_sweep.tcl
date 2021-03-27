@@ -6,7 +6,7 @@
 # Constructor: widget_sweep <name> <tkroot> <options>
 # Options:
 #   -title -- frame title.
-#   -vmin -vmax -npts -dt -mode   -- initial values for interface entries.
+#   -vmin -vmax -npts -dt -dtf -mode   -- initial values for interface entries.
 #   -limit_min -limit_max   -- min/max limit for the parameter.
 #   -vmin_label -vmax_label -- interface labels for min/max values
 #   -mode -- sweep mode ("OFF" "Up" "Down" "Both", "Pair")
@@ -42,6 +42,7 @@ itcl::class widget_sweep {
   variable vmax  10
   variable npts  11
   variable dt    1
+  variable dtf   1
   variable dt0   1
   variable t1    0
 
@@ -58,6 +59,7 @@ itcl::class widget_sweep {
   variable vmax_i  10
   variable npts_i  11
   variable dt_i    1
+  variable dtf_i   1
   variable mode_i "OFF"
   variable lim_min
   variable lim_max
@@ -76,6 +78,7 @@ itcl::class widget_sweep {
       {-vmax_label}  vmax_label {V2}\
       {-npts}        npts_i      11\
       {-dt}          dt_i        1\
+      {-dtf}         dtf_i       1\
       {-mode}        mode_i    "OFF"\
       {-limit_max}   lim_max   +inf\
       {-limit_min}   lim_min   -inf\
@@ -110,6 +113,10 @@ itcl::class widget_sweep {
     entry $root.dt -width 12 -textvariable [itcl::scope dt_i]
     grid $root.npts_l $root.npts $root.dt_l $root.dt\
       -padx 5 -pady 2 -sticky e
+
+    label $root.dtf_l -text "first point delay:"
+    entry $root.dtf -width 12 -textvariable [itcl::scope dtf_i]
+    grid $root.dtf_l $root.dtf -columnspan 3 -padx 5 -pady 2 -sticky e
 
     # mode combobox
     ttk::combobox $root.mode -width 9 -textvariable [itcl::scope mode_i] -state readonly
@@ -166,7 +173,8 @@ itcl::class widget_sweep {
       if {$dir != 0} {
         # copy values from the interface
         if {![string is integer $npts_i] || $npts_i < 2} {set npts_i $npts}
-        if {![string is double $dt_i] || $dt_i <= 0} {set dt_i $dt}
+        if {![string is double $dt_i]  || $dt_i <= 0} {set dt_i $dt}
+        if {![string is double $dtf_i] || $dtf_i <= 0} {set dtf_i $dtf}
         if {![string is double $vmin_i]} {set vmin_i $vmin}
         if {![string is double $vmax_i]} {set vmax_i $vmax}
         if {$vmin_i < $lim_min} {set vmin_i $lim_min}
@@ -179,6 +187,7 @@ itcl::class widget_sweep {
         set vmax $vmax_i
         set npts $npts_i
         set dt   $dt_i
+        set dtf  $dtf_i
 
         # set starting value and step
         if {$dir>0} {set v0 [expr min($vmin,$vmax)]}
@@ -214,8 +223,9 @@ itcl::class widget_sweep {
   method get_delay {} {
     if {$dir == 0} {return [expr $dt0]}
     set dt1 [expr [clock microseconds]/1e6 - $t1]
-    if {$dt1 > $dt} {return 0}
-    return [expr $dt-$dt1]
+    set ret [expr {($cnt==1? $dtf:$dt) - $dt1}]
+    if {$ret < 0} {return 0}
+    return $ret
   }
 
 }
