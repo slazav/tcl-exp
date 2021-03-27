@@ -131,12 +131,17 @@ proc func_meas_e {} {
     if {$pars(gauge_dev) eq "TEST"} {
       set f0 1024
       set df 64
-      set F 1
+      set F [gen_pan get_volt]
       set N 1e-7
+      set L 1e-5
       # Random number with normal distribution (see Muller_transform):
       set N [expr $N*sqrt(-2.0 * log(rand()))*cos(2*3.1415926*rand())]
       set x [expr {$N + $F*($f*$df)/(($f0**2-$f**2)**2 + ($f*$df)**2)}]
       set y [expr {$N + $F*($f0**2-$f**2)/(($f0**2-$f**2)**2 + ($f*$df)**2)}]
+      if {$x>+$L} {set x +$L}
+      if {$x<-$L} {set x -$L}
+      if {$y>+$L} {set y +$L}
+      if {$y<-$L} {set y -$L}
     }\
     else {
       set v [$pars(gauge_dev) get]
