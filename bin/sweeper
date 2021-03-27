@@ -2,7 +2,6 @@
 
 ## Interface for current sweeper
 
-package require Device 1.2
 package require xBlt 3
 package require Exp
 
