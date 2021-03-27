@@ -65,10 +65,12 @@ itcl::class widget_ac_source {
     set root $tkroot
     labelframe $root -text $title -font {-weight bold -size 10}
 
-    # On/Off button
+    # On/Off button, generator label
     checkbutton $root.out -text "Output ON"\
        -variable [itcl::scope out] -command "$this set_out $[itcl::scope out]"
-    grid $root.out -padx 5 -pady 2 -sticky e
+    label $root.gen -text "Device: $dev_name"
+    grid $root.out $root.gen -padx 5 -pady 2 -sticky e
+
 
     # separator
     frame $root.sep -relief groove -borderwidth 1 -height 2
