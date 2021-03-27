@@ -7,7 +7,7 @@ widget_sweep w .g\
  -title {Sweep test}\
  -limit_min 0\
  -limit_max 125\
- -vmin 0 -vmax 100 -npts 21 -dt 0.5 -mode "Up"
+ -vmin 0 -vmax 100 -npts 21 -dt 0.5 -mode "Up" -color #E0F0E0
 
 pack .g
 

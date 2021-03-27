@@ -6,6 +6,7 @@
 #  -t, -title  -- frame title (default: {})
 #  -show_offs  -- show offset entry (default: 0)
 #  -show_phase -- show phase entry (default: 0)
+#  -color      -- configure interface color
 #
 # Methods:
 #
@@ -45,7 +46,6 @@ itcl::class widget_ac_source {
   variable phase 0
   variable out   1
 
-
   # Constructor: parse options, build interface
   constructor {tkroot args} {
 
@@ -55,6 +55,7 @@ itcl::class widget_ac_source {
       {-t -title}    title     {}\
       {-show_offs}   show_offs  0\
       {-show_phase}  show_phase 0\
+      {-color}       color     {}\
     ]
     xblt::parse_options "widget_ac_source" $args $options
 
@@ -91,7 +92,7 @@ itcl::class widget_ac_source {
     button $root.ubtn -text "Update" -command "$this on_update"
     grid $root.abtn $root.ubtn -padx 3 -pady 3
 
-    widget_bg $root #F0E0E0
+    if {$color ne {}} {widget_bg $root $color}
     widget_state $root disabled
   }
 

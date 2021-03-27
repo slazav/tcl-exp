@@ -6,7 +6,8 @@ source widgets.tcl
 
 widget_drive_box w .g\
  -dev   TEST\
- -title "Drive"
+ -title "Drive"\
+ -color #F0E0E0
 
 pack .g
 

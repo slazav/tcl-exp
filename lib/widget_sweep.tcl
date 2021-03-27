@@ -12,6 +12,7 @@
 #   -mode -- sweep mode ("OFF" "Up" "Down" "Both", "Pair")
 #   -idle_delay -- delay in OFF mode
 #   -bar_w -bar_h -- dimensions of the progress bar. Defaultt 256,10. Set to 0 to hide the bar.
+#   -color        -- configure interface color
 #
 # Methods:
 #   readonly 0|1  -- activate/deactivate widget (default - active)
@@ -81,6 +82,7 @@ itcl::class widget_sweep {
       {-idle_delay}  dt0       1\
       {-bar_w}       bar_w     256\
       {-bar_h}       bar_h     10\
+      {-color}       color     {}\
     ]
     xblt::parse_options "widget_sweep" $args $options
 
@@ -118,7 +120,7 @@ itcl::class widget_sweep {
     button $root.rbtn -text "Restart" -command "$this restart"
     grid $root.rbtn $root.mode -padx 3 -pady 3 -columnspan 2
 
-    widget_bg $root #E0F0E0
+    if {$color ne {}} {widget_bg $root $color}
   }
 
   method update_bar {} {

@@ -8,6 +8,7 @@ widget_ac_source w .g\
  -title {Generator}\
  -show_offs 1\
  -show_phase 1\
+ -color #F0E0E0
 
 pack .g
 

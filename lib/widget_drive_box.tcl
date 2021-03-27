@@ -20,6 +20,7 @@
 #  -switch_list -- list of switch values (Default: "OFF 0 1k 10k 100k 1M")
 #  -switch_cal  -- list of switch calibrations, V/I (Default: "Inf 6.30e2 6.93e3 6.36e4 6.31e5 6.30e6")
 #  -switch_val  -- switch position (Default: 10k)
+#  -color       -- configure interface color
 #
 # Methods:
 #
@@ -50,6 +51,7 @@ itcl::class widget_drive_box {
     set options [list \
       {-d -dev}      dev_name {TEST}\
       {-t -title}    title     {}\
+      {-color}       color     {}\
       {-switch_list}   switch_list {OFF 0 1k 10k 100k 1M}\
       {-switch_cal}    switch_cal  {Inf 6.30e2 6.93e3 6.36e4 6.31e5 6.30e6}\
       {-switch_val}    switch_val  10k\
@@ -91,7 +93,7 @@ itcl::class widget_drive_box {
       if {[llength $switch_list] != [llength $switch_cal]} {
         error "-switch_list and -switch_cal have different length" }
       on_switch
-      widget_bg $root #F0E0E0
+      if {$color ne {}} {widget_bg $root $color}
       widget_state $root disabled
   }
 
