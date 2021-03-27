@@ -1,14 +1,17 @@
-# Interface for frequency sweeper.
+# Interface for a sweeper.
 #
-# The interface holds sweep parameters (fmin, fmax, fstep)
-# On each step (do_step command) a new frequency value is calculated.
+# The interface holds sweep parameters (vmin, vmax, nstep)
+# On each step (do_step command) a new value is calculated.
 #
 # Constructor: widget_sweep <name> <tkroot> <options>
 # Options:
-#   -title -- frame title
-#   -limit_min -- min limit
-#   -limit_max -- max limit
-#   -vmin -vmax -npts -dt -mode -- initial values for interface entries
+#   -title -- frame title.
+#   -vmin -vmax -npts -dt -mode   -- initial values for interface entries.
+#   -limit_min -limit_max   -- min/max limit for the parameter.
+#   -vmin_label -vmax_label -- interface labels for min/max values
+#   -mode -- sweep mode ("OFF" "Up" "Down" "Both")
+#   -idle_delay -- delay in OFF mode
+#   -bar_w -bar_h -- dimensions of the progress bar. Defaultt 256,10. Set to 0 to hide the bar.
 #
 # Methods:
 #   readonly 0|1  -- activate/deactivate widget (default - active)
@@ -56,6 +59,8 @@ itcl::class widget_sweep {
   variable mode_i "OFF"
   variable lim_min
   variable lim_max
+  variable bar_w
+  variable bar_h
 
   # Constructor: parse options, build interface
   constructor {tkroot args} {
@@ -72,14 +77,22 @@ itcl::class widget_sweep {
       {-mode}        mode_i    "OFF"\
       {-limit_max}   lim_max   +inf\
       {-limit_min}   lim_min   -inf\
-      {-limit_max}   lim_max   +inf\
       {-idle_delay}  dt0       1\
+      {-bar_w}       bar_w     256\
+      {-bar_h}       bar_h     10\
     ]
     xblt::parse_options "widget_sweep" $args $options
 
     # Main frame:
     set root $tkroot
     labelframe $root -text $title -font {-weight bold -size 10}
+
+    # Progress bar
+    if {$bar_w>0 && $bar_h>0} {
+      canvas $root.bar -width $bar_w -height $bar_h
+      $root.bar create rectangle 1 1 $bar_w $bar_h -fill white -outline grey
+      grid $root.bar -padx 5 -pady 2 -sticky e -columnspan 4
+    }
 
     label $root.vmin_l -text $vmin_label
     entry $root.vmin -width 12 -textvariable [itcl::scope vmin_i]
@@ -106,6 +119,17 @@ itcl::class widget_sweep {
     widget_bg $root #E0F0E0
   }
 
+  method update_bar {} {
+    if {$bar_w>0} {
+      set x [expr {($v-$vmin)/($vmax-$vmin)}]
+      if {$x<0 || $x>1} return
+      set x1 [expr {$bar_w*$x - $bar_h/2}]
+      set x2 [expr {$bar_w*$x + $bar_h/2}]
+      $root.bar delete data
+      #$root.bar create oval $x1 1 $x2 $bar_h -fill green -outline black -tags data
+      $root.bar create polygon $x1 1 $x1 $bar_h $x2 $bar_h $x2 1 -fill green -outline black -tags data
+    }
+  }
 
   # activate/deactivate interface
   method readonly {{state 1}} {
@@ -157,6 +181,7 @@ itcl::class widget_sweep {
 
     set restart_fl 0
     set v [expr {$v0 + $dir*$dv*$cnt}]
+    update_bar
     if {$dir != 0} {incr cnt}
     if {$cnt >= $npts} {set cnt 0}
     set t1 [expr [clock microseconds]/1e6]
