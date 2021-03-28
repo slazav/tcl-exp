@@ -82,7 +82,9 @@ proc func_meas {} {
   #$::gen readonly [sweep_pan is_on]
 
   # set generator frequency
-  $::gen set_freq [sweep_pan get_val]
+  if {[sweep_pan is_on] } {
+    $::gen set_freq [sweep_pan get_val]
+  }
 
   # set monitor period
   mon set_period [sweep_pan get_delay]
