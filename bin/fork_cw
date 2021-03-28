@@ -29,6 +29,7 @@ set default_pars {
   npts         {101}      {starting value for sweep number of points}
   dt           {0.1}      {starting value for measurement period}
   dtf          {1}        {starting value for first point delay}
+  mode         {Both}     {starting value for sweeping mode}
   swap_xy      {0}        {swap x and y values}
   tfmt         {%H:%M:%S} {time format string for the interface}
   amp_fmt      {%.3e}     {amp format string for the interface}
@@ -318,6 +319,7 @@ proc func_mkint {w} {
     -limit_min $pars(limit_fmin)\
     -limit_max $pars(limit_fmax)\
     -npts $pars(npts)\
+    -mode $pars(mode)\
     -dt   $pars(dt)\
     -dtf  $pars(dtf)
 
