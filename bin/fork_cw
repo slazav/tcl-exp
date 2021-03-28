@@ -40,6 +40,7 @@ set default_pars {
   adj_freq     {0}        {adjust central frequency, 0|1}
   adj_fspan    {0}        {adjust frequency span, 0|1}
   adj_drive    {0}        {adjust drive, 0|1}
+  adj_time    {0}         {adjust timings, 0|1}
   fspan_size   {6}        {frequency span / width}
   amp_target   {1}        {amplitude target}
 }
@@ -205,15 +206,6 @@ proc func_meas_e {} {
     if {[$G element names oldx] != {}} {$G element delete oldx}
     if {[$G element names oldy] != {}} {$G element delete oldy}
 
-    # add new data
-    oldf expr $fv
-    oldx expr $xv
-    oldy expr $yv
-    $G element create oldx -color #FF8080 -pixel 1.5 -mapx xF -mapy y\
-       -xdata oldf -ydata oldx -symbol circle
-    $G element create oldy -color #8080FF -pixel 1.5 -mapx xF -mapy y\
-       -xdata oldf -ydata oldy -symbol circle
-
     # add new fits
     set f1 [$fv index 0]
     set f2 [$fv index end]
@@ -226,6 +218,14 @@ proc func_meas_e {} {
     $G element create fity -outline black -mapx xF -mapy y\
        -xdata fitf -ydata fity -symbol {}
 
+    # add new data
+    oldf expr $fv
+    oldx expr $xv
+    oldy expr $yv
+    $G element create oldx -color #FF8080 -pixel 1.5 -mapx xF -mapy y\
+       -xdata oldf -ydata oldx -symbol circle
+    $G element create oldy -color #8080FF -pixel 1.5 -mapx xF -mapy y\
+       -xdata oldf -ydata oldy -symbol circle
 
     # skip bad fits
     if {$r(E)/$amp > $pars(error_limit)} {return}
@@ -250,6 +250,7 @@ proc func_meas_e {} {
       sweep_pan set_vmin [format $pars(fre_fmt) $f1]
       sweep_pan set_vmax [format $pars(fre_fmt) $f2]
     }
+
     if {$pars(adj_fspan)} {
       set f1 [sweep_pan get_vmin]
       set f2 [sweep_pan get_vmax]
@@ -260,6 +261,7 @@ proc func_meas_e {} {
       sweep_pan set_vmin [format $pars(fre_fmt) $f1]
       sweep_pan set_vmax [format $pars(fre_fmt) $f2]
     }
+
     if {$pars(adj_drive)} {
       set v [$::gen get_volt]
       $::gen set_volt [expr $v*$pars(amp_target)/$amp]
@@ -267,6 +269,15 @@ proc func_meas_e {} {
     else {
       set pars(amp_target) [format %.4e $amp]
     }
+
+    if {$pars(adj_time)} {
+      set dt  [expr 2.0/$wid]
+      set dt [expr max($dt,0.1)]
+      set dtf [expr {[sweep_pan get_mode] eq "Both"? $dt : 10*$dt}]
+      sweep_pan set_dt   [format %.3f $dt]
+      sweep_pan set_dtf  [format %.3f $dtf]
+    }
+
   }
 }
 
@@ -343,6 +354,7 @@ proc func_mkint {w} {
   checkbutton $ajd_pan.f0  -text "Central frequency" -variable pars(adj_freq)
   checkbutton $ajd_pan.df  -text "Frequency span" -variable pars(adj_fspan)
   checkbutton $ajd_pan.drv -text "Drive (constant amplitude)" -variable pars(adj_drive)
+  checkbutton $ajd_pan.tt  -text "Timings" -variable pars(adj_time)
 
   label $ajd_pan.df_l -text "Span size in line widths:"
   entry $ajd_pan.df_v -width 12 -textvariable pars(fspan_size)
@@ -355,6 +367,7 @@ proc func_mkint {w} {
   grid $ajd_pan.df_l $ajd_pan.df_v -sticky nw -padx 5 -pady 2
   grid $ajd_pan.drv -sticky nw -columnspan 2
   grid $ajd_pan.am_l $ajd_pan.am_v -sticky nw -padx 5 -pady 2
+  grid $ajd_pan.tt  -sticky nw -columnspan 2
 
   pack $ajd_pan -expand 0 -fill x -anchor ne
   widget_bg $ajd_pan #E0E0F0
