@@ -307,7 +307,7 @@ proc func_mkint {w} {
 
   # lock-in panel
   $::lockin make_widget $f_meas.conf.lockin\
-    -title "Lock-in:"
+    -title "Lock-in:" -bar_w 256
   pack $f_meas.conf.lockin -expand 0 -fill x -anchor ne
   widget_bg $f_meas.conf.lockin #F0E0F0
 
