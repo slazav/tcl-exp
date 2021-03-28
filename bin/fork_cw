@@ -16,7 +16,8 @@ package require Exp;  # timeplot, monitor
 
 set default_pars {
   name         {fork_cw}  {program name}
-  gauge_dev    {TEST}     {gauge device}
+  lockin_dev   {TEST}     {lock-in device}
+  lockin_pars  {TEST}     {lock-in device parameters}
   gen_dev      {TEST}     {generator device}
   db_dev       {}         {database device}
   res_db       {}         {result database}
@@ -27,6 +28,7 @@ set default_pars {
   fmax         {1500}     {starting value for sweep high end}
   npts         {101}      {starting value for sweep number of points}
   dt           {0.1}      {starting value for measurement period}
+  dtf          {1}        {starting value for first point delay}
   tfmt         {%H:%M:%S} {time format string for the interface}
   amp_fmt      {%.3e}     {amp format string for the interface}
   fre_fmt      {%.3f}     {fre format string for the interface}
@@ -61,28 +63,13 @@ set fre_f {};
 set wid_f {};
 set amp_f {};
 
+# DeviceRole objects
+set lockin [DeviceRole $pars(lockin_dev) lock-in {*}$pars(lockin_pars)];
+set gen [DeviceRole $pars(gen_dev) ac_source];
+if {$pars(db_dev)!={}} { Device $pars(db_dev) }
 
 ##########################################################################
 ## functions for the monitor class
-
-# Open devices
-proc func_start {} {
-  global pars
-  # puts "start"
-  if {$pars(db_dev)!={}}    { Device $pars(db_dev) }
-  if {$pars(gauge_dev)!={}} { DeviceRole $pars(gauge_dev) gauge}
-  if {$pars(gen_dev)!={}}   { DeviceRole $pars(gen_dev) ac_source}
-}
-
-# Close devices
-proc func_stop {} {
-  global pars
-  # puts "stop"
-  if {$pars(gen_dev)!={}}   { DeviceDelete $pars(gen_dev) }
-  if {$pars(gauge_dev)!={}} { DeviceDelete $pars(gauge_dev) }
-  if {$pars(db_dev)!={}}    { DeviceDelete $pars(db_dev) }
-}
-
 
 # This function is executed in the beginning of each step.
 # Here we get new frequncy and delay from sweeper and change
@@ -92,10 +79,10 @@ proc func_meas {} {
   sweep_pan do_step
 
   # set generator panel to readonly state when sweeper is active
-  gen_pan readonly [sweep_pan is_on]
+  #$::gen readonly [sweep_pan is_on]
 
   # set generator frequency
-  gen_pan set_freq [sweep_pan get_val]
+  $::gen set_freq [sweep_pan get_val]
 
   # set monitor period
   mon set_period [sweep_pan get_delay]
@@ -127,27 +114,27 @@ proc func_meas_e {} {
   set t [expr [clock microsecond]/1e6]
   set f [sweep_pan get_val]
 
+  set v [$::lockin get]
+  set x [lindex $v 0]
+  set y [lindex $v 1]
+
+  if {$pars(lockin_dev) eq "TEST"} {
+    set f0 1024
+    set df 64
+    set F [$::gen get_volt]
+    set N 1e-7
+    set L 1e-5
+    # Random number with normal distribution (see Muller_transform):
+    set N [expr $N*sqrt(-2.0 * log(rand()))*cos(2*3.1415926*rand())]
+    set x [expr {$N + $F*($f*$df)/(($f0**2-$f**2)**2 + ($f*$df)**2)}]
+    set y [expr {$N + $F*($f0**2-$f**2)/(($f0**2-$f**2)**2 + ($f*$df)**2)}]
+    if {$x>+$L} {set x +$L}
+    if {$x<-$L} {set x -$L}
+    if {$y>+$L} {set y +$L}
+    if {$y<-$L} {set y -$L}
+  }
+
   if {[sweep_pan is_on]} {
-    if {$pars(gauge_dev) eq "TEST"} {
-      set f0 1024
-      set df 64
-      set F [gen_pan get_volt]
-      set N 1e-7
-      set L 1e-5
-      # Random number with normal distribution (see Muller_transform):
-      set N [expr $N*sqrt(-2.0 * log(rand()))*cos(2*3.1415926*rand())]
-      set x [expr {$N + $F*($f*$df)/(($f0**2-$f**2)**2 + ($f*$df)**2)}]
-      set y [expr {$N + $F*($f0**2-$f**2)/(($f0**2-$f**2)**2 + ($f*$df)**2)}]
-      if {$x>+$L} {set x +$L}
-      if {$x<-$L} {set x -$L}
-      if {$y>+$L} {set y +$L}
-      if {$y<-$L} {set y -$L}
-    }\
-    else {
-      set v [$pars(gauge_dev) get]
-      set x [lindex $v 0]
-      set y [lindex $v 1]
-    }
     tplot_sweep add_data [list $t $f $x $y]
   }
 
@@ -193,7 +180,7 @@ proc func_meas_e {} {
 
     # put values into database
     if {$pars(db_dev)!={} && $pars(res_db)!={}} {
-      $pars(db_dev) cmd put $pars(res_db) $tim [gen_pan get_volt] [lrange $res 1 end]
+      $pars(db_dev) cmd put $pars(res_db) $tim [$::gen get_volt] [lrange $res 1 end]
     }
 
     if {$pars(db_dev)!={} && $pars(sweep_db)!={}} {
@@ -254,8 +241,8 @@ proc func_meas_e {} {
       sweep_pan set_vmax [format $pars(fre_fmt) $f2]
     }
     if {$pars(adj_drive)} {
-      set v [gen_pan get_volt]
-      gen_pan set_volt [expr $v*$pars(amp_target)/$amp]
+      set v [$::gen get_volt]
+      $::gen set_volt [expr $v*$pars(amp_target)/$amp]
     }\
     else {
       set pars(amp_target) [format %.4e $amp]
@@ -304,13 +291,16 @@ proc func_mkint {w} {
   grid $f_meas.conf -column 0 -row 0 -sticky nwes
 
   # generator panel
-  widget_ac_source gen_pan $f_meas.conf.gen -title "Generator:"\
-    -show_offs 0 -show_phase 0 -dev $pars(gen_dev)
+  $::gen make_widget $f_meas.conf.gen\
+    -title "Generator:" -show_offs 0 -show_phase 0
   pack $f_meas.conf.gen -expand 0 -fill x -anchor ne
-  gen_pan enable
+  widget_bg $f_meas.conf.gen #F0F0E0
 
   # lock-in panel
-  #...
+  $::lockin make_widget $f_meas.conf.lockin\
+    -title "Lock-in:"
+  pack $f_meas.conf.lockin -expand 0 -fill x -anchor ne
+  widget_bg $f_meas.conf.lockin #F0E0F0
 
   # sweep panel
   widget_sweep sweep_pan $f_meas.conf.sw\
@@ -321,8 +311,10 @@ proc func_mkint {w} {
     -limit_max $pars(limit_fmax)\
     -npts $pars(npts)\
     -dt   $pars(dt)\
+    -dtf  $pars(dtf)
 
   pack $f_meas.conf.sw -expand 0 -fill x -anchor ne
+  widget_bg $f_meas.conf.sw #E0F0F0
 
   # adjust panel
   set ajd_pan $f_meas.conf.adj
@@ -343,9 +335,8 @@ proc func_mkint {w} {
   grid $ajd_pan.drv -sticky nw -columnspan 2
   grid $ajd_pan.am_l $ajd_pan.am_v -sticky nw -padx 5 -pady 2
 
-  widget_bg $ajd_pan #E0F0F0
   pack $ajd_pan -expand 0 -fill x -anchor ne
-
+  widget_bg $ajd_pan #E0E0F0
 
   # sweep timeplot (4 columns: f, x, y, a)
   TimePlot tplot_sweep $f_meas.tplot\
@@ -388,7 +379,7 @@ proc func_mkint {w} {
 ##########################################################################
 ## create the monitor class
 Monitor mon .m -name $pars(name) -period 1 -onoff 1\
-  -func_start func_start -func_stop func_stop\
+  -func_start {} -func_stop {}\
   -func_meas func_meas -func_meas_e func_meas_e -func_mkint func_mkint\
   -show_ctl 0 -show_title 1 -verb 0 -wait_meas 1
 
