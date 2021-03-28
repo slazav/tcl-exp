@@ -29,6 +29,7 @@ set default_pars {
   npts         {101}      {starting value for sweep number of points}
   dt           {0.1}      {starting value for measurement period}
   dtf          {1}        {starting value for first point delay}
+  swap_xy      {0}        {swap x and y values}
   tfmt         {%H:%M:%S} {time format string for the interface}
   amp_fmt      {%.3e}     {amp format string for the interface}
   fre_fmt      {%.3f}     {fre format string for the interface}
@@ -117,8 +118,13 @@ proc func_meas_e {} {
   set f [sweep_pan get_val]
 
   set v [$::lockin get]
-  set x [lindex $v 0]
-  set y [lindex $v 1]
+  if {$pars(swap_xy)} {
+    set x [lindex $v 1]
+    set y [lindex $v 0]
+  } else {
+    set x [lindex $v 0]
+    set y [lindex $v 1]
+  }
 
   if {$pars(lockin_dev) eq "TEST"} {
     set f0 1024
