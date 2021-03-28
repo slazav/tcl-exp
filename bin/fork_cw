@@ -40,7 +40,8 @@ set default_pars {
   adj_freq     {0}        {adjust central frequency, 0|1}
   adj_fspan    {0}        {adjust frequency span, 0|1}
   adj_drive    {0}        {adjust drive, 0|1}
-  adj_time    {0}         {adjust timings, 0|1}
+  adj_time     {0}        {adjust timings, 0|1}
+  adj_phase    {0}        {adjust phase, 0|1}
   fspan_size   {6}        {frequency span / width}
   amp_target   {1}        {amplitude target}
 }
@@ -278,6 +279,12 @@ proc func_meas_e {} {
       sweep_pan set_dtf  [format %.3f $dtf]
     }
 
+    if {$pars(adj_phase)} {
+      set ph [$::gen get_phase]
+      set ph [expr {$ph + 180/3.1415926*atan2($r(C),$r(D))}]
+      $::gen set_phase [format %.2f $ph]
+    }
+
   }
 }
 
@@ -323,7 +330,7 @@ proc func_mkint {w} {
 
   # generator panel
   $::gen make_widget $f_meas.conf.gen\
-    -title "Generator:" -show_offs 0 -show_phase 0
+    -title "Generator:" -show_offs 0 -show_phase 1
   pack $f_meas.conf.gen -expand 0 -fill x -anchor ne
   widget_bg $f_meas.conf.gen #F0F0E0
 
@@ -355,6 +362,7 @@ proc func_mkint {w} {
   checkbutton $ajd_pan.df  -text "Frequency span" -variable pars(adj_fspan)
   checkbutton $ajd_pan.drv -text "Drive (constant amplitude)" -variable pars(adj_drive)
   checkbutton $ajd_pan.tt  -text "Timings" -variable pars(adj_time)
+  checkbutton $ajd_pan.ph  -text "Phase" -variable pars(adj_phase)
 
   label $ajd_pan.df_l -text "Span size in line widths:"
   entry $ajd_pan.df_v -width 12 -textvariable pars(fspan_size)
@@ -368,6 +376,7 @@ proc func_mkint {w} {
   grid $ajd_pan.drv -sticky nw -columnspan 2
   grid $ajd_pan.am_l $ajd_pan.am_v -sticky nw -padx 5 -pady 2
   grid $ajd_pan.tt  -sticky nw -columnspan 2
+  grid $ajd_pan.ph  -sticky nw -columnspan 2
 
   pack $ajd_pan -expand 0 -fill x -anchor ne
   widget_bg $ajd_pan #E0E0F0
