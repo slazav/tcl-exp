@@ -229,8 +229,14 @@ itcl::class widget_sweep {
 
   method get_vmin {} {return $vmin_i}
   method get_vmax {} {return $vmax_i}
+  method get_dt  { } {return $dt_i}
+  method get_dtf  {} {return $dtf_i}
+  method get_mode {} {return $mode_i}
   method set_vmin {v} {set vmin_i $v}
   method set_vmax {v} {set vmax_i $v}
+  method set_dt   {v} {set dt_i $v}
+  method set_dtf  {v} {set dt_i $v}
+  method set_mode {v} {set mode_i $v}
 
   method get_delay {} {
     if {$dir == 0} {return [expr $dt0]}
