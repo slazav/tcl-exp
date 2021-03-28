@@ -30,7 +30,8 @@ set default_pars {
   dt           {0.1}      {starting value for measurement period}
   dtf          {1}        {starting value for first point delay}
   mode         {Both}     {starting value for sweeping mode}
-  swap_xy      {0}        {swap x and y values}
+  swap_xy      {0}        {swap x and y values (do it if fit gives negative width)}
+  error_limit  {0.01}     {skip fit result if RMS point deviation divided by amplitude > error_limit}
   tfmt         {%H:%M:%S} {time format string for the interface}
   amp_fmt      {%.3e}     {amp format string for the interface}
   fre_fmt      {%.3f}     {fre format string for the interface}
@@ -161,6 +162,14 @@ proc func_meas_e {} {
     set xv [tplot_sweep get_dvec 1]
     set yv [tplot_sweep get_dvec 2]
 
+
+    # put sweep data in the database
+    if {$pars(db_dev)!={} && $pars(sweep_db)!={}} {
+      for {set i 0} {$i < [$tv length]} {incr i} {
+        $pars(db_dev) cmd put $pars(sweep_db) [$tv index $i] [$fv index $i] [$xv index $i] [$yv index $i]
+      }
+    }
+
     # do fit
     set conn [open "| fit_res" RDWR]
     fconfigure $conn -blocking true -buffering line
@@ -172,31 +181,20 @@ proc func_meas_e {} {
     close $conn
 
     # result, 14 values:
-    # time, f_error, A, Ae, B, Be, C, Ce, D, De, f, fe, df, dfe
-    set tim [expr [lindex $res 0]]
-    set drv [expr sqrt([lindex $res 6]**2 + [lindex $res 8]**2)]
-    set fre [expr [lindex $res 10]]
-    set wid [expr [lindex $res 12]]
-    set amp [expr {$drv/$fre/$wid}]
+    array unset r
+    foreach n {T E A Ae B Be C Ce D De F0 F0e dF dFe } v $res {
+      set r($n) $v
+    }
+    set fre $r(F0)
+    set wid $r(dF)
+    set amp [expr {abs(hypot($r(C),$r(D))/$fre/$wid)}]
 
-    # formatted values for interface
+
+    # format values for interface
     set fre_f [format $pars(fre_fmt) $fre]
     set wid_f [format $pars(wid_fmt) $wid]
     set amp_f [format $pars(amp_fmt) $amp]
 
-    # values for result time plot
-    tplot_res add_data [list $tim $wid $fre $amp]
-
-    # put values into database
-    if {$pars(db_dev)!={} && $pars(res_db)!={}} {
-      $pars(db_dev) cmd put $pars(res_db) $tim [$::gen get_volt] [lrange $res 1 end]
-    }
-
-    if {$pars(db_dev)!={} && $pars(sweep_db)!={}} {
-      for {set i 0} {$i < [$tv length]} {incr i} {
-        $pars(db_dev) cmd put $pars(sweep_db) [$tv index $i] [$fv index $i] [$xv index $i] [$yv index $i]
-      }
-    }
 
     # update plot
     set G [tplot_sweep get_graph]
@@ -207,18 +205,7 @@ proc func_meas_e {} {
     if {[$G element names oldx] != {}} {$G element delete oldx}
     if {[$G element names oldy] != {}} {$G element delete oldy}
 
-    # add new fits
-    set f1 [$fv index 0]
-    set f2 [$fv index end]
-    fitf seq $f1 $f2 [expr ($f2-$f1)/1024]
-    fitx expr {$drv*($fre^2-fitf^2)/(($fre^2-fitf^2)^2 + (fitf*$wid)^2)}
-    fity expr {$drv*(fitf*$wid)/(($fre^2-fitf^2)^2 + (fitf*$wid)^2)}
-
-    $G element create fitx -outline black -mapx xF -mapy y\
-       -xdata fitf -ydata fitx -symbol {}
-    $G element create fity -outline black -mapx xF -mapy y\
-       -xdata fitf -ydata fity -symbol {}
-
+    # add new data
     oldf expr $fv
     oldx expr $xv
     oldy expr $yv
@@ -226,6 +213,30 @@ proc func_meas_e {} {
        -xdata oldf -ydata oldx -symbol circle
     $G element create oldy -color #8080FF -pixel 1.5 -mapx xF -mapy y\
        -xdata oldf -ydata oldy -symbol circle
+
+    # add new fits
+    set f1 [$fv index 0]
+    set f2 [$fv index end]
+    fitf seq $f1 $f2 [expr ($f2-$f1)/1024]
+    fitx expr {$r(A) + ($r(C)*($fre^2-fitf^2)+$r(D)*(fitf*$wid))/(($fre^2-fitf^2)^2 + (fitf*$wid)^2)}
+    fity expr {$r(B) + ($r(D)*($fre^2-fitf^2)-$r(C)*(fitf*$wid))/(($fre^2-fitf^2)^2 + (fitf*$wid)^2)}
+
+    $G element create fitx -outline black -mapx xF -mapy y\
+       -xdata fitf -ydata fitx -symbol {}
+    $G element create fity -outline black -mapx xF -mapy y\
+       -xdata fitf -ydata fity -symbol {}
+
+
+    # skip bad fits
+    if {$r(E)/$amp > $pars(error_limit)} {return}
+
+    # values for result time plot
+    tplot_res add_data [list $r(T) $wid $fre $amp]
+
+    # put values into database
+    if {$pars(db_dev)!={} && $pars(res_db)!={}} {
+      $pars(db_dev) cmd put $pars(res_db) $r(T) [$::gen get_volt] [lrange $res 1 end]
+    }
 
     # Adjust values.
     # Note that sweep_pan set interface values which are validated
