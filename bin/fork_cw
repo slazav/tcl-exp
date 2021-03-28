@@ -229,7 +229,7 @@ proc func_meas_e {} {
        -xdata oldf -ydata oldy -symbol circle
 
     # skip bad fits
-    if {$r(E)/$amp > $pars(error_limit)} {return}
+    if {$r(E)/$amp > $pars(error_limit)} {error "Bad fit: [expr $r(E)/$amp]"}
 
     # values for result time plot
     tplot_res add_data [list $r(T) $wid $fre $amp]
@@ -324,24 +324,8 @@ proc func_mkint {w} {
   $w.tabs insert end meas -window $f_meas\
      -anchor n -text "Measurement" -fill both -padx 3 -pady 3
 
-  # configuration panel on the left side
-  frame $f_meas.conf
-  grid $f_meas.conf -column 0 -row 0 -sticky nwes
-
-  # generator panel
-  $::gen make_widget $f_meas.conf.gen\
-    -title "Generator:" -show_offs 0 -show_phase 1
-  pack $f_meas.conf.gen -expand 0 -fill x -anchor ne
-  widget_bg $f_meas.conf.gen #F0F0E0
-
-  # lock-in panel
-  $::lockin make_widget $f_meas.conf.lockin\
-    -title "Lock-in:" -bar_w 256
-  pack $f_meas.conf.lockin -expand 0 -fill x -anchor ne
-  widget_bg $f_meas.conf.lockin #F0E0F0
-
   # sweep panel
-  widget_sweep sweep_pan $f_meas.conf.sw\
+  widget_sweep sweep_pan $f_meas.sw\
     -title "Sweeps:"\
     -vmin_label "F1" -vmax_label "F2"\
     -vmin $pars(fmin) -vmax $pars(fmax)\
@@ -352,11 +336,63 @@ proc func_mkint {w} {
     -dt   $pars(dt)\
     -dtf  $pars(dtf)
 
-  pack $f_meas.conf.sw -expand 0 -fill x -anchor ne
-  widget_bg $f_meas.conf.sw #E0F0F0
+  grid $f_meas.sw -sticky ew
+  widget_bg $f_meas.sw #E0F0F0
+
+  # sweep timeplot (4 columns: f, x, y, a)
+  TimePlot tplot_sweep $f_meas.tplot\
+   -ncols      3\
+   -maxt       3600\
+   -colors     {black red blue}\
+   -names      {F X Y}\
+   -titles     {F X Y}\
+   -symbols    {circle circle circle circle}\
+   -ssizes     {}\
+   -fmts       %.2f\
+   -plots_x     {F}\
+   -plots_y     {{X Y}}\
+   -zstyles    xy
+
+  grid $f_meas.tplot  -sticky wens
+  grid rowconfigure $f_meas 1 -weight 1
+
+  ############################
+  ### Timeplot
+
+  TimePlot tplot_res $w.tabs.tplot\
+   -ncols      3\
+   -maxt       $pars(plot_maxt)\
+   -colors     {}\
+   -names      {W F A}\
+   -titles     {W F A}\
+   -symbols    {circle circle circle}\
+   -ssizes     {}\
+   -fmts       {$pars(wid_fmt) $pars(fre_fmt) $pars(amp_fmt)}\
+
+  $w.tabs insert end tplot_res -window $w.tabs.tplot\
+     -anchor n -text "Time Plot" -fill both -padx 3 -pady 3
+
+  ############################
+  ### configuration frame
+  set f_conf $w.tabs.conf
+  frame $f_conf
+  $w.tabs insert end conf -window $f_conf\
+     -anchor n -text "configuration" -fill both -padx 3 -pady 3
+
+  # generator panel
+  $::gen make_widget $f_conf.gen\
+    -title "Generator:" -show_offs 0 -show_phase 1
+  pack $f_conf.gen -expand 0 -fill x -anchor ne
+  widget_bg $f_conf.gen #F0F0E0
+
+  # lock-in panel
+  $::lockin make_widget $f_conf.lockin\
+    -title "Lock-in:" -bar_w 256
+  pack $f_conf.lockin -expand 0 -fill x -anchor ne
+  widget_bg $f_conf.lockin #F0E0F0
 
   # adjust panel
-  set ajd_pan $f_meas.conf.adj
+  set ajd_pan $f_conf.adj
   labelframe $ajd_pan -text "Adjust:" -font {-weight bold -size 10}
   checkbutton $ajd_pan.f0  -text "Central frequency" -variable pars(adj_freq)
   checkbutton $ajd_pan.df  -text "Frequency span" -variable pars(adj_fspan)
@@ -381,39 +417,6 @@ proc func_mkint {w} {
   pack $ajd_pan -expand 0 -fill x -anchor ne
   widget_bg $ajd_pan #E0E0F0
 
-  # sweep timeplot (4 columns: f, x, y, a)
-  TimePlot tplot_sweep $f_meas.tplot\
-   -ncols      3\
-   -maxt       3600\
-   -colors     {black red blue}\
-   -names      {F X Y}\
-   -titles     {F X Y}\
-   -symbols    {circle circle circle circle}\
-   -ssizes     {}\
-   -fmts       %.2f\
-   -plots_x     {F}\
-   -plots_y     {{X Y}}\
-   -zstyles    xy
-
-  grid $f_meas.tplot -column 1 -row 0 -sticky wens
-  grid rowconfigure $f_meas 0 -weight 1
-  grid columnconfigure $f_meas 1 -weight 1
-
-  ############################
-  ### Timeplot
-
-  TimePlot tplot_res $w.tabs.tplot\
-   -ncols      3\
-   -maxt       $pars(plot_maxt)\
-   -colors     {}\
-   -names      {W F A}\
-   -titles     {W F A}\
-   -symbols    {circle circle circle}\
-   -ssizes     {}\
-   -fmts       {$pars(wid_fmt) $pars(fre_fmt) $pars(amp_fmt)}\
-
-  $w.tabs insert end tplot_res -window $w.tabs.tplot\
-     -anchor n -text "Time Plot" -fill both -padx 3 -pady 3
 
 }
 
