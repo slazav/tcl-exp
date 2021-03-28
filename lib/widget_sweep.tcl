@@ -118,14 +118,19 @@ itcl::class widget_sweep {
     entry $root.dtf -width 12 -textvariable [itcl::scope dtf_i]
     grid $root.dtf_l $root.dtf -columnspan 3 -padx 5 -pady 2 -sticky e
 
-    # mode combobox
-    ttk::combobox $root.mode -width 9 -textvariable [itcl::scope mode_i] -state readonly
-    bind $root.mode <<ComboboxSelected>> "set [itcl::scope scnt] 0"
-    $root.mode  configure -values {"OFF" "Up" "Down" "Both" "Pair"}
 
-    # Apply/restart buttons
-    button $root.rbtn -text "Restart" -command "$this restart"
-    grid $root.rbtn $root.mode -padx 3 -pady 3 -columnspan 2
+    frame $root.btns
+
+    button $root.btns.rbtn -text "Restart" -command "$this restart"
+    button $root.btns.sbtn -text "Stop"    -command "$this stop"
+
+    # mode combobox
+    ttk::combobox $root.btns.mode -width 9 -textvariable [itcl::scope mode_i] -state readonly
+    bind $root.btns.mode <<ComboboxSelected>> "set [itcl::scope scnt] 0"
+    $root.btns.mode  configure -values {"OFF" "Up" "Down" "Both" "Pair"}
+
+    pack $root.btns.rbtn $root.btns.sbtn $root.btns.mode -side left -anchor e -fill x -expand 1
+    grid $root.btns -columnspan 4 -sticky ew
 
     if {$color ne {}} {widget_bg $root $color}
     set v0 $vmin_i
@@ -155,6 +160,12 @@ itcl::class widget_sweep {
     set cnt 0
     set scnt 0
     set restart_fl 1
+  }
+
+  # stop sweep
+  method stop {} {
+    set mode_i "OFF"
+    restart
   }
 
   method do_step {} {
