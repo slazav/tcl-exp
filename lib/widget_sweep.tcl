@@ -128,6 +128,7 @@ itcl::class widget_sweep {
     grid $root.rbtn $root.mode -padx 3 -pady 3 -columnspan 2
 
     if {$color ne {}} {widget_bg $root $color}
+    set v0 $vmin_i
   }
 
   method update_bar {} {
