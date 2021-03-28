@@ -235,7 +235,7 @@ itcl::class widget_sweep {
   method set_vmin {v} {set vmin_i $v}
   method set_vmax {v} {set vmax_i $v}
   method set_dt   {v} {set dt_i $v}
-  method set_dtf  {v} {set dt_i $v}
+  method set_dtf  {v} {set dtf_i $v}
   method set_mode {v} {set mode_i $v}
 
   method get_delay {} {
