@@ -31,7 +31,7 @@ set default_pars {
   dtf          {1}        {starting value for first point delay}
   mode         {Both}     {starting value for sweeping mode}
   swap_xy      {0}        {swap x and y values (do it if fit gives negative width)}
-  error_limit  {0.05}     {skip fit result if RMS point deviation divided by amplitude > error_limit}
+  error_limit  {0.1}      {skip fit result if RMS point deviation divided by amplitude > error_limit}
   tfmt         {%H:%M:%S} {time format string for the interface}
   amp_fmt      {%.3e}     {amp format string for the interface}
   fre_fmt      {%.3f}     {fre format string for the interface}
@@ -272,7 +272,7 @@ proc func_meas_e {} {
     }
 
     if {$pars(adj_time)} {
-      set dt  [expr 2.0/$wid]
+      set dt  [expr 3.0/$wid]
       set dt [expr max($dt,0.1)]
       set dtf [expr {[sweep_pan get_mode] eq "Both"? $dt : 10*$dt}]
       sweep_pan set_dt   [format %.3f $dt]
