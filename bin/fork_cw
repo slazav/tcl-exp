@@ -355,6 +355,7 @@ proc func_mkint {w} {
 
   grid $f_meas.tplot  -sticky wens
   grid rowconfigure $f_meas 1 -weight 1
+  grid columnconfigure $f_meas 0 -weight 1
 
   ############################
   ### Timeplot
