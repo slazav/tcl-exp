@@ -36,6 +36,7 @@ set default_pars {
   amp_fmt      {%.3e}     {amp format string for the interface}
   fre_fmt      {%.3f}     {fre format string for the interface}
   wid_fmt      {%.3f}     {wid format string for the interface}
+  vertical     0          {vertical design of the intereface}
   plot_maxt    {600}      {timeplot span}
   adj_freq     {0}        {adjust central frequency, 0|1}
   adj_fspan    {0}        {adjust frequency span, 0|1}
@@ -324,8 +325,13 @@ proc func_mkint {w} {
   $w.tabs insert end meas -window $f_meas\
      -anchor n -text "Measurement" -fill both -padx 3 -pady 3
 
+  ####
+  # configuration frame
+  set f_conf $f_meas.conf
+  frame $f_conf
+
   # sweep panel
-  widget_sweep sweep_pan $f_meas.sw\
+  widget_sweep sweep_pan $f_conf.sw\
     -title "Sweeps:"\
     -vmin_label "F1" -vmax_label "F2"\
     -vmin $pars(fmin) -vmax $pars(fmax)\
@@ -336,61 +342,20 @@ proc func_mkint {w} {
     -dt   $pars(dt)\
     -dtf  $pars(dtf)
 
-  grid $f_meas.sw -sticky ew
-  widget_bg $f_meas.sw #E0F0F0
-
-  # sweep timeplot (4 columns: f, x, y, a)
-  TimePlot tplot_sweep $f_meas.tplot\
-   -ncols      3\
-   -maxt       3600\
-   -colors     {black red blue}\
-   -names      {F X Y}\
-   -titles     {F X Y}\
-   -symbols    {circle circle circle circle}\
-   -ssizes     {}\
-   -fmts       %.2f\
-   -plots_x     {F}\
-   -plots_y     {{X Y}}\
-   -zstyles    xy
-
-  grid $f_meas.tplot  -sticky wens
-  grid rowconfigure $f_meas 1 -weight 1
-  grid columnconfigure $f_meas 0 -weight 1
-
-  ############################
-  ### Timeplot
-
-  TimePlot tplot_res $w.tabs.tplot\
-   -ncols      3\
-   -maxt       $pars(plot_maxt)\
-   -colors     {}\
-   -names      {W F A}\
-   -titles     {W F A}\
-   -symbols    {circle circle circle}\
-   -ssizes     {}\
-   -fmts       {$pars(wid_fmt) $pars(fre_fmt) $pars(amp_fmt)}\
-
-  $w.tabs insert end tplot_res -window $w.tabs.tplot\
-     -anchor n -text "Time Plot" -fill both -padx 3 -pady 3
-
-  ############################
-  ### configuration frame
-  set f_conf $w.tabs.conf
-  frame $f_conf
-  $w.tabs insert end conf -window $f_conf\
-     -anchor n -text "configuration" -fill both -padx 3 -pady 3
-
-  # generator panel
-  $::gen make_widget $f_conf.gen\
-    -title "Generator:" -show_offs 0 -show_phase 1
-  pack $f_conf.gen -expand 0 -fill x -anchor ne
-  widget_bg $f_conf.gen #F0F0E0
+  pack $f_conf.sw -expand 0 -fill x -anchor ne
+  widget_bg $f_conf.sw #E0F0F0
 
   # lock-in panel
   $::lockin make_widget $f_conf.lockin\
     -title "Lock-in:" -bar_w 256
   pack $f_conf.lockin -expand 0 -fill x -anchor ne
   widget_bg $f_conf.lockin #F0E0F0
+
+  # generator panel
+  $::gen make_widget $f_conf.gen\
+    -title "Generator:" -show_offs 0 -show_phase 1
+  pack $f_conf.gen -expand 0 -fill x -anchor ne
+  widget_bg $f_conf.gen #F0F0E0
 
   # adjust panel
   set ajd_pan $f_conf.adj
@@ -417,6 +382,51 @@ proc func_mkint {w} {
 
   pack $ajd_pan -expand 0 -fill x -anchor ne
   widget_bg $ajd_pan #E0E0F0
+
+
+  ####
+  # sweep timeplot (4 columns: f, x, y, a)
+  TimePlot tplot_sweep $f_meas.tplot\
+   -ncols      3\
+   -maxt       3600\
+   -colors     {black red blue}\
+   -names      {F X Y}\
+   -titles     {F X Y}\
+   -symbols    {circle circle circle circle}\
+   -ssizes     {}\
+   -fmts       %.2f\
+   -plots_x     {F}\
+   -plots_y     {{X Y}}\
+   -zstyles    xy
+
+  if {$pars(vertical)} {
+    grid $f_meas.tplot  -sticky wens
+    grid $f_conf -sticky ew
+    grid rowconfigure $f_meas 1 -weight 1
+    grid columnconfigure $f_meas 0 -weight 1
+  }\
+  else {
+    grid $f_conf $f_meas.tplot  -sticky wens
+    grid rowconfigure $f_meas 0 -weight 1
+    grid columnconfigure $f_meas 1 -weight 1
+  }
+
+  ############################
+  ### Timeplot
+
+  TimePlot tplot_res $w.tabs.tplot\
+   -ncols      3\
+   -maxt       $pars(plot_maxt)\
+   -colors     {}\
+   -names      {W F A}\
+   -titles     {W F A}\
+   -symbols    {circle circle circle}\
+   -ssizes     {}\
+   -fmts       {$pars(wid_fmt) $pars(fre_fmt) $pars(amp_fmt)}\
+
+  $w.tabs insert end tplot_res -window $w.tabs.tplot\
+     -anchor n -text "Time Plot" -fill both -padx 3 -pady 3
+
 
 
 }
