@@ -153,7 +153,7 @@ proc func_meas_e {} {
   ####################
   # finish the sweep
 
-  if {[sweep_pan is_restart]} {return}
+  if {[sweep_pan is_cancelled]} {return}
 
   if {[sweep_pan is_last] } {
     #puts "stop sweep"

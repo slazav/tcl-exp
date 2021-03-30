@@ -9,25 +9,33 @@
 #   -vmin -vmax -npts -dt -dtf -mode   -- initial values for interface entries.
 #   -limit_min -limit_max   -- min/max limit for the parameter.
 #   -vmin_label -vmax_label -- interface labels for min/max values
-#   -mode -- sweep mode ("OFF" "Up" "Down" "Both", "Pair")
+#   -mode -- sweep mode ("Up" "Down" "Both", "Pair")
+#   -on   -- initial state, 1|0, default 1
 #   -idle_delay -- delay in OFF mode
 #   -bar_w -bar_h -- dimensions of the progress bar. Defaultt 256,10. Set to 0 to hide the bar.
 #   -color        -- configure interface color
 #
 # Methods:
-#   readonly 0|1  -- activate/deactivate widget (default - active)
 #   restart {}    -- start new sweep
 #   do_step {}    -- do a step
 #   get_val {}    -- get sweeping parameter value
 #   is_first {}   -- is it the first point of a sweep? (should be called after do_step)
 #   is_last {}    -- is it the last point of a normal sweep? (should be called after do_step)
-#   is_restart {} -- is it the last point of restarted sweep? (should be called after do_step)
+#   is_cancelled {} -- is it the last point of cancelled sweep? (should be called after do_step)
 #   is_on {}      -- is sweep in progress
-#   get_del {}    -- get delay until the measurement [s]
+#   get_del {}    -- get delay until the next step [s]
 #
 #   get_vmin, set_vmin, get_vmax, set_vmax -- get/set parameters
 #
-# For usage example see widget_sweep_test program
+# For usage example see widget_sweep_test or fork_cw program
+#
+# [do_step]
+# if [is_cancelled] continue
+# if [is_on] <prepare the measurement>
+# if [is_first] <prepare storage for data>
+# if [is_last]  <save collected data>
+# [get_delay], wait
+# if [is_on] <do measurement, collect data>
 
 package require xBlt
 package require itcl
@@ -52,7 +60,9 @@ itcl::class widget_sweep {
   variable dv 0;  # step
   variable  v 0;  # current value
   variable dir   1
-  variable restart_fl 0
+  variable restart_fl 0; # set by "restart" method/button
+  variable stop_fl 0;    # set by "stop" method/button
+  variable finished 0;
 
   # interface values
   variable vmin_i  0
@@ -65,6 +75,8 @@ itcl::class widget_sweep {
   variable lim_max
   variable bar_w
   variable bar_h
+
+  variable on
 
   # Constructor: parse options, build interface
   constructor {tkroot args} {
@@ -79,7 +91,8 @@ itcl::class widget_sweep {
       {-npts}        npts_i      11\
       {-dt}          dt_i        1\
       {-dtf}         dtf_i       1\
-      {-mode}        mode_i    "OFF"\
+      {-mode}        mode_i    "Both"\
+      {-on}          on        1\
       {-limit_max}   lim_max   +inf\
       {-limit_min}   lim_min   -inf\
       {-idle_delay}  dt0       1\
@@ -118,16 +131,14 @@ itcl::class widget_sweep {
     entry $root.dtf -width 12 -textvariable [itcl::scope dtf_i]
     grid $root.dtf_l $root.dtf -columnspan 3 -padx 5 -pady 2 -sticky e
 
-
     frame $root.btns
-
-    button $root.btns.rbtn -text "Restart" -command "$this restart"
+    button $root.btns.rbtn -text "(Re)start" -command "$this restart"
     button $root.btns.sbtn -text "Stop"    -command "$this stop"
 
     # mode combobox
     ttk::combobox $root.btns.mode -width 9 -textvariable [itcl::scope mode_i] -state readonly
     bind $root.btns.mode <<ComboboxSelected>> "set [itcl::scope scnt] 0"
-    $root.btns.mode  configure -values {"OFF" "Up" "Down" "Both" "Pair"}
+    $root.btns.mode  configure -values {"Up" "Down" "Both" "Pair"}
 
     pack $root.btns.rbtn $root.btns.sbtn $root.btns.mode -side left -anchor e -fill x -expand 1
     grid $root.btns -columnspan 4 -sticky ew
@@ -139,91 +150,111 @@ itcl::class widget_sweep {
   method update_bar {} {
     if {$bar_w>0} {
       $root.bar delete data
-      if {$mode_i eq "OFF" && $cnt==0} return
       set x [expr {($v-$vmin)/($vmax-$vmin)}]
       if {$x<0 || $x>1} return
       set x1 [expr {$bar_w*$x - $bar_h/2}]
       set x2 [expr {$bar_w*$x + $bar_h/2}]
-      #$root.bar create oval $x1 1 $x2 $bar_h -fill green -outline black -tags data
-      $root.bar create polygon $x1 1 $x1 $bar_h $x2 $bar_h $x2 1 -fill green -outline black -tags data
+      set y1 [expr {$bar_h/2}]
+      if {!$on} {
+        $root.bar create oval $x1 1 $x2 $bar_h -fill red -outline black -tags data
+      }\
+      else {
+        if {$dir>0} {
+          $root.bar create polygon $x1 1 $x2 $y1 $x1 $bar_h -fill green -outline black -tags data
+        } else {
+          $root.bar create polygon $x2 1 $x1 $y1 $x2 $bar_h $x2 1 -fill green -outline black -tags data
+        }
+      }
     }
   }
 
-  # activate/deactivate interface
-  method readonly {{state 1}} {
-    if {$state} { widget_state $root normal }\
-    else { widget_state $root disabled }
-  }
 
   # restart sweep
-  method restart {} {
-    set cnt 0
-    set scnt 0
-    set restart_fl 1
-  }
+  method restart {} { set restart_fl 1 }
 
   # stop sweep
-  method stop {} {
-    set mode_i "OFF"
-    restart
-  }
+  method stop {} { set stop_fl 1 }
 
   method do_step {} {
-    # start new sweep
-    if {$cnt == 0} {
-      incr scnt
 
+    # reset finished flag
+    set finished 0
+
+    # if restart flag is set abort the sweep
+    if {$restart_fl} {
+      set on 1
+      set cnt 0
+      set scnt 0
+      set restart_fl 0
+      return
+    }
+
+    # same for stop
+    if {$stop_fl} {
+      set on 0
+      set cnt 0
+      set scnt 0
+      set stop_fl 0
+      return
+    }
+
+    # start new sweep
+    if {$cnt == 0 && $on} {
+      incr scnt
       # set direction
       switch $mode_i {
-        "OFF"  {set dir 0}
         "Up"   {set dir +1}
         "Down" {set dir -1}
-        "Both" {set dir [expr {$dir!=0? -$dir:1}]}
+        "Both" {set dir [expr {$dir<0?  +1:-1}]}
         "Pair" {set dir [expr {$scnt%2? +1:-1}]}
         default {error "unknown sweep mode: $mode_i"}
       }
-      if {$dir != 0} {
-        # copy values from the interface
-        if {![string is integer $npts_i] || $npts_i < 2} {set npts_i $npts}
-        if {![string is double $dt_i]  || $dt_i <= 0} {set dt_i $dt}
-        if {![string is double $dtf_i] || $dtf_i <= 0} {set dtf_i $dtf}
-        if {![string is double $vmin_i]} {set vmin_i $vmin}
-        if {![string is double $vmax_i]} {set vmax_i $vmax}
-        if {$vmin_i < $lim_min} {set vmin_i $lim_min}
-        if {$vmin_i > $lim_max} {set vmin_i $lim_max}
-        if {$vmax_i < $lim_min} {set vmax_i $lim_min}
-        if {$vmax_i > $lim_max} {set vmax_i $lim_max}
-        if {![string is double $vmax_i]} {set vmax_i $vmax}
+      # copy values from the interface
+      if {![string is integer $npts_i] || $npts_i < 2} {set npts_i $npts}
+      if {![string is double $dt_i]  || $dt_i <= 0} {set dt_i $dt}
+      if {![string is double $dtf_i] || $dtf_i <= 0} {set dtf_i $dtf}
+      if {![string is double $vmin_i]} {set vmin_i $vmin}
+      if {![string is double $vmax_i]} {set vmax_i $vmax}
+      if {$vmin_i < $lim_min} {set vmin_i $lim_min}
+      if {$vmin_i > $lim_max} {set vmin_i $lim_max}
+      if {$vmax_i < $lim_min} {set vmax_i $lim_min}
+      if {$vmax_i > $lim_max} {set vmax_i $lim_max}
+      if {![string is double $vmax_i]} {set vmax_i $vmax}
 
-        set vmin $vmin_i
-        set vmax $vmax_i
-        set npts $npts_i
-        set dt   $dt_i
-        set dtf  $dtf_i
+      set vmin $vmin_i
+      set vmax $vmax_i
+      set npts $npts_i
+      set dt   $dt_i
+      set dtf  $dtf_i
 
-        # set starting value and step
-        if {$dir>0} {set v0 [expr min($vmin,$vmax)]}
-        if {$dir<0} {set v0 [expr max($vmin,$vmax)]}
-        set dv [expr {abs($vmax-$vmin)/($npts-1.0)}]
-      }
+      # set starting value and step
+      if {$dir>0} {set v0 [expr min($vmin,$vmax)]}
+      if {$dir<0} {set v0 [expr max($vmin,$vmax)]}
+      set dv [expr {abs($vmax-$vmin)/($npts-1.0)}]
     }
 
-    set restart_fl 0
-    set v [expr {$v0 + $dir*$dv*$cnt}]
+    # update value and picture on the bar
+
+    if {$on} {
+      set v [expr {$v0 + $dir*$dv*$cnt}]
+      incr cnt
+    }
     update_bar
-    if {$dir != 0} {incr cnt}
+
+    # finish sweep
     if {$cnt >= $npts} {
       set cnt 0
-      if {$mode_i eq "Pair" && $scnt>1} { set mode_i "OFF" }
+      set finished 1
+      if {$mode_i eq "Pair" && $scnt>1} { set on 0 }
     }
     set t1 [expr [clock microseconds]/1e6]
   }
 
   # should be called after do_step
   method is_first {} { return [expr {$cnt == 1}] }
-  method is_last {}    { return [expr {$cnt == 0 && $dir != 0 && !$restart_fl}] }
-  method is_restart {} { return [expr {$cnt == 0 && $dir != 0 && $restart_fl}] }
-  method is_on {}    { return [expr {$dir != 0}] }
+  method is_last {}    { return [expr {$cnt == 0 &&  $finished}] }
+  method is_cancelled {} { return [expr {$cnt == 0 && !$finished}] }
+  method is_on {}    { return $on }
 
   method get_val {} {return $v}
 

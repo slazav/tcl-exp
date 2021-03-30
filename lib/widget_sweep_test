@@ -7,7 +7,7 @@ widget_sweep w .g\
  -title {Sweep test}\
  -limit_min 0\
  -limit_max 125\
- -vmin 0 -vmax 100 -npts 21 -dt 0.5 -mode "Up" -color #E0F0E0
+ -vmin 0 -vmax 100 -npts 21 -dt 0.1 -dtf 0.2 -mode "Up" -color #E0F0E0
 
 pack .g
 
@@ -35,8 +35,8 @@ proc step_set {} {
 
 proc step_meas {} {
   puts "meas [w get_val]"
-  if {[w is_last]}    {puts "end sweep"}
-  if {[w is_restart]} {puts "restart sweep"}
+  if {[w is_last]}    {puts "finish sweep"}
+  if {[w is_cancelled]} {puts "cancel sweep"}
   after 100 step_set
 }
 
