@@ -21,8 +21,8 @@ set default_pars {
   gen_dev      {TEST}     {generator device}
   db_dev       {}         {database device}
   res_db       {}         {fit result database}
-  sweep_db     {}         {sweep database (record all peasured points: T, F,X,Y)}
-  pars_db      {}         {sweep parameters database (record sweep beginning and duration: T0, dT)}
+  sweep_db     {}         {sweep database (record all measured points: T, F,X,Y)}
+  pars_db      {}         {sweep parameters database (record sweep parameters: T0, dT, vmin, vmax, npts, dt, dtf, dir, volt, ph)}
   record_res   {1}        {record fit results checkbox}
   record_sweep {1}        {record sweep data checkbox}
   record_pars  {1}        {record sweep parameters checkbox}
@@ -180,11 +180,14 @@ proc func_meas_e {} {
       }
     }
 
-    # put sweep data in the database
+    # put sweep parameters in the database
     if {$pars(record_pars)} {
       set t0 [$tv index 0]
       set dt [expr [$tv index end] [$tv index 0]]
-      $pars(db_dev) cmd put $pars(pars_db) $t0 $dt
+      $pars(db_dev) cmd put $pars(pars_db) $t0 $dt\
+        [sweep_pan get_vmin] [sweep_pan get_vmax] [sweep_pan get_npts]\
+        [sweep_pan get_dt] [sweep_pan get_dtf] [sweep_pan get_dir]
+        [$::gen get_volt] [$::gen get_phase]
     }
 
     # do fit
