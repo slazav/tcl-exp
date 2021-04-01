@@ -16,16 +16,29 @@
 #   -color        -- configure interface color
 #
 # Methods:
-#   restart {}    -- start new sweep
+#   restart {}    -- cancel current sweep, start new one
+#   stop {}       -- cancel current sweep, stop
+#
 #   do_step {}    -- do a step
 #   get_val {}    -- get sweeping parameter value
+#   get_delay {}  -- get delay until the next step [s]
+#
 #   is_first {}   -- is it the first point of a sweep? (should be called after do_step)
 #   is_last {}    -- is it the last point of a normal sweep? (should be called after do_step)
 #   is_cancelled {} -- is it the last point of cancelled sweep? (should be called after do_step)
 #   is_on {}      -- is sweep in progress
-#   get_del {}    -- get delay until the next step [s]
 #
-#   get_vmin, set_vmin, get_vmax, set_vmax -- get/set parameters
+#   get_vmin {}
+#   set_vmin {v}
+#   get_vmax {}
+#   set_vmax {v}
+#   get_dt   {}
+#   set_dt   {v}
+#   get_dtf  {}
+#   set_dtf  {v}
+#   get_mode {}
+#   set_mode {v}  -- sweep mode: "Up" "Down" "Both", "Pair"
+#   get_dir  {}   -- sweep direction
 #
 # For usage example see widget_sweep_test or fork_cw program
 #
