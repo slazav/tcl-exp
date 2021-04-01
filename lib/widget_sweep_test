@@ -22,7 +22,7 @@ proc step_set {} {
 
   # Are we at the first step?
   # Here we can prepare some storage for data
-  if {[w is_first]} {puts "start sweep"}
+  if {[w is_first]} {puts "start sweep [w get_dir]"}
 
   if {[w is_on]} {
     puts "set [w get_val]"
@@ -35,7 +35,7 @@ proc step_set {} {
 
 proc step_meas {} {
   puts "meas [w get_val]"
-  if {[w is_last]}    {puts "finish sweep"}
+  if {[w is_last]}    {puts "finish sweep [w get_dir]"}
   if {[w is_cancelled]} {puts "cancel sweep"}
   after 100 step_set
 }
