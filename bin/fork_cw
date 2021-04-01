@@ -50,6 +50,7 @@ set default_pars {
   adj_phase    {0}        {adjust phase, 0|1}
   fspan_size   {6}        {frequency span / width}
   amp_target   {1}        {amplitude target}
+  set_from_res_db {0}     {set initial sweep parameters using last value from res_db}
 }
 
 if {[llength $argv]>0 } {
@@ -476,7 +477,27 @@ proc func_mkint {w} {
      -anchor n -text "Time Plot" -fill both -padx 3 -pady 3
 
 
+  ##########################################################################
+  # set sweep parameters from prefious fit
 
+  if {$pars(set_from_res_db) && $pars(db_dev)!={} && $pars(res_db)!={}} {
+    set last [lindex [$pars(db_dev) cmd get $pars(res_db)] 0]
+    set last_f0 [lindex $last 11]
+    set last_df [lindex $last 13]
+
+    set span [expr $last_df*$pars(fspan_size)]
+    set f1 [expr $last_f0 - abs($span)/2.0]
+    set f2 [expr $last_f0 + abs($span)/2.0]
+    sweep_pan set_vmin [format $pars(fre_fmt) $f1]
+    sweep_pan set_vmax [format $pars(fre_fmt) $f2]
+
+    set dt1  [expr 1.0/$last_df]
+    set dt2  [expr 1.0/[$::lockin get_tconst]]
+    set dt [expr 3.0*max($dt1,$dt2)]
+    set dtf [expr {[sweep_pan get_mode] eq "Both"? $dt : 10*$dt}]
+    sweep_pan set_dt   [format %.3f $dt]
+    sweep_pan set_dtf  [format %.3f $dtf]
+  }
 }
 
 
