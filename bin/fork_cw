@@ -188,7 +188,7 @@ proc func_meas_e {} {
       set dt [expr [$tv index end] - [$tv index 0]]
       $pars(db_dev) cmd put $pars(pars_db) $t0 $dt\
         [sweep_pan get_vmin] [sweep_pan get_vmax] [sweep_pan get_npts]\
-        [sweep_pan get_dt] [sweep_pan get_dtf] [sweep_pan get_dir]
+        [sweep_pan get_dt] [sweep_pan get_dtf] [sweep_pan get_dir]\
         [$::gen get_volt] [$::gen get_phase]
     }
 
