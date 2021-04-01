@@ -20,9 +20,12 @@ set default_pars {
   lockin_pars  {TEST}     {lock-in device parameters}
   gen_dev      {TEST}     {generator device}
   db_dev       {}         {database device}
-  res_db       {}         {result database}
+  res_db       {}         {fit result database}
   sweep_db     {}         {sweep database (record all peasured points: T, F,X,Y)}
   range_db     {}         {sweep range database (record sweep beginning and duration: T0, dT)}
+  record_res   {1}        {record fit results checkbox}
+  record_sweep {1}        {record sweep data checkbox}
+  record_range {1}        {record sweep range checkbox}
   limit_fmin   {0}        {sweep low limit}
   limit_fmax   {inf}      {sweep high limit}
   fmin         {600}      {starting value for sweep low end}
@@ -171,14 +174,14 @@ proc func_meas_e {} {
 
 
     # put sweep data in the database
-    if {$pars(db_dev)!={} && $pars(sweep_db)!={}} {
+    if {$pars(db_dev)!={} && $pars(sweep_db)!={} && $pars(record_sweep)} {
       for {set i 0} {$i < [$tv length]} {incr i} {
         $pars(db_dev) cmd put $pars(sweep_db) [$tv index $i] [$fv index $i] [$xv index $i] [$yv index $i]
       }
     }
 
     # put sweep data in the database
-    if {$pars(db_dev)!={} && $pars(range_db)!={}} {
+    if {$pars(db_dev)!={} && $pars(range_db)!={} && $pars(record_range)} {
       set t0 [$tv index 0]
       set dt [expr [$tv index end] [$tv index 0]]
       $pars(db_dev) cmd put $pars(range_db) $t0 $dt
@@ -249,7 +252,7 @@ proc func_meas_e {} {
     tplot_res add_data [list $r(T) $wid $fre $amp]
 
     # put values into database
-    if {$pars(db_dev)!={} && $pars(res_db)!={}} {
+    if {$pars(db_dev)!={} && $pars(res_db)!={} && $pars(record_res)} {
       $pars(db_dev) cmd put $pars(res_db) $r(T) [$::gen get_volt] [lrange $res 1 end]
     }
 
@@ -400,6 +403,29 @@ proc func_mkint {w} {
   pack $ajd_pan -expand 0 -fill x -anchor ne
   widget_bg $ajd_pan #E0E0F0
 
+
+  # record_res and record_sweep checkboxes
+  label $f_conf.record_l -text "Record: "
+  checkbutton $f_conf.record_res -text "fit results"\
+   -variable pars(record_res)
+  checkbutton $f_conf.record_sweep -text "data"\
+   -variable pars(record_sweep)
+  checkbutton $f_conf.record_range -text "range"\
+   -variable pars(record_range)
+  if {$pars(res_db)=={}} {
+    $f_conf.record_res configure -state disabled
+    set pars(record_res) 0
+  }
+  if {$pars(sweep_db)=={}} {
+    $f_conf.record_sweep configure -state disabled
+    set pars(record_sweep) 0
+  }
+  if {$pars(range_db)=={}} {
+    $f_conf.record_range configure -state disabled
+    set pars(record_range) 0
+  }
+  pack $f_conf.record_l $f_conf.record_res $f_conf.record_range $f_conf.record_sweep\
+    -expand 1 -fill x -anchor w -side left
 
   ####
   # sweep timeplot (4 columns: f, x, y, a)
