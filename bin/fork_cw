@@ -124,6 +124,8 @@ proc func_meas_e {} {
     tplot_sweep clear
   }
 
+  if {[sweep_pan is_cancelled]} {return}
+
   ####################
   # do the measurement
   set t [expr [clock microsecond]/1e6]
@@ -161,7 +163,6 @@ proc func_meas_e {} {
   ####################
   # finish the sweep
 
-  if {[sweep_pan is_cancelled]} {return}
 
   if {[sweep_pan is_last] } {
     #puts "stop sweep"
