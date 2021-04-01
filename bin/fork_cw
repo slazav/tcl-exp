@@ -184,7 +184,7 @@ proc func_meas_e {} {
     # put sweep parameters in the database
     if {$pars(record_pars)} {
       set t0 [$tv index 0]
-      set dt [expr [$tv index end] [$tv index 0]]
+      set dt [expr [$tv index end] - [$tv index 0]]
       $pars(db_dev) cmd put $pars(pars_db) $t0 $dt\
         [sweep_pan get_vmin] [sweep_pan get_vmax] [sweep_pan get_npts]\
         [sweep_pan get_dt] [sweep_pan get_dtf] [sweep_pan get_dir]
