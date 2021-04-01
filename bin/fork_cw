@@ -292,8 +292,9 @@ proc func_meas_e {} {
     }
 
     if {$pars(adj_time)} {
-      set dt  [expr 3.0/$wid]
-      set dt [expr max($dt,0.1)]
+      set dt1  [expr 1.0/$wid]
+      set dt2  [expr 1.0/[$::lockin get_tconst]]
+      set dt [expr 3.0*max($dt1,$dt2)]
       set dtf [expr {[sweep_pan get_mode] eq "Both"? $dt : 10*$dt}]
       sweep_pan set_dt   [format %.3f $dt]
       sweep_pan set_dtf  [format %.3f $dtf]
