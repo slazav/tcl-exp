@@ -36,6 +36,7 @@ set default_pars {
   amp_fmt      {%.3e}     {amp format string for the interface}
   fre_fmt      {%.3f}     {fre format string for the interface}
   wid_fmt      {%.3f}     {wid format string for the interface}
+  ph_fmt       {%.1f}     {phase format string for the interface}
   vertical     0          {vertical design of the intereface}
   plot_maxt    {600}      {timeplot span}
   adj_freq     {0}        {adjust central frequency, 0|1}
@@ -63,11 +64,13 @@ tk appname "$pars(name)"
 set fre {};
 set wid {};
 set amp {};
+set ph {};
 
 # formatted values
 set fre_f {};
 set wid_f {};
 set amp_f {};
+set ph_f {};
 
 # DeviceRole objects
 set lockin [DeviceRole $pars(lockin_dev) lock-in {*}$pars(lockin_pars)];
@@ -108,8 +111,8 @@ blt::vector create oldy
 # the next step. Here we measure the new value and collect data.
 proc func_meas_e {} {
   global pars
-  global fre wid amp
-  global fre_f wid_f amp_f
+  global fre wid amp ph
+  global fre_f wid_f amp_f ph_f
 
   ####################
   if {[sweep_pan is_first]} {
@@ -191,12 +194,14 @@ proc func_meas_e {} {
     set fre $r(F0)
     set wid $r(dF)
     set amp [expr {abs(hypot($r(C),$r(D))/$fre/$wid)}]
+    set ph  [expr {180/3.1415926*atan2($r(C),$r(D))}]
 
 
     # format values for interface
     set fre_f [format $pars(fre_fmt) $fre]
     set wid_f [format $pars(wid_fmt) $wid]
     set amp_f [format $pars(amp_fmt) $amp]
+    set ph_f  [format $pars(ph_fmt)  $ph]
 
 
     # update plot
@@ -281,9 +286,9 @@ proc func_meas_e {} {
     }
 
     if {$pars(adj_phase)} {
-      set ph [$::gen get_phase]
-      set ph [expr {$ph + 180/3.1415926*atan2($r(C),$r(D))}]
-      $::gen set_phase [format %.2f $ph]
+      set p [$::gen get_phase]
+      set p [expr {$p + $ph}]
+      $::gen set_phase [format %.2f $p]
     }
 
   }
@@ -307,11 +312,15 @@ proc func_mkint {w} {
   label $w.res.wid.val -textvariable wid_f  -font {-size 15} -text 0
   pack $w.res.wid.val
 
-  labelframe $w.res.amp -text {Amplitude [V]}
+  labelframe $w.res.amp -text {Amplitude [Vrms]}
   label $w.res.amp.val -textvariable amp_f  -font {-size 15} -text 0
   pack $w.res.amp.val
 
-  pack $w.res.fre $w.res.wid $w.res.amp -side left -fill x -expand 1
+  labelframe $w.res.ph -text {Phase [deg]}
+  label $w.res.ph.val -textvariable ph_f  -font {-size 15} -text 0
+  pack $w.res.ph.val
+
+  pack $w.res.fre $w.res.wid $w.res.amp $w.res.ph -side left -fill x -expand 1
 
   ############################
   # tabs
