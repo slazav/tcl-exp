@@ -174,14 +174,14 @@ proc func_meas_e {} {
 
 
     # put sweep data in the database
-    if {$pars(db_dev)!={} && $pars(sweep_db)!={} && $pars(record_sweep)} {
+    if {$pars(record_sweep)} {
       for {set i 0} {$i < [$tv length]} {incr i} {
         $pars(db_dev) cmd put $pars(sweep_db) [$tv index $i] [$fv index $i] [$xv index $i] [$yv index $i]
       }
     }
 
     # put sweep data in the database
-    if {$pars(db_dev)!={} && $pars(pars_db)!={} && $pars(record_pars)} {
+    if {$pars(record_pars)} {
       set t0 [$tv index 0]
       set dt [expr [$tv index end] [$tv index 0]]
       $pars(db_dev) cmd put $pars(pars_db) $t0 $dt
@@ -252,7 +252,7 @@ proc func_meas_e {} {
     tplot_res add_data [list $r(T) $wid $fre $amp]
 
     # put values into database
-    if {$pars(db_dev)!={} && $pars(res_db)!={} && $pars(record_res)} {
+    if {$pars(record_res)} {
       $pars(db_dev) cmd put $pars(res_db) $r(T) [$::gen get_volt] [lrange $res 1 end]
     }
 
@@ -412,15 +412,15 @@ proc func_mkint {w} {
    -variable pars(record_sweep)
   checkbutton $f_conf.record_pars -text "pars"\
    -variable pars(record_pars)
-  if {$pars(res_db)=={}} {
+  if {$pars(db_dev)=={} || $pars(res_db)=={}} {
     $f_conf.record_res configure -state disabled
     set pars(record_res) 0
   }
-  if {$pars(sweep_db)=={}} {
+  if {$pars(db_dev)=={} || $pars(sweep_db)=={}} {
     $f_conf.record_sweep configure -state disabled
     set pars(record_sweep) 0
   }
-  if {$pars(pars_db)=={}} {
+  if {$pars(db_dev)=={} || $pars(pars_db)=={}} {
     $f_conf.record_pars configure -state disabled
     set pars(record_pars) 0
   }
