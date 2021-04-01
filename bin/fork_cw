@@ -21,7 +21,8 @@ set default_pars {
   gen_dev      {TEST}     {generator device}
   db_dev       {}         {database device}
   res_db       {}         {result database}
-  sweep_db     {}         {sweep database}
+  sweep_db     {}         {sweep database (record all peasured points: T, F,X,Y)}
+  range_db     {}         {sweep range database (record sweep beginning and duration: T0, dT)}
   limit_fmin   {0}        {sweep low limit}
   limit_fmax   {inf}      {sweep high limit}
   fmin         {600}      {starting value for sweep low end}
@@ -174,6 +175,13 @@ proc func_meas_e {} {
       for {set i 0} {$i < [$tv length]} {incr i} {
         $pars(db_dev) cmd put $pars(sweep_db) [$tv index $i] [$fv index $i] [$xv index $i] [$yv index $i]
       }
+    }
+
+    # put sweep data in the database
+    if {$pars(db_dev)!={} && $pars(range_db)!={}} {
+      set t0 [$tv index 0]
+      set dt [expr [$tv index end] [$tv index 0]]
+      $pars(db_dev) cmd put $pars(range_db) $t0 $dt
     }
 
     # do fit
