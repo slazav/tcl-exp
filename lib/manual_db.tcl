@@ -19,7 +19,8 @@
 # -func_fmt   -- function for formatting text version of the data
 #                (takes data list as argument, returns a string representation of the data)
 # -num        -- number of records to show
-# -list_size  -- list size (it will be a scrollbar if list_size < num)
+# -list_h     -- initial heigth of the list (number of records), default 10
+# -list_w     -- initial heigth of the list (number of chars), default 70
 
 package require itcl
 package require xBlt
@@ -34,7 +35,8 @@ itcl::class manual_db {
   variable func_set;
   variable func_fmt;
   variable num;
-  variable list_size;
+  variable list_w;
+  variable list_h;
   variable tstamp;
   variable listbox
 
@@ -84,7 +86,8 @@ itcl::class manual_db {
       {-func_set}   func_set   func_set_text\
       {-func_fmt}   func_fmt   func_fmt_text\
       {-num}        num        10\
-      {-list_size}  list_size  10\
+      {-list_h}     list_h     10\
+      {-list_w}     list_w     70\
     ]
     xblt::parse_options "manual_db" $args $options
 
@@ -92,7 +95,6 @@ itcl::class manual_db {
     ## title
     label .name  -text "Add comments to $dbname" -font {-size 12} -anchor w
     grid .name -columnspan 3 -sticky w
-    grid columnconfigure . 1 -weight 1
 
     ## timestamp entry
     label  .tstamp_l  -text "Timestamp:" -width 12 -anchor w
@@ -117,25 +119,24 @@ itcl::class manual_db {
     grid columnconfigure .f1 3 -weight 1
 
     ## list with database records
-    if {$num > $list_size} {
-      frame .l
-      listbox .l.lb -selectmode browse -height $list_size -width 70 -exportselection 0\
-                    -yscrollcommand ".l.sb set"
-      scrollbar .l.sb -command ".l.lb yview"
-      grid .l.lb .l.sb -sticky wens
-      grid .l -columnspan 3 -sticky we
-      set listbox .l.lb
-    }\
-    else {
-      listbox .lb -selectmode browse -height $list_size -width 70 -exportselection 0
-      grid .lb -columnspan 3 -sticky we
-      set listbox .lb
-    }
+    frame .l
+    listbox .l.lb -selectmode browse -height $list_h -width $list_w -exportselection 0\
+                  -yscrollcommand ".l.sb set"
+    scrollbar .l.sb -command ".l.lb yview"
+    grid .l.lb .l.sb -sticky wens
+    grid columnconfigure .l 0 -weight 1
+    grid rowconfigure .l 0 -weight 1
+    set listbox .l.lb
+    grid .l -columnspan 3 -sticky wens
+
+    grid rowconfigure . 4 -weight 1;   # last row, list
+    grid columnconfigure . 1 -weight 1; # second column, entries
+
     $listbox insert 0 "<add new>"
     bind $listbox <<ListboxSelect>> "$this on_sel %W"
 
 #    ## button frame2
-#    frame .f2
+    #    frame .f2
 #    grid .f2 -columnspan 3 -sticky ew
 #    #button .f2.l_btn -text "<"        -command on_l -width 6  -state disabled
 #    button .f2.res_btn -text "Reread"  -command "$this on_reset" -width 6
@@ -185,7 +186,7 @@ itcl::class manual_db {
     if {$v=={} || $tstamp=={}} return
     set nt [exec date -d "$tstamp" +%s]
     Device $dbdev
-    $dbdev cmd put $dbname $nt $v
+    $dbdev cmd put $dbname $nt "$v"
     DeviceDelete [namespace current]::$dbdev
     on_reset
   }
@@ -197,7 +198,7 @@ itcl::class manual_db {
     set nt [exec date -d "$tstamp" +%s]
     Device $dbdev
     $dbdev cmd del $dbname $t
-    $dbdev cmd put $dbname $nt [$func_get]
+    $dbdev cmd put $dbname $nt "[$func_get]"
     DeviceDelete [namespace current]::$dbdev
     $listbox delete $i
     on_reset

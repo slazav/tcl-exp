@@ -10,7 +10,6 @@ set default_pars {
   db_dev       {}         {database device}
   db_name      {}         {database name}
   num          20         {number of records to edit}
-  list_size    10         {list size}
 }
 
 if {[llength $argv]>0 } {
@@ -28,5 +27,6 @@ manual_db #auto\
  -dbdev  $pars(db_dev)\
  -dbname $pars(db_name)\
  -num $pars(num)\
- -list_size $pars(list_size)
+ -list_w 80\
+ -list_h 15
 
