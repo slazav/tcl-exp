@@ -1155,7 +1155,7 @@ proc on_meas {} {
 
   ##############
   # do measurement
-  set ret [ch_pan$chan measure $autoscan $pars(timeout) $pars(db_dev) $db_name]
+  set ret [ch_pan$chan measure $autoscan [expr $autoscan? $pars(timeout):0] $pars(db_dev) $db_name]
 
   set val [lindex $ret 0]
   set st  [lindex $ret 1]
