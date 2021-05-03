@@ -204,11 +204,12 @@ proc func_meas_e {} {
 
     # result, 14 values:
     array unset r
-    foreach n {T E A Ae B Be C Ce D De F0 F0e dF dFe } v $res {
+    foreach n {T E A Ae B Be C Ce D De f0 f0e df dfe E Ee F Fe} v $res {
+      if {$v == {}} {set v 0}
       set r($n) $v
     }
-    set fre $r(F0)
-    set wid $r(dF)
+    set fre $r(f0)
+    set wid $r(df)
     set amp [expr {abs(hypot($r(C),$r(D))/$fre/$wid)}]
     set ph  [expr {180/3.1415926*atan2($r(C),$r(D))}]
 
@@ -233,8 +234,8 @@ proc func_meas_e {} {
     set f1 [$fv index 0]
     set f2 [$fv index end]
     fitf seq $f1 $f2 [expr ($f2-$f1)/1024]
-    fitx expr {$r(A) + ($r(C)*($fre^2-fitf^2)+$r(D)*(fitf*$wid))/(($fre^2-fitf^2)^2 + (fitf*$wid)^2)}
-    fity expr {$r(B) + ($r(D)*($fre^2-fitf^2)-$r(C)*(fitf*$wid))/(($fre^2-fitf^2)^2 + (fitf*$wid)^2)}
+    fitx expr {$r(A) + ($r(C)*($fre^2-fitf^2)+$r(D)*(fitf*$wid))/(($fre^2-fitf^2)^2 + (fitf*$wid)^2) + $r(E)*(fitf-$fre)}
+    fity expr {$r(B) + ($r(D)*($fre^2-fitf^2)-$r(C)*(fitf*$wid))/(($fre^2-fitf^2)^2 + (fitf*$wid)^2) + $r(F)*(fitf-$fre)}
 
     $G element create fitx -outline black -mapx xF -mapy y\
        -xdata fitf -ydata fitx -symbol {}
