@@ -21,6 +21,7 @@ proc help {} {
   puts ""
   puts "File should have header  \"<name>,<serial>,(3|4),9999,1\""
   puts "and two colums: R/log10(R), T"
+  puts "First column should be increasing."
   exit 1
 }
 
