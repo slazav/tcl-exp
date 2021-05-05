@@ -164,7 +164,7 @@ itcl::class LakeShore370AC {
   method load_curve {n fname} {
     set ff [open $fname {r}]
     set l {}
-    while {$l=={} || [string range $l 0 1] == "#"} {
+    while {$l=={} || [string range $l 0 0] eq "#"} {
       set l [gets $ff]
       if {[eof $ff]} return
     }
@@ -172,11 +172,12 @@ itcl::class LakeShore370AC {
     $dev cmd "CRVHDR $n, $l"
     for {set i 1} {$i<=200} {incr i} {
       set l {}
-      while {$l=={} || [string range $l 0 1] == "#"} {
+      while {$l=={} || [string range $l 0 0] eq "#"} {
         set l [gets $ff]
         if {[eof $ff]} return
       }
-      $dev cmd "CRVPT $n, $i, $l"
+      set vv [regexp -inline -all -- {[^\t ,]+} $l]
+      $dev cmd "CRVPT $n, $i, [lindex $vv 0], [lindex $vv 1]"
     }
     close $ff
   }
