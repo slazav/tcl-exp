@@ -143,7 +143,7 @@ itcl::class LakeShore370AC {
   # trivial save function
   method save_curve {n fname} {
     set ff [open $fname {w}]
-    set l [$dev cmd "CRVHDR? $n"]
+    set l [lindex [$dev cmd "CRVHDR? $n"] 0]
     puts $ff [string trimright $l \r\n]
     for {set i 1} {$i<=200} {incr i} {
       set l [$dev cmd "CRVPT? $n, $i"]
