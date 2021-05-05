@@ -1,0 +1,56 @@
+#!/usr/bin/tclsh
+
+# Set/get/del curves
+# Usage:
+#    bridge370ac_curve <dev> set <N> <file>
+#    bridge370ac_curve <dev> get <N> <file>
+#    bridge370ac_curve <dev> del <N>
+#
+# File should have header  "<name>,<serial>,(3|4),9999,1"
+#
+# and two colums: R/log10(R) -- T
+
+package require Device2
+package require Exp
+
+proc help {} {
+  puts "Usage:"
+  puts "  bridge370ac_curve <dev> set <N> <file>"
+  puts "  bridge370ac_curve <dev> get <N> <file>"
+  puts "  bridge370ac_curve <dev> del <N>"
+  puts ""
+  puts "File should have header  \"<name>,<serial>,(3|4),9999,1\""
+  puts "and two colums: R/log10(R), T"
+  exit 1
+}
+
+if {[llength $argv] < 3} help
+
+set dev    [lindex $argv 0]
+set action [lindex $argv 1]
+set num    [lindex $argv 2]
+
+Device $dev
+LakeShore370AC D $dev
+
+if {$action eq "set"} {
+  if {[llength $argv] != 4} help
+  set fname [lindex $argv 3]
+  D load_curve $num $fname
+  exit 0
+}
+
+if {$action eq "get"} {
+  if {[llength $argv] != 4} help
+  set fname [lindex $argv 3]
+  D save_curve $num $fname
+  exit 0
+}
+
+if {$action eq "del"} {
+  if {[llength $argv] != 3} help
+  D del_curve $num
+  exit 0
+}
+
+help
