@@ -167,8 +167,10 @@ proc func_meas {} {
       $pars(db_dev) cmd put_flt Rbath$i $T0 $D(R$i)
     }
     $pars(db_dev) cmd put_flt he_level $T0 $D(he_level) $D(he_level_cnv)
-    $pars(db_dev) cmd put_flt demag_i  $T0 $D(demag_i)  $D(demag_i_cnv)
-    $pars(db_dev) cmd put_flt demag_v  $T0 $D(demag_v)
+    $pars(db_dev) cmd put_flt demag_vi $T0 $D(demag_v) $D(demag_i)
+    if {$D(demag_ps) > 4.0} {
+      $pars(db_dev) cmd put_flt demag_pc $T0 $D(demag_v) $D(demag_i)
+    }
     $pars(db_dev) cmd put_flt demag_ps $T0 $D(demag_ps)
     $pars(db_dev) cmd put_flt press_cell_cap $T0 $D(press_cell_c) $D(press_cell_l)
     $pars(db_dev) cmd sync
