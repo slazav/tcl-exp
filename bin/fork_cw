@@ -40,6 +40,7 @@ set default_pars {
   amp_fmt      {%.3e}     {amp format string for the interface}
   fre_fmt      {%.3f}     {fre format string for the interface}
   wid_fmt      {%.3f}     {wid format string for the interface}
+  drv_fmt      {%.3f}     {drive format string for adjustments}
   ph_fmt       {%.1f}     {phase format string for the interface}
   vertical     0          {vertical design of the intereface}
   geometry     {}         {set initial window geometry}
@@ -49,6 +50,8 @@ set default_pars {
   adj_fmin     {0}        {min frequency limit for adjustment}
   adj_fmax     {2000}     {max frequency limit for adjustment}
   adj_drive    {0}        {adjust drive, 0|1}
+  adj_dmin     {0.02}     {min limit for drive adjustment}
+  adj_dmax     {20.0}     {max limit for drive adjustment}
   adj_time     {0}        {adjust timings, 0|1}
   adj_phase    {0}        {adjust phase, 0|1}
   fspan_size   {6}        {frequency span / width}
@@ -296,7 +299,10 @@ proc func_meas_e {} {
 
     if {$pars(adj_drive)} {
       set v [$::gen get_volt]
-      $::gen set_volt [expr $v*$pars(amp_target)/$amp]
+      set v [format $pars(drv_fmt) [expr $v*$pars(amp_target)/$amp]]
+      if {$v > $pars(adj_dmax) } {set v $pars(adj_dmax)}
+      if {$v < $pars(adj_dmin) } {set v $pars(adj_dmin)}
+      $::gen set_volt $v
     }\
     else {
       set pars(amp_target) [format %.4e $amp]
@@ -415,10 +421,17 @@ proc func_mkint {w} {
   label $ajd_pan.am_l -text "Target amplitude:"
   entry $ajd_pan.am_v -width 12 -textvariable pars(amp_target)
 
+  frame $ajd_pan.dlim
+  label $ajd_pan.dlim.l -text "Limits:"
+  entry $ajd_pan.dlim.min -width 10 -textvariable pars(adj_dmin)
+  entry $ajd_pan.dlim.max -width 10 -textvariable pars(adj_dmax)
+  pack $ajd_pan.dlim.l $ajd_pan.dlim.min $ajd_pan.dlim.max -side left -padx 5
+
   grid $ajd_pan.f0 $ajd_pan.df  -sticky nw
   grid $ajd_pan.fspan -sticky nw -columnspan 2
   grid $ajd_pan.flim -sticky nw -columnspan 2
   grid $ajd_pan.drv -sticky nw -columnspan 2
+  grid $ajd_pan.dlim -sticky nw -columnspan 2
   grid $ajd_pan.am_l $ajd_pan.am_v -sticky nw -padx 5 -pady 2
   grid $ajd_pan.tt $ajd_pan.ph  -sticky nw
 
