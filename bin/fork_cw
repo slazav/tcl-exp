@@ -42,6 +42,7 @@ set default_pars {
   wid_fmt      {%.3f}     {wid format string for the interface}
   ph_fmt       {%.1f}     {phase format string for the interface}
   vertical     0          {vertical design of the intereface}
+  geometry     {}         {set initial window geometry}
   plot_maxt    {600}      {timeplot span}
   adj_freq     {0}        {adjust central frequency, 0|1}
   adj_fspan    {0}        {adjust frequency span, 0|1}
@@ -512,3 +513,4 @@ Monitor mon .m -name $pars(name) -period 1 -onoff 1\
 
 pack .m -expand 1 -fill both
 wm protocol . WM_DELETE_WINDOW { mon do_exit }
+if {$pars(geometry) != {}} {wm geometry . $pars(geometry)}
