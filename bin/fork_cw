@@ -46,6 +46,8 @@ set default_pars {
   plot_maxt    {600}      {timeplot span}
   adj_freq     {0}        {adjust central frequency, 0|1}
   adj_fspan    {0}        {adjust frequency span, 0|1}
+  adj_fmin     {0}        {min frequency limit for adjustment}
+  adj_fmax     {2000}     {max frequency limit for adjustment}
   adj_drive    {0}        {adjust drive, 0|1}
   adj_time     {0}        {adjust timings, 0|1}
   adj_phase    {0}        {adjust phase, 0|1}
@@ -272,8 +274,6 @@ proc func_meas_e {} {
       set sh [expr $fre-($f1+$f2)/2.0]
       set f1 [expr $f1+$sh]
       set f2 [expr $f2+$sh]
-      sweep_pan set_vmin [format $pars(fre_fmt) $f1]
-      sweep_pan set_vmax [format $pars(fre_fmt) $f2]
     }
 
     if {$pars(adj_fspan)} {
@@ -283,6 +283,13 @@ proc func_meas_e {} {
       set span [expr $wid*$pars(fspan_size)]
       set f1 [expr $fcnt - $span/2.0]
       set f2 [expr $fcnt + $span/2.0]
+    }
+
+    if {$pars(adj_freq) || $pars(adj_fspan)} {
+      if {$f1 > $pars(adj_fmax) } {set f1 $pars(adj_fmax)}
+      if {$f1 < $pars(adj_fmin) } {set f1 $pars(adj_fmin)}
+      if {$f2 > $pars(adj_fmax) } {set f2 $pars(adj_fmax)}
+      if {$f2 < $pars(adj_fmin) } {set f2 $pars(adj_fmin)}
       sweep_pan set_vmin [format $pars(fre_fmt) $f1]
       sweep_pan set_vmax [format $pars(fre_fmt) $f2]
     }
@@ -394,19 +401,26 @@ proc func_mkint {w} {
   checkbutton $ajd_pan.tt  -text "Timings" -variable pars(adj_time)
   checkbutton $ajd_pan.ph  -text "Phase" -variable pars(adj_phase)
 
-  label $ajd_pan.df_l -text "Span size in line widths:"
-  entry $ajd_pan.df_v -width 12 -textvariable pars(fspan_size)
+  frame $ajd_pan.fspan
+  label $ajd_pan.fspan.l -text "Span size (in line widths):"
+  entry $ajd_pan.fspan.v -width 4 -textvariable pars(fspan_size)
+  pack $ajd_pan.fspan.l $ajd_pan.fspan.v  -side left -padx 5
+
+  frame $ajd_pan.flim
+  label $ajd_pan.flim.l -text "Limits:"
+  entry $ajd_pan.flim.fmin -width 10 -textvariable pars(adj_fmin)
+  entry $ajd_pan.flim.fmax -width 10 -textvariable pars(adj_fmax)
+  pack $ajd_pan.flim.l $ajd_pan.flim.fmin $ajd_pan.flim.fmax -side left -padx 5
 
   label $ajd_pan.am_l -text "Target amplitude:"
   entry $ajd_pan.am_v -width 12 -textvariable pars(amp_target)
 
-  grid $ajd_pan.f0  -sticky nw -columnspan 2
-  grid $ajd_pan.df  -sticky nw -columnspan 2
-  grid $ajd_pan.df_l $ajd_pan.df_v -sticky nw -padx 5 -pady 2
+  grid $ajd_pan.f0 $ajd_pan.df  -sticky nw
+  grid $ajd_pan.fspan -sticky nw -columnspan 2
+  grid $ajd_pan.flim -sticky nw -columnspan 2
   grid $ajd_pan.drv -sticky nw -columnspan 2
   grid $ajd_pan.am_l $ajd_pan.am_v -sticky nw -padx 5 -pady 2
-  grid $ajd_pan.tt  -sticky nw -columnspan 2
-  grid $ajd_pan.ph  -sticky nw -columnspan 2
+  grid $ajd_pan.tt $ajd_pan.ph  -sticky nw
 
   pack $ajd_pan -expand 0 -fill x -anchor ne
   widget_bg $ajd_pan #E0E0F0
