@@ -23,9 +23,6 @@ set default_pars {
   res_db       {}         {fit result database}
   sweep_db     {}         {sweep database (record all measured points: T, F,X,Y)}
   pars_db      {}         {sweep parameters database (record sweep parameters: T0, dT, vmin, vmax, npts, dt, dtf, dir, volt, ph)}
-  record_res   {1}        {record fit results checkbox}
-  record_sweep {1}        {record sweep data checkbox}
-  record_pars  {1}        {record sweep parameters checkbox}
   limit_fmin   {0}        {sweep low limit}
   limit_fmax   {inf}      {sweep high limit}
   fmin         {600}      {starting value for sweep low end}
@@ -65,6 +62,8 @@ if {[llength $argv]>0 } {
 else {
   foreach {name def title} $default_pars { set pars($name) $def }
 }
+
+array unset fitres
 
 tk appname "$pars(name)"
 
@@ -182,14 +181,14 @@ proc func_meas_e {} {
 
 
     # put sweep data in the database
-    if {$pars(record_sweep)} {
+    if {$pars(db_dev) != {} && $pars(sweep_db) != {}} {
       for {set i 0} {$i < [$tv length]} {incr i} {
         $pars(db_dev) cmd put $pars(sweep_db) [$tv index $i] [$fv index $i] [$xv index $i] [$yv index $i]
       }
     }
 
     # put sweep parameters in the database
-    if {$pars(record_pars)} {
+    if {$pars(db_dev) != {} && $pars(pars_db) != {}} {
       set t0 [$tv index 0]
       set dt [expr [$tv index end] - [$tv index 0]]
       $pars(db_dev) cmd put $pars(pars_db) $t0 $dt\
@@ -209,15 +208,15 @@ proc func_meas_e {} {
     close $conn
 
     # result, 14 values:
-    array unset r
+    array unset fitres
     foreach n {T E A Ae B Be C Ce D De f0 f0e df dfe E Ee F Fe} v $res {
       if {$v == {}} {set v 0}
-      set r($n) $v
+      set fitres($n) $v
     }
-    set fre $r(f0)
-    set wid $r(df)
-    set amp [expr {abs(hypot($r(C),$r(D))/$fre/$wid)}]
-    set ph  [expr {180/3.1415926*atan2($r(C),$r(D))}]
+    set fre $fitres(f0)
+    set wid $fitres(df)
+    set amp [expr {abs(hypot($fitres(C),$fitres(D))/$fre/$wid)}]
+    set ph  [expr {180/3.1415926*atan2($fitres(C),$fitres(D))}]
 
 
     # format values for interface
@@ -240,8 +239,8 @@ proc func_meas_e {} {
     set f1 [$fv index 0]
     set f2 [$fv index end]
     fitf seq $f1 $f2 [expr ($f2-$f1)/1024]
-    fitx expr {$r(A) + ($r(C)*($fre^2-fitf^2)+$r(D)*(fitf*$wid))/(($fre^2-fitf^2)^2 + (fitf*$wid)^2) + $r(E)*(fitf-$fre)}
-    fity expr {$r(B) + ($r(D)*($fre^2-fitf^2)-$r(C)*(fitf*$wid))/(($fre^2-fitf^2)^2 + (fitf*$wid)^2) + $r(F)*(fitf-$fre)}
+    fitx expr {$fitres(A) + ($fitres(C)*($fre^2-fitf^2)+$fitres(D)*(fitf*$wid))/(($fre^2-fitf^2)^2 + (fitf*$wid)^2) + $fitres(E)*(fitf-$fre)}
+    fity expr {$fitres(B) + ($fitres(D)*($fre^2-fitf^2)-$fitres(C)*(fitf*$wid))/(($fre^2-fitf^2)^2 + (fitf*$wid)^2) + $fitres(F)*(fitf-$fre)}
 
     $G element create fitx -outline black -mapx xF -mapy y\
        -xdata fitf -ydata fitx -symbol {}
@@ -258,14 +257,14 @@ proc func_meas_e {} {
        -xdata oldf -ydata oldy -symbol circle
 
     # skip bad fits
-    if {$r(E)/$amp > $pars(error_limit)} {error "Bad fit: [expr $r(E)/$amp]"}
+    if {$fitres(E)/$amp > $pars(error_limit)} {error "Bad fit: [expr $fitres(E)/$amp]"}
 
     # values for result time plot
-    tplot_res add_data [list $r(T) $wid $fre $amp]
+    tplot_res add_data [list $fitres(T) $wid $fre $amp]
 
     # put values into database
-    if {$pars(record_res)} {
-      $pars(db_dev) cmd put $pars(res_db) $r(T) [$::gen get_volt] [lrange $res 1 end]
+    if {$pars(db_dev) != {} && $pars(res_db) != {}} {
+      $pars(db_dev) cmd put $pars(res_db) $fitres(T) [$::gen get_volt] [lrange $res 1 end]
     }
 
     # Adjust values.
