@@ -439,29 +439,6 @@ proc func_mkint {w} {
   widget_bg $ajd_pan #E0E0F0
 
 
-  # record_res and record_sweep checkboxes
-  label $f_conf.record_l -text "Record: "
-  checkbutton $f_conf.record_res -text "fit results"\
-   -variable pars(record_res)
-  checkbutton $f_conf.record_sweep -text "data"\
-   -variable pars(record_sweep)
-  checkbutton $f_conf.record_pars -text "pars"\
-   -variable pars(record_pars)
-  if {$pars(db_dev)=={} || $pars(res_db)=={}} {
-    $f_conf.record_res configure -state disabled
-    set pars(record_res) 0
-  }
-  if {$pars(db_dev)=={} || $pars(sweep_db)=={}} {
-    $f_conf.record_sweep configure -state disabled
-    set pars(record_sweep) 0
-  }
-  if {$pars(db_dev)=={} || $pars(pars_db)=={}} {
-    $f_conf.record_pars configure -state disabled
-    set pars(record_pars) 0
-  }
-  pack $f_conf.record_l $f_conf.record_res $f_conf.record_pars $f_conf.record_sweep\
-    -expand 1 -fill x -anchor w -side left
-
   ####
   # sweep timeplot (4 columns: f, x, y, a)
   TimePlot tplot_sweep $f_meas.tplot\
