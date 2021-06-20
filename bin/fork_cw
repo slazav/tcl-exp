@@ -270,17 +270,19 @@ proc func_meas_e {} {
     # Adjust values.
     # Note that sweep_pan set interface values which are validated
     # and applied on the next step.
-    if {$pars(adj_freq)} {
+
+    if {$pars(adj_freq) || $pars(adj_fspan)} {
       set f1 [sweep_pan get_vmin]
       set f2 [sweep_pan get_vmax]
+    }
+
+    if {$pars(adj_freq)} {
       set sh [expr $fre-($f1+$f2)/2.0]
       set f1 [expr $f1+$sh]
       set f2 [expr $f2+$sh]
     }
 
     if {$pars(adj_fspan)} {
-      set f1 [sweep_pan get_vmin]
-      set f2 [sweep_pan get_vmax]
       set fcnt [expr ($f1+$f2)/2.0]
       set span [expr $wid*$pars(fspan_size)]
       set f1 [expr $fcnt - $span/2.0]
