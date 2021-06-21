@@ -103,25 +103,6 @@ blt::vector create oldy
 ##########################################################################
 ## functions for the monitor class
 
-##########################################################################
-# This function is executed in the beginning of each step.
-# Here we get new frequncy and delay from sweeper and change
-# generator frequency.
-proc func_meas {} {
-  global pars
-  sweep_pan do_step
-
-  # set generator panel to readonly state when sweeper is active
-  #$::gen readonly [sweep_pan is_on]
-
-  # set generator frequency
-  if {[sweep_pan is_on] } {
-    $::gen set_freq [sweep_pan get_val]
-  }
-
-  # set monitor period
-  mon set_period [sweep_pan get_delay]
-}
 
 
 ##########################################################################
@@ -195,7 +176,127 @@ proc adjust_sweep_pars {} {
     set p [expr {$p + $fitres(ph)}]
     $::gen set_phase [format %.2f $p]
   }
+}
 
+# get sweep data, do fit, put values to databases.
+proc process_sweep_data {} {
+
+  global pars
+  #puts "stop sweep"
+
+  # get data from timeplot (BLT-vectors):
+  set tv [tplot_sweep get_tvec]
+  set fv [tplot_sweep get_dvec 0]
+  set xv [tplot_sweep get_dvec 1]
+  set yv [tplot_sweep get_dvec 2]
+
+  # put sweep data in the database
+  if {$pars(db_dev) != {} && $pars(sweep_db) != {}} {
+    for {set i 0} {$i < [$tv length]} {incr i} {
+      $pars(db_dev) cmd put $pars(sweep_db) [$tv index $i] [$fv index $i] [$xv index $i] [$yv index $i]
+    }
+  }
+
+  # put sweep parameters in the database
+  if {$pars(db_dev) != {} && $pars(pars_db) != {}} {
+    set t0 [$tv index 0]
+    set dt [expr [$tv index end] - [$tv index 0]]
+    $pars(db_dev) cmd put $pars(pars_db) $t0 $dt\
+      [sweep_pan get_vmin] [sweep_pan get_vmax] [sweep_pan get_npts]\
+      [sweep_pan get_dt] [sweep_pan get_dtf] [sweep_pan get_dir]\
+      [$::gen get_volt] [$::gen get_phase]
+  }
+
+  # do fit
+  set conn [open "| fit_res" RDWR]
+  fconfigure $conn -blocking true -buffering line
+  for {set i 0} {$i < [$tv length]} {incr i} {
+    puts $conn "[$tv index $i] [$fv index $i] [$xv index $i] [$yv index $i]"
+  }
+  close $conn write
+  set res [gets $conn]
+  close $conn
+
+  # result, 14 values:
+  global fitres
+  array unset fitres
+  foreach n {T E A Ae B Be C Ce D De f0 f0e df dfe E Ee F Fe} v $res {
+    if {$v == {}} {set v 0}
+    set fitres($n) $v
+  }
+  set fitres(amp) [expr {abs(hypot($fitres(C),$fitres(D))/$fitres(f0)/$fitres(df))}]
+  set fitres(ph)  [expr {180/3.1415926*atan2($fitres(C),$fitres(D))}]
+
+  # format values for interface
+  global fre_f wid_f amp_f ph_f
+  set fre_f [format $pars(fre_fmt) $fitres(f0)]
+  set wid_f [format $pars(wid_fmt) $fitres(df)]
+  set amp_f [format $pars(amp_fmt) $fitres(amp)]
+  set ph_f  [format $pars(ph_fmt)  $fitres(ph)]
+
+  # update plot
+  set G [tplot_sweep get_graph]
+
+  # delete previous fits
+  if {[$G element names fitx] != {}} {$G element delete fitx}
+  if {[$G element names fity] != {}} {$G element delete fity}
+  if {[$G element names oldx] != {}} {$G element delete oldx}
+  if {[$G element names oldy] != {}} {$G element delete oldy}
+
+  # add new fits
+  set f1 [$fv index 0]
+  set f2 [$fv index end]
+  fitf seq $f1 $f2 [expr ($f2-$f1)/1024]
+  fitx expr {$fitres(A) + ($fitres(C)*($fitres(f0)^2-fitf^2)+$fitres(D)*(fitf*$fitres(df)))/(($fitres(f0)^2-fitf^2)^2 + (fitf*$fitres(df))^2) + $fitres(E)*(fitf-$fitres(f0))}
+  fity expr {$fitres(B) + ($fitres(D)*($fitres(f0)^2-fitf^2)-$fitres(C)*(fitf*$fitres(df)))/(($fitres(f0)^2-fitf^2)^2 + (fitf*$fitres(df))^2) + $fitres(F)*(fitf-$fitres(f0))}
+
+  $G element create fitx -outline black -mapx xF -mapy y\
+     -xdata fitf -ydata fitx -symbol {}
+  $G element create fity -outline black -mapx xF -mapy y\
+     -xdata fitf -ydata fity -symbol {}
+
+  # add new data
+  oldf expr $fv
+  oldx expr $xv
+  oldy expr $yv
+  $G element create oldx -color #FF8080 -pixel 1.5 -mapx xF -mapy y\
+     -xdata oldf -ydata oldx -symbol circle
+  $G element create oldy -color #8080FF -pixel 1.5 -mapx xF -mapy y\
+     -xdata oldf -ydata oldy -symbol circle
+
+  # skip bad fits
+  if {$fitres(E)/$fitres(amp) > $pars(error_limit)} {error "Bad fit: [expr $fitres(E)/$fitres(amp)]"}
+
+  # values for result time plot
+  tplot_res add_data [list $fitres(T) $fitres(df) $fitres(f0) $fitres(amp)]
+
+  # put values into database
+  if {$pars(db_dev) != {} && $pars(res_db) != {}} {
+    $pars(db_dev) cmd put $pars(res_db) $fitres(T) [$::gen get_volt] [lrange $res 1 end]
+  }
+
+  # Adjust sweep parameters.
+  adjust_sweep_pars
+}
+
+##########################################################################
+# This function is executed in the beginning of each step.
+# Here we get new frequncy and delay from sweeper and change
+# generator frequency.
+proc func_meas {} {
+  global pars
+  sweep_pan do_step
+
+  # set generator panel to readonly state when sweeper is active
+  #$::gen readonly [sweep_pan is_on]
+
+  # set generator frequency
+  if {[sweep_pan is_on] } {
+    $::gen set_freq [sweep_pan get_val]
+  }
+
+  # set monitor period
+  mon set_period [sweep_pan get_delay]
 }
 
 ##########################################################################
@@ -204,15 +305,9 @@ proc adjust_sweep_pars {} {
 proc func_meas_e {} {
   global pars
   global fitres
-  global fre wid amp ph
-  global fre_f wid_f amp_f ph_f
 
   ####################
-  if {[sweep_pan is_first]} {
-    #puts "start sweep"
-    tplot_sweep clear
-  }
-
+  if {[sweep_pan is_first]} { tplot_sweep clear }
   if {[sweep_pan is_cancelled]} {return}
 
   ####################
@@ -245,111 +340,9 @@ proc func_meas_e {} {
     if {$y<-$L} {set y -$L}
   }
 
-  if {[sweep_pan is_on]} {
-    tplot_sweep add_data [list $t $f $x $y]
-  }
+  if {[sweep_pan is_on]} { tplot_sweep add_data [list $t $f $x $y] }
 
-  ####################
-  # finish the sweep
-
-
-  if {[sweep_pan is_last] } {
-    #puts "stop sweep"
-
-    # get data from timeplot (BLT-vectors):
-    set tv [tplot_sweep get_tvec]
-    set fv [tplot_sweep get_dvec 0]
-    set xv [tplot_sweep get_dvec 1]
-    set yv [tplot_sweep get_dvec 2]
-
-
-    # put sweep data in the database
-    if {$pars(db_dev) != {} && $pars(sweep_db) != {}} {
-      for {set i 0} {$i < [$tv length]} {incr i} {
-        $pars(db_dev) cmd put $pars(sweep_db) [$tv index $i] [$fv index $i] [$xv index $i] [$yv index $i]
-      }
-    }
-
-    # put sweep parameters in the database
-    if {$pars(db_dev) != {} && $pars(pars_db) != {}} {
-      set t0 [$tv index 0]
-      set dt [expr [$tv index end] - [$tv index 0]]
-      $pars(db_dev) cmd put $pars(pars_db) $t0 $dt\
-        [sweep_pan get_vmin] [sweep_pan get_vmax] [sweep_pan get_npts]\
-        [sweep_pan get_dt] [sweep_pan get_dtf] [sweep_pan get_dir]\
-        [$::gen get_volt] [$::gen get_phase]
-    }
-
-    # do fit
-    set conn [open "| fit_res" RDWR]
-    fconfigure $conn -blocking true -buffering line
-    for {set i 0} {$i < [$tv length]} {incr i} {
-      puts $conn "[$tv index $i] [$fv index $i] [$xv index $i] [$yv index $i]"
-    }
-    close $conn write
-    set res [gets $conn]
-    close $conn
-
-    # result, 14 values:
-    array unset fitres
-    foreach n {T E A Ae B Be C Ce D De f0 f0e df dfe E Ee F Fe} v $res {
-      if {$v == {}} {set v 0}
-      set fitres($n) $v
-    }
-    set fitres(amp) [expr {abs(hypot($fitres(C),$fitres(D))/$fitres(f0)/$fitres(df))}]
-    set fitres(ph)  [expr {180/3.1415926*atan2($fitres(C),$fitres(D))}]
-
-    # format values for interface
-    set fre_f [format $pars(fre_fmt) $fitres(f0)]
-    set wid_f [format $pars(wid_fmt) $fitres(df)]
-    set amp_f [format $pars(amp_fmt) $fitres(amp)]
-    set ph_f  [format $pars(ph_fmt)  $fitres(ph)]
-
-    # update plot
-    set G [tplot_sweep get_graph]
-
-    # delete previous fits
-    if {[$G element names fitx] != {}} {$G element delete fitx}
-    if {[$G element names fity] != {}} {$G element delete fity}
-    if {[$G element names oldx] != {}} {$G element delete oldx}
-    if {[$G element names oldy] != {}} {$G element delete oldy}
-
-    # add new fits
-    set f1 [$fv index 0]
-    set f2 [$fv index end]
-    fitf seq $f1 $f2 [expr ($f2-$f1)/1024]
-    fitx expr {$fitres(A) + ($fitres(C)*($fitres(f0)^2-fitf^2)+$fitres(D)*(fitf*$fitres(df)))/(($fitres(f0)^2-fitf^2)^2 + (fitf*$fitres(df))^2) + $fitres(E)*(fitf-$fitres(f0))}
-    fity expr {$fitres(B) + ($fitres(D)*($fitres(f0)^2-fitf^2)-$fitres(C)*(fitf*$fitres(df)))/(($fitres(f0)^2-fitf^2)^2 + (fitf*$fitres(df))^2) + $fitres(F)*(fitf-$fitres(f0))}
-
-    $G element create fitx -outline black -mapx xF -mapy y\
-       -xdata fitf -ydata fitx -symbol {}
-    $G element create fity -outline black -mapx xF -mapy y\
-       -xdata fitf -ydata fity -symbol {}
-
-    # add new data
-    oldf expr $fv
-    oldx expr $xv
-    oldy expr $yv
-    $G element create oldx -color #FF8080 -pixel 1.5 -mapx xF -mapy y\
-       -xdata oldf -ydata oldx -symbol circle
-    $G element create oldy -color #8080FF -pixel 1.5 -mapx xF -mapy y\
-       -xdata oldf -ydata oldy -symbol circle
-
-    # skip bad fits
-    if {$fitres(E)/$fitres(amp) > $pars(error_limit)} {error "Bad fit: [expr $fitres(E)/$fitres(amp)]"}
-
-    # values for result time plot
-    tplot_res add_data [list $fitres(T) $fitres(df) $fitres(f0) $fitres(amp)]
-
-    # put values into database
-    if {$pars(db_dev) != {} && $pars(res_db) != {}} {
-      $pars(db_dev) cmd put $pars(res_db) $fitres(T) [$::gen get_volt] [lrange $res 1 end]
-    }
-
-    # Adjust sweep parameters.
-    adjust_sweep_pars
-
-  }
+  if {[sweep_pan is_last] } { process_sweep_data }
 }
 
 ######################################################################
