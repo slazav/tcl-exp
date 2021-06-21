@@ -329,70 +329,39 @@ proc func_meas_e {} {
   }
 }
 
-# Build GUI frame in <root>
-proc func_mkint {w} {
-  global pars Tf Df
+######################################################################
+### GUI
+# top frame with measurement results
+proc mk_frame_top {w} {
+  frame $w
 
+  labelframe $w.fre -text {Frequency [Hz]}
+  label $w.fre.val -textvariable fre_f -font {-size 15} -text 0
+  pack $w.fre.val
 
-  ############################
-  # top frame with measurement results
-  frame $w.res
-  pack $w.res -fill x -expand 0
+  labelframe $w.wid -text {Width [Hz]}
+  label $w.wid.val -textvariable wid_f  -font {-size 15} -text 0
+  pack $w.wid.val
 
-  labelframe $w.res.fre -text {Frequency [Hz]}
-  label $w.res.fre.val -textvariable fre_f -font {-size 15} -text 0
-  pack $w.res.fre.val
+  labelframe $w.amp -text {Amplitude [Vrms]}
+  label $w.amp.val -textvariable amp_f  -font {-size 15} -text 0
+  pack $w.amp.val
 
-  labelframe $w.res.wid -text {Width [Hz]}
-  label $w.res.wid.val -textvariable wid_f  -font {-size 15} -text 0
-  pack $w.res.wid.val
+  labelframe $w.ph -text {Phase [deg]}
+  label $w.ph.val -textvariable ph_f  -font {-size 15} -text 0
+  pack $w.ph.val
 
-  labelframe $w.res.amp -text {Amplitude [Vrms]}
-  label $w.res.amp.val -textvariable amp_f  -font {-size 15} -text 0
-  pack $w.res.amp.val
+  pack $w.fre $w.wid $w.amp $w.ph -side left -fill x -expand 1
+}
 
-  labelframe $w.res.ph -text {Phase [deg]}
-  label $w.res.ph.val -textvariable ph_f  -font {-size 15} -text 0
-  pack $w.res.ph.val
+# measurement type frame (sweeps/offsets/resonance tabset)
+proc mk_frame_meas_tabs {w} {
+  global pars
 
-  pack $w.res.fre $w.res.wid $w.res.amp $w.res.ph -side left -fill x -expand 1
-
-  ############################
-  # tabs
-  blt::tabset $w.tabs
-  pack $w.tabs -fill both -expand 1
-
-  ############################
-  ### measurement frame
-  set f_meas $w.tabs.meas
-  frame $f_meas
-  $w.tabs insert end meas -window $f_meas\
-     -anchor n -text "Measurement" -fill both -padx 3 -pady 3
-
-  ####
-  # configuration frame
-  set f_conf $f_meas.conf
-  frame $f_conf
-
-
-  # lock-in panel
-  $::lockin make_widget $f_conf.lockin\
-    -title "Lock-in:" -bar_w 256
-  pack $f_conf.lockin -expand 0 -fill x -anchor ne
-  widget_bg $f_conf.lockin #F0E0F0
-
-  # generator panel
-  $::gen make_widget $f_conf.gen\
-    -title "Generator:" -show_offs 0 -show_phase 1 -show_ac_shift 1
-  pack $f_conf.gen -expand 0 -fill x -anchor ne
-  widget_bg $f_conf.gen #F0F0E0
-
-
-  blt::tabset $f_conf.meas_tabs
-  pack $f_conf.meas_tabs -expand 0 -fill x -anchor ne
-  set f_conf1 $f_conf.meas_tabs.conf_sweeps
+  blt::tabset $w
+  set f_conf1 $w.conf_sweeps
   frame $f_conf1
-  $f_conf.meas_tabs insert end conf1 -window $f_conf1\
+  $w insert end conf1 -window $f_conf1\
      -anchor n -text "Sweeps" -fill both -padx 3 -pady 3
  
   # sweep panel
@@ -452,9 +421,9 @@ proc func_mkint {w} {
 
   ###########
   ## offsets measurements
-  set f_conf2 $f_conf.meas_tabs.conf_offs
+  set f_conf2 $w.conf_offs
   frame $f_conf2
-  $f_conf.meas_tabs insert end conf2 -window $f_conf2\
+  $w insert end conf2 -window $f_conf2\
      -anchor n -text "Offsets" -fill both -padx 3 -pady 3
 
   labelframe $f_conf2.f1 -text "Generator AC offset"
@@ -468,13 +437,56 @@ proc func_mkint {w} {
 
   ###########
   ## resonance measurements
-  set f_conf3 $f_conf.meas_tabs.conf_res
+  set f_conf3 $w.conf_res
   frame $f_conf3
-  $f_conf.meas_tabs insert end conf3 -window $f_conf3\
+  $w insert end conf3 -window $f_conf3\
      -anchor n -text "Resonance" -fill both -padx 3 -pady 3
 
   button $f_conf3.start -command on_res_mode -text "Start"
   pack $f_conf3.start -expand 0 -fill x -anchor ne
+}
+
+
+# Build GUI frame in <root>
+proc func_mkint {w} {
+  global pars
+
+  ############################
+  # top frame with measurement results
+  mk_frame_top $w.res
+  pack $w.res -fill x -expand 0
+
+  ############################
+  # tabs
+  blt::tabset $w.tabs
+  pack $w.tabs -fill both -expand 1
+
+  ############################
+  ### measurement frame
+  set f_meas $w.tabs.meas
+  frame $f_meas
+  $w.tabs insert end meas -window $f_meas\
+     -anchor n -text "Measurement" -fill both -padx 3 -pady 3
+
+  ####
+  # configuration frame
+  set f_conf $f_meas.conf
+  frame $f_conf
+
+  mk_frame_meas_tabs $f_conf.meas_tabs
+  pack $f_conf.meas_tabs -expand 0 -fill x -anchor ne
+
+  # lock-in panel
+  $::lockin make_widget $f_conf.lockin\
+    -title "Lock-in:" -bar_w 256
+  pack $f_conf.lockin -expand 0 -fill x -anchor ne
+  widget_bg $f_conf.lockin #F0E0F0
+
+  # generator panel
+  $::gen make_widget $f_conf.gen\
+    -title "Generator:" -show_offs 0 -show_phase 1 -show_ac_shift 1
+  pack $f_conf.gen -expand 0 -fill x -anchor ne
+  widget_bg $f_conf.gen #F0F0E0
 
 
   ####
@@ -520,12 +532,8 @@ proc func_mkint {w} {
   $w.tabs insert end tplot_res -window $w.tabs.tplot\
      -anchor n -text "Time Plot" -fill both -padx 3 -pady 3
 
-
-
-
-
   ##########################################################################
-  # set sweep parameters from prefious fit
+  # set sweep parameters from previous fit
 
   if {$pars(set_from_res_db) && $pars(db_dev)!={} && $pars(res_db)!={}} {
     set last [lindex [$pars(db_dev) cmd get $pars(res_db)] 0]
