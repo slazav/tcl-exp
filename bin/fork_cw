@@ -91,8 +91,19 @@ set gen [DeviceRole $pars(gen_dev) ac_source];
 if {$pars(db_dev)!={}} { Device $pars(db_dev) }
 
 ##########################################################################
+
+# blt vectors for fit result
+blt::vector create fitf
+blt::vector create fitx
+blt::vector create fity
+blt::vector create oldf
+blt::vector create oldx
+blt::vector create oldy
+
+##########################################################################
 ## functions for the monitor class
 
+##########################################################################
 # This function is executed in the beginning of each step.
 # Here we get new frequncy and delay from sweeper and change
 # generator frequency.
@@ -112,14 +123,82 @@ proc func_meas {} {
   mon set_period [sweep_pan get_delay]
 }
 
-# blt vectors for fit result
-blt::vector create fitf
-blt::vector create fitx
-blt::vector create fity
-blt::vector create oldf
-blt::vector create oldx
-blt::vector create oldy
 
+##########################################################################
+# do adjustments after fitting data
+proc adjust_sweep_pars {} {
+
+  global pars
+  global fitres
+
+  # Note that sweep_pan set interface values which are validated
+  # and applied on the next step.
+
+  if {$pars(adj_freq) || $pars(adj_fspan)} {
+    set f1 [sweep_pan get_vmin]
+    set f2 [sweep_pan get_vmax]
+
+    if {$pars(adj_freq)} {
+      set sh [expr $fitres(f0)-($f1+$f2)/2.0]
+      set f1 [expr $f1+$sh]
+      set f2 [expr $f2+$sh]
+    }
+
+    if {$pars(adj_fspan)} {
+      set fcnt [expr ($f1+$f2)/2.0]
+      set span [expr abs($fitres(df)*$pars(fspan_size))]
+      set f1 [expr $fcnt - $span/2.0]
+      set f2 [expr $fcnt + $span/2.0]
+    }
+
+    set span [expr abs($f2-$f1)]
+    if {$f2 < $f1 } {
+      set f1 $f2
+      set f2 [expr $f1+$span]
+    }
+    if {$f1 < $pars(adj_fmin) } {
+      set f1 $pars(adj_fmin)
+      set f2 [expr $f1+$span]
+    }
+    if {$f2 > $pars(adj_fmax) } {
+      set f2 $pars(adj_fmax)
+      set f1 [expr $f2-$span]
+    }
+    sweep_pan set_vmin [format $pars(fre_fmt) $f1]
+    sweep_pan set_vmax [format $pars(fre_fmt) $f2]
+  }
+
+  if {$pars(adj_drive)} {
+    set v [$::gen get_volt]
+    set v [format $pars(drv_fmt) [expr $v*$pars(amp_target)/$fitres(amp)]]
+    if {$v > $pars(adj_dmax) } {set v $pars(adj_dmax)}
+    if {$v < $pars(adj_dmin) } {set v $pars(adj_dmin)}
+    $::gen set_volt $v
+  }\
+  else {
+    set pars(amp_target) [format %.4e $fitres(amp)]
+  }
+
+  if {$pars(adj_time)} {
+    set dt1  [expr 1.0/$fitres(df)]
+    set dt2  [$::lockin get_tconst]
+    set dt [expr 3.0*max($dt1,$dt2)]
+    if {$dt > $pars(adj_tmax) } {set dt $pars(adj_tmax)}
+    if {$dt < $pars(adj_tmin) } {set dt $pars(adj_tmin)}
+    set dtf [expr {[sweep_pan get_mode] eq "Both"? $dt : 10*$dt}]
+    sweep_pan set_dt   [format %.3f $dt]
+    sweep_pan set_dtf  [format %.3f $dtf]
+  }
+
+  if {$pars(adj_phase)} {
+    set p [$::gen get_phase]
+    set p [expr {$p + $fitres(ph)}]
+    $::gen set_phase [format %.2f $p]
+  }
+
+}
+
+##########################################################################
 # This function is executed after the delay, just before
 # the next step. Here we measure the new value and collect data.
 proc func_meas_e {} {
@@ -217,18 +296,14 @@ proc func_meas_e {} {
       if {$v == {}} {set v 0}
       set fitres($n) $v
     }
-    set fre $fitres(f0)
-    set wid $fitres(df)
-    set amp [expr {abs(hypot($fitres(C),$fitres(D))/$fre/$wid)}]
-    set ph  [expr {180/3.1415926*atan2($fitres(C),$fitres(D))}]
-
+    set fitres(amp) [expr {abs(hypot($fitres(C),$fitres(D))/$fitres(f0)/$fitres(df))}]
+    set fitres(ph)  [expr {180/3.1415926*atan2($fitres(C),$fitres(D))}]
 
     # format values for interface
-    set fre_f [format $pars(fre_fmt) $fre]
-    set wid_f [format $pars(wid_fmt) $wid]
-    set amp_f [format $pars(amp_fmt) $amp]
-    set ph_f  [format $pars(ph_fmt)  $ph]
-
+    set fre_f [format $pars(fre_fmt) $fitres(f0)]
+    set wid_f [format $pars(wid_fmt) $fitres(df)]
+    set amp_f [format $pars(amp_fmt) $fitres(amp)]
+    set ph_f  [format $pars(ph_fmt)  $fitres(ph)]
 
     # update plot
     set G [tplot_sweep get_graph]
@@ -243,8 +318,8 @@ proc func_meas_e {} {
     set f1 [$fv index 0]
     set f2 [$fv index end]
     fitf seq $f1 $f2 [expr ($f2-$f1)/1024]
-    fitx expr {$fitres(A) + ($fitres(C)*($fre^2-fitf^2)+$fitres(D)*(fitf*$wid))/(($fre^2-fitf^2)^2 + (fitf*$wid)^2) + $fitres(E)*(fitf-$fre)}
-    fity expr {$fitres(B) + ($fitres(D)*($fre^2-fitf^2)-$fitres(C)*(fitf*$wid))/(($fre^2-fitf^2)^2 + (fitf*$wid)^2) + $fitres(F)*(fitf-$fre)}
+    fitx expr {$fitres(A) + ($fitres(C)*($fitres(f0)^2-fitf^2)+$fitres(D)*(fitf*$fitres(df)))/(($fitres(f0)^2-fitf^2)^2 + (fitf*$fitres(df))^2) + $fitres(E)*(fitf-$fitres(f0))}
+    fity expr {$fitres(B) + ($fitres(D)*($fitres(f0)^2-fitf^2)-$fitres(C)*(fitf*$fitres(df)))/(($fitres(f0)^2-fitf^2)^2 + (fitf*$fitres(df))^2) + $fitres(F)*(fitf-$fitres(f0))}
 
     $G element create fitx -outline black -mapx xF -mapy y\
        -xdata fitf -ydata fitx -symbol {}
@@ -261,81 +336,18 @@ proc func_meas_e {} {
        -xdata oldf -ydata oldy -symbol circle
 
     # skip bad fits
-    if {$fitres(E)/$amp > $pars(error_limit)} {error "Bad fit: [expr $fitres(E)/$amp]"}
+    if {$fitres(E)/$fitres(amp) > $pars(error_limit)} {error "Bad fit: [expr $fitres(E)/$fitres(amp)]"}
 
     # values for result time plot
-    tplot_res add_data [list $fitres(T) $wid $fre $amp]
+    tplot_res add_data [list $fitres(T) $fitres(df) $fitres(f0) $fitres(amp)]
 
     # put values into database
     if {$pars(db_dev) != {} && $pars(res_db) != {}} {
       $pars(db_dev) cmd put $pars(res_db) $fitres(T) [$::gen get_volt] [lrange $res 1 end]
     }
 
-    # Adjust values.
-    # Note that sweep_pan set interface values which are validated
-    # and applied on the next step.
-
-    if {$pars(adj_freq) || $pars(adj_fspan)} {
-      set f1 [sweep_pan get_vmin]
-      set f2 [sweep_pan get_vmax]
-
-      if {$pars(adj_freq)} {
-        set sh [expr $fre-($f1+$f2)/2.0]
-        set f1 [expr $f1+$sh]
-        set f2 [expr $f2+$sh]
-      }
-
-      if {$pars(adj_fspan)} {
-        set fcnt [expr ($f1+$f2)/2.0]
-        set span [expr abs($wid*$pars(fspan_size))]
-        set f1 [expr $fcnt - $span/2.0]
-        set f2 [expr $fcnt + $span/2.0]
-      }
-
-      set span [expr abs($f2-$f1)]
-      if {$f2 < $f1 } {
-        set f1 $f2
-        set f2 [expr $f1+$span]
-      }
-      if {$f1 < $pars(adj_fmin) } {
-        set f1 $pars(adj_fmin)
-        set f2 [expr $f1+$span]
-      }
-      if {$f2 > $pars(adj_fmax) } {
-        set f2 $pars(adj_fmax)
-        set f1 [expr $f2-$span]
-      }
-      sweep_pan set_vmin [format $pars(fre_fmt) $f1]
-      sweep_pan set_vmax [format $pars(fre_fmt) $f2]
-    }
-
-    if {$pars(adj_drive)} {
-      set v [$::gen get_volt]
-      set v [format $pars(drv_fmt) [expr $v*$pars(amp_target)/$amp]]
-      if {$v > $pars(adj_dmax) } {set v $pars(adj_dmax)}
-      if {$v < $pars(adj_dmin) } {set v $pars(adj_dmin)}
-      $::gen set_volt $v
-    }\
-    else {
-      set pars(amp_target) [format %.4e $amp]
-    }
-
-    if {$pars(adj_time)} {
-      set dt1  [expr 1.0/$wid]
-      set dt2  [$::lockin get_tconst]
-      set dt [expr 3.0*max($dt1,$dt2)]
-      if {$dt > $pars(adj_tmax) } {set dt $pars(adj_tmax)}
-      if {$dt < $pars(adj_tmin) } {set dt $pars(adj_tmin)}
-      set dtf [expr {[sweep_pan get_mode] eq "Both"? $dt : 10*$dt}]
-      sweep_pan set_dt   [format %.3f $dt]
-      sweep_pan set_dtf  [format %.3f $dtf]
-    }
-
-    if {$pars(adj_phase)} {
-      set p [$::gen get_phase]
-      set p [expr {$p + $ph}]
-      $::gen set_phase [format %.2f $p]
-    }
+    # Adjust sweep parameters.
+    adjust_sweep_pars
 
   }
 }
