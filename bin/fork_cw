@@ -50,6 +50,8 @@ set default_pars {
   adj_dmin     {0.02}     {min limit for drive adjustment}
   adj_dmax     {20.0}     {max limit for drive adjustment}
   adj_time     {0}        {adjust timings, 0|1}
+  adj_tmin     {0.5}      {min limit for time adjustment}
+  adj_tmax     {20.0}     {max limit for time adjustment}
   adj_phase    {0}        {adjust phase, 0|1}
   fspan_size   {6}        {frequency span / width}
   amp_target   {1}        {amplitude target}
@@ -315,6 +317,8 @@ proc func_meas_e {} {
       set dt1  [expr 1.0/$wid]
       set dt2  [$::lockin get_tconst]
       set dt [expr 3.0*max($dt1,$dt2)]
+      if {$dt > $pars(adj_tmax) } {set dt $pars(adj_tmax)}
+      if {$dt < $pars(adj_tmin) } {set dt $pars(adj_tmin)}
       set dtf [expr {[sweep_pan get_mode] eq "Both"? $dt : 10*$dt}]
       sweep_pan set_dt   [format %.3f $dt]
       sweep_pan set_dtf  [format %.3f $dtf]
@@ -385,7 +389,7 @@ proc mk_frame_meas_tabs {w} {
   checkbutton $f.adj.f0  -text "Central frequency" -variable pars(adj_freq)
   checkbutton $f.adj.df  -text "Frequency span" -variable pars(adj_fspan)
   checkbutton $f.adj.drv -text "Drive (constant amplitude)" -variable pars(adj_drive)
-  checkbutton $f.adj.tt  -text "Timings" -variable pars(adj_time)
+  checkbutton $f.adj.tt  -text "Time step" -variable pars(adj_time)
   checkbutton $f.adj.ph  -text "Phase" -variable pars(adj_phase)
 
   label $f.adj.am_l -text "Target amplitude:"
@@ -422,6 +426,12 @@ proc mk_frame_meas_tabs {w} {
   entry $f.dmax -width 10 -textvariable pars(adj_dmax)
   grid $f.dlim_l -sticky nw -columnspan 2
   grid $f.dmin $f.dmax -sticky nw
+
+  label $f.tlim_l -text "Time step limits:"
+  entry $f.tmin -width 10 -textvariable pars(adj_tmin)
+  entry $f.tmax -width 10 -textvariable pars(adj_tmax)
+  grid $f.tlim_l -sticky nw -columnspan 2
+  grid $f.tmin $f.tmax -sticky nw
 
   ###########
   ## offsets measurements
