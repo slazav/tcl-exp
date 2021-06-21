@@ -45,7 +45,7 @@ set default_pars {
   adj_freq     {0}        {adjust central frequency, 0|1}
   adj_fspan    {0}        {adjust frequency span, 0|1}
   adj_fmin     {0}        {min frequency limit for adjustment}
-  adj_fmax     {2000}     {max frequency limit for adjustment}
+  adj_fmax     {10000}    {max frequency limit for adjustment}
   adj_drive    {0}        {adjust drive, 0|1}
   adj_dmin     {0.02}     {min limit for drive adjustment}
   adj_dmax     {20.0}     {max limit for drive adjustment}
@@ -278,26 +278,33 @@ proc func_meas_e {} {
     if {$pars(adj_freq) || $pars(adj_fspan)} {
       set f1 [sweep_pan get_vmin]
       set f2 [sweep_pan get_vmax]
-    }
 
-    if {$pars(adj_freq)} {
-      set sh [expr $fre-($f1+$f2)/2.0]
-      set f1 [expr $f1+$sh]
-      set f2 [expr $f2+$sh]
-    }
+      if {$pars(adj_freq)} {
+        set sh [expr $fre-($f1+$f2)/2.0]
+        set f1 [expr $f1+$sh]
+        set f2 [expr $f2+$sh]
+      }
 
-    if {$pars(adj_fspan)} {
-      set fcnt [expr ($f1+$f2)/2.0]
-      set span [expr $wid*$pars(fspan_size)]
-      set f1 [expr $fcnt - $span/2.0]
-      set f2 [expr $fcnt + $span/2.0]
-    }
+      if {$pars(adj_fspan)} {
+        set fcnt [expr ($f1+$f2)/2.0]
+        set span [expr abs($wid*$pars(fspan_size))]
+        set f1 [expr $fcnt - $span/2.0]
+        set f2 [expr $fcnt + $span/2.0]
+      }
 
-    if {$pars(adj_freq) || $pars(adj_fspan)} {
-      if {$f1 > $pars(adj_fmax) } {set f1 $pars(adj_fmax)}
-      if {$f1 < $pars(adj_fmin) } {set f1 $pars(adj_fmin)}
-      if {$f2 > $pars(adj_fmax) } {set f2 $pars(adj_fmax)}
-      if {$f2 < $pars(adj_fmin) } {set f2 $pars(adj_fmin)}
+      set span [expr abs($f2-$f1)]
+      if {$f2 < $f1 } {
+        set f1 $f2
+        set f2 [expr $f1+$span]
+      }
+      if {$f1 < $pars(adj_fmin) } {
+        set f1 $pars(adj_fmin)
+        set f2 [expr $f1+$span]
+      }
+      if {$f2 > $pars(adj_fmax) } {
+        set f2 $pars(adj_fmax)
+        set f1 [expr $f2-$span]
+      }
       sweep_pan set_vmin [format $pars(fre_fmt) $f1]
       sweep_pan set_vmax [format $pars(fre_fmt) $f2]
     }
