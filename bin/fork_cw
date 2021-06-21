@@ -54,6 +54,7 @@ set default_pars {
   fspan_size   {6}        {frequency span / width}
   amp_target   {1}        {amplitude target}
   set_from_res_db {0}     {set initial sweep parameters using last value from res_db}
+  meas_mode    {sweeps}    {sweeps/resonance}
 }
 
 if {[llength $argv]>0 } {
@@ -373,8 +374,29 @@ proc func_mkint {w} {
   set f_conf $f_meas.conf
   frame $f_conf
 
+
+  # lock-in panel
+  $::lockin make_widget $f_conf.lockin\
+    -title "Lock-in:" -bar_w 256
+  pack $f_conf.lockin -expand 0 -fill x -anchor ne
+  widget_bg $f_conf.lockin #F0E0F0
+
+  # generator panel
+  $::gen make_widget $f_conf.gen\
+    -title "Generator:" -show_offs 0 -show_phase 1 -show_ac_shift 1
+  pack $f_conf.gen -expand 0 -fill x -anchor ne
+  widget_bg $f_conf.gen #F0F0E0
+
+
+  blt::tabset $f_conf.meas_tabs
+  pack $f_conf.meas_tabs -expand 0 -fill x -anchor ne
+  set f_conf1 $f_conf.meas_tabs.conf_sweeps
+  frame $f_conf1
+  $f_conf.meas_tabs insert end conf1 -window $f_conf1\
+     -anchor n -text "Sweeps" -fill both -padx 3 -pady 3
+ 
   # sweep panel
-  widget_sweep sweep_pan $f_conf.sw\
+  widget_sweep sweep_pan $f_conf1.sw\
     -title "Sweeps:"\
     -vmin_label "F1" -vmax_label "F2"\
     -vmin $pars(fmin) -vmax $pars(fmax)\
@@ -385,23 +407,11 @@ proc func_mkint {w} {
     -dt   $pars(dt)\
     -dtf  $pars(dtf)
 
-  pack $f_conf.sw -expand 0 -fill x -anchor ne
-  widget_bg $f_conf.sw #E0F0F0
-
-  # lock-in panel
-  $::lockin make_widget $f_conf.lockin\
-    -title "Lock-in:" -bar_w 256
-  pack $f_conf.lockin -expand 0 -fill x -anchor ne
-  widget_bg $f_conf.lockin #F0E0F0
-
-  # generator panel
-  $::gen make_widget $f_conf.gen\
-    -title "Generator:" -show_offs 0 -show_phase 1
-  pack $f_conf.gen -expand 0 -fill x -anchor ne
-  widget_bg $f_conf.gen #F0F0E0
+  pack $f_conf1.sw -expand 0 -fill x -anchor ne
+  widget_bg $f_conf1.sw #E0F0F0
 
   # adjust panel
-  set ajd_pan $f_conf.adj
+  set ajd_pan $f_conf1.adj
   labelframe $ajd_pan -text "Adjust:" -font {-weight bold -size 10}
   checkbutton $ajd_pan.f0  -text "Central frequency" -variable pars(adj_freq)
   checkbutton $ajd_pan.df  -text "Frequency span" -variable pars(adj_fspan)
@@ -439,6 +449,32 @@ proc func_mkint {w} {
 
   pack $ajd_pan -expand 0 -fill x -anchor ne
   widget_bg $ajd_pan #E0E0F0
+
+  ###########
+  ## offsets measurements
+  set f_conf2 $f_conf.meas_tabs.conf_offs
+  frame $f_conf2
+  $f_conf.meas_tabs insert end conf2 -window $f_conf2\
+     -anchor n -text "Offsets" -fill both -padx 3 -pady 3
+
+  labelframe $f_conf2.f1 -text "Generator AC offset"
+  pack $f_conf2.f1 -expand 0 -fill x -anchor ne
+
+  button $f_conf2.f1.meas  -command set_ac_shift -text "Measure and set"
+  button $f_conf2.f1.reset -command clear_ac_shift -text "Reset to zero"
+  pack $f_conf2.f1.meas -expand 0 -fill x -anchor ne
+  pack $f_conf2.f1.reset -expand 0 -fill x -anchor ne
+
+
+  ###########
+  ## resonance measurements
+  set f_conf3 $f_conf.meas_tabs.conf_res
+  frame $f_conf3
+  $f_conf.meas_tabs insert end conf3 -window $f_conf3\
+     -anchor n -text "Resonance" -fill both -padx 3 -pady 3
+
+  button $f_conf3.start -command on_res_mode -text "Start"
+  pack $f_conf3.start -expand 0 -fill x -anchor ne
 
 
   ####
@@ -485,6 +521,9 @@ proc func_mkint {w} {
      -anchor n -text "Time Plot" -fill both -padx 3 -pady 3
 
 
+
+
+
   ##########################################################################
   # set sweep parameters from prefious fit
 
@@ -508,6 +547,55 @@ proc func_mkint {w} {
   }
 }
 
+proc on_res_mode {} {
+  global fitres pars
+  if {![array exists fitres] ||
+       [array names fitres -exact A] == {} ||
+       [array names fitres -exact B] == {} ||
+       [array names fitres -exact C] == {} ||
+       [array names fitres -exact D] == {} ||
+       [array names fitres -exact E] == {} ||
+       [array names fitres -exact F] == {}} {
+    set pars(meas_mode) "sweeps"
+    return
+  }
+  sweep_pan stop
+}
+
+
+proc set_ac_shift {} {
+  $::gen set_ac_shift 0
+  set ph [$::gen get_phase]
+  set v0 [$::gen get_volt]
+  set dt [expr round(5*[$::lockin get_tconst]*1000)]
+
+  after $dt
+  set XY1 [$::lockin get]
+  $::gen set_phase [expr $ph+180]
+
+  after $dt
+  set XY2 [$::lockin get]
+
+  set x1 [lindex $XY1 0]
+  set y1 [lindex $XY1 1]
+  set x2 [lindex $XY2 0]
+  set y2 [lindex $XY2 1]
+
+  # abs(V2-V1), abs(V2+V1)
+  set Am [expr {sqrt(($x2-$x1)**2 + ($y2-$y1)**2)}]
+  set Ap [expr {sqrt(($x2+$x1)**2 + ($y2+$y1)**2)}]
+
+  # arg(V2-V1), arg(V2+V1)
+  set Pm [expr {180/3.148926*atan2($y2-$y1, $x2-$x1)}]
+  set Pp [expr {180/3.148926*atan2($y2+$y1, $x2+$x1)}]
+
+  $::gen set_phase [expr $ph+$Pm-$Pp]
+  $::gen set_ac_shift [format %.4f [expr $v0*$Ap/$Am]]
+}
+
+proc clear_ac_shift {} {
+  $::gen set_ac_shift 0
+}
 
 ##########################################################################
 ##########################################################################
