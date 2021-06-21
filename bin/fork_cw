@@ -359,13 +359,14 @@ proc mk_frame_meas_tabs {w} {
   global pars
 
   blt::tabset $w
-  set f_conf1 $w.conf_sweeps
-  frame $f_conf1
-  $w insert end conf1 -window $f_conf1\
+
+  set f $w.sweeps
+  frame $f
+  $w insert end sweeps -window $f\
      -anchor n -text "Sweeps" -fill both -padx 3 -pady 3
  
   # sweep panel
-  widget_sweep sweep_pan $f_conf1.sw\
+  widget_sweep sweep_pan $f.sw\
     -title "Sweeps:"\
     -vmin_label "F1" -vmax_label "F2"\
     -vmin $pars(fmin) -vmax $pars(fmax)\
@@ -376,74 +377,77 @@ proc mk_frame_meas_tabs {w} {
     -dt   $pars(dt)\
     -dtf  $pars(dtf)
 
-  pack $f_conf1.sw -expand 0 -fill x -anchor ne
-  widget_bg $f_conf1.sw #E0F0F0
+  pack $f.sw -expand 0 -fill x -anchor ne
+  widget_bg $f.sw #E0F0F0
 
   # adjust panel
-  set ajd_pan $f_conf1.adj
-  labelframe $ajd_pan -text "Adjust:" -font {-weight bold -size 10}
-  checkbutton $ajd_pan.f0  -text "Central frequency" -variable pars(adj_freq)
-  checkbutton $ajd_pan.df  -text "Frequency span" -variable pars(adj_fspan)
-  checkbutton $ajd_pan.drv -text "Drive (constant amplitude)" -variable pars(adj_drive)
-  checkbutton $ajd_pan.tt  -text "Timings" -variable pars(adj_time)
-  checkbutton $ajd_pan.ph  -text "Phase" -variable pars(adj_phase)
+  labelframe $f.adj -text "Adjust:" -font {-weight bold -size 10}
+  checkbutton $f.adj.f0  -text "Central frequency" -variable pars(adj_freq)
+  checkbutton $f.adj.df  -text "Frequency span" -variable pars(adj_fspan)
+  checkbutton $f.adj.drv -text "Drive (constant amplitude)" -variable pars(adj_drive)
+  checkbutton $f.adj.tt  -text "Timings" -variable pars(adj_time)
+  checkbutton $f.adj.ph  -text "Phase" -variable pars(adj_phase)
 
-  frame $ajd_pan.fspan
-  label $ajd_pan.fspan.l -text "Span size (in line widths):"
-  entry $ajd_pan.fspan.v -width 4 -textvariable pars(fspan_size)
-  pack $ajd_pan.fspan.l $ajd_pan.fspan.v  -side left -padx 5
+  label $f.adj.am_l -text "Target amplitude:"
+  entry $f.adj.am_v -width 12 -textvariable pars(amp_target)
 
-  frame $ajd_pan.flim
-  label $ajd_pan.flim.l -text "Limits:"
-  entry $ajd_pan.flim.fmin -width 10 -textvariable pars(adj_fmin)
-  entry $ajd_pan.flim.fmax -width 10 -textvariable pars(adj_fmax)
-  pack $ajd_pan.flim.l $ajd_pan.flim.fmin $ajd_pan.flim.fmax -side left -padx 5
+  grid $f.adj.f0 $f.adj.df  -sticky nw
+  grid $f.adj.drv -sticky nw -columnspan 2
+  grid $f.adj.am_l $f.adj.am_v -sticky nw -padx 5 -pady 2
+  grid $f.adj.tt $f.adj.ph  -sticky nw
 
-  label $ajd_pan.am_l -text "Target amplitude:"
-  entry $ajd_pan.am_v -width 12 -textvariable pars(amp_target)
+  pack $f.adj -expand 0 -fill x -anchor ne
+  widget_bg $f.adj #E0E0F0
 
-  frame $ajd_pan.dlim
-  label $ajd_pan.dlim.l -text "Limits:"
-  entry $ajd_pan.dlim.min -width 10 -textvariable pars(adj_dmin)
-  entry $ajd_pan.dlim.max -width 10 -textvariable pars(adj_dmax)
-  pack $ajd_pan.dlim.l $ajd_pan.dlim.min $ajd_pan.dlim.max -side left -padx 5
+  ###########
+  ## adjustment parameters
 
-  grid $ajd_pan.f0 $ajd_pan.df  -sticky nw
-  grid $ajd_pan.fspan -sticky nw -columnspan 2
-  grid $ajd_pan.flim -sticky nw -columnspan 2
-  grid $ajd_pan.drv -sticky nw -columnspan 2
-  grid $ajd_pan.dlim -sticky nw -columnspan 2
-  grid $ajd_pan.am_l $ajd_pan.am_v -sticky nw -padx 5 -pady 2
-  grid $ajd_pan.tt $ajd_pan.ph  -sticky nw
+  set f $w.adjpar
+  frame $f
+  $w insert end adjpar -window $f\
+     -anchor n -text "Adj.Pars" -fill both -padx 3 -pady 3
 
-  pack $ajd_pan -expand 0 -fill x -anchor ne
-  widget_bg $ajd_pan #E0E0F0
+  label $f.fspan_l -text "Span size (in line widths):"
+  entry $f.fspan_v -width 4 -textvariable pars(fspan_size)
+  grid $f.fspan_l $f.fspan_v -sticky nw
+
+  label $f.flim_l -text "Frequency limits:"
+  entry $f.fmin -width 10 -textvariable pars(adj_fmin)
+  entry $f.fmax -width 10 -textvariable pars(adj_fmax)
+  grid $f.flim_l -sticky nw -columnspan 2
+  grid $f.fmin $f.fmax -sticky nw
+
+  label $f.dlim_l -text "Drive limits:"
+  entry $f.dmin -width 10 -textvariable pars(adj_dmin)
+  entry $f.dmax -width 10 -textvariable pars(adj_dmax)
+  grid $f.dlim_l -sticky nw -columnspan 2
+  grid $f.dmin $f.dmax -sticky nw
 
   ###########
   ## offsets measurements
-  set f_conf2 $w.conf_offs
-  frame $f_conf2
-  $w insert end conf2 -window $f_conf2\
+  set f $w.conf_offs
+  frame $f
+  $w insert end offs -window $f\
      -anchor n -text "Offsets" -fill both -padx 3 -pady 3
 
-  labelframe $f_conf2.f1 -text "Generator AC offset"
-  pack $f_conf2.f1 -expand 0 -fill x -anchor ne
+  labelframe $f.f1 -text "Generator AC offset"
+  pack $f.f1 -expand 0 -fill x -anchor ne
 
-  button $f_conf2.f1.meas  -command set_ac_shift -text "Measure and set"
-  button $f_conf2.f1.reset -command clear_ac_shift -text "Reset to zero"
-  pack $f_conf2.f1.meas -expand 0 -fill x -anchor ne
-  pack $f_conf2.f1.reset -expand 0 -fill x -anchor ne
+  button $f.f1.meas  -command set_ac_shift -text "Measure and set"
+  button $f.f1.reset -command clear_ac_shift -text "Reset to zero"
+  pack $f.f1.meas -expand 0 -fill x -anchor ne
+  pack $f.f1.reset -expand 0 -fill x -anchor ne
 
 
   ###########
   ## resonance measurements
-  set f_conf3 $w.conf_res
-  frame $f_conf3
-  $w insert end conf3 -window $f_conf3\
+  set f $w.conf_res
+  frame $f
+  $w insert end conf3 -window $f\
      -anchor n -text "Resonance" -fill both -padx 3 -pady 3
 
-  button $f_conf3.start -command on_res_mode -text "Start"
-  pack $f_conf3.start -expand 0 -fill x -anchor ne
+  button $f.start -command on_res_mode -text "Start"
+  pack $f.start -expand 0 -fill x -anchor ne
 }
 
 
