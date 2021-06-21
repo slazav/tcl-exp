@@ -121,6 +121,7 @@ blt::vector create oldy
 # the next step. Here we measure the new value and collect data.
 proc func_meas_e {} {
   global pars
+  global fitres
   global fre wid amp ph
   global fre_f wid_f amp_f ph_f
 
