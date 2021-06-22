@@ -10,6 +10,7 @@
 #   -limit_min -limit_max   -- min/max limit for the parameter.
 #   -vmin_label -vmax_label -- interface labels for min/max values
 #   -mode -- sweep mode ("Up" "Down" "Both", "Pair")
+#   -show_mode -- Show mode combobox (1|0, default 1)
 #   -on   -- initial state, 1|0, default 1
 #   -idle_delay -- delay in OFF mode
 #   -bar_w -bar_h -- dimensions of the progress bar. Defaultt 256,10. Set to 0 to hide the bar.
@@ -78,6 +79,7 @@ itcl::class widget_sweep {
   variable restart_fl 0; # set by "restart" method/button
   variable stop_fl 0;    # set by "stop" method/button
   variable finished 0;
+  variable show_mode 1;
 
   # interface values
   variable vmin_i  0
@@ -107,6 +109,7 @@ itcl::class widget_sweep {
       {-dt}          dt_i        1\
       {-dtf}         dtf_i       1\
       {-mode}        mode_i    "Both"\
+      {-show_mode}   show_mode  1\
       {-on}          on        1\
       {-limit_max}   lim_max   +inf\
       {-limit_min}   lim_min   -inf\
@@ -147,15 +150,20 @@ itcl::class widget_sweep {
     grid $root.dtf_l $root.dtf -columnspan 3 -padx 5 -pady 2 -sticky e
 
     frame $root.btns
-    button $root.btns.rbtn -text "(Re)start" -command "$this restart"
-    button $root.btns.sbtn -text "Stop"    -command "$this stop"
 
     # mode combobox
-    ttk::combobox $root.btns.mode -width 9 -textvariable [itcl::scope mode_i] -state readonly
-    bind $root.btns.mode <<ComboboxSelected>> "set [itcl::scope scnt] 0"
-    $root.btns.mode  configure -values {"Up" "Down" "Both" "Pair"}
+    if {$show_mode} {
+      ttk::combobox $root.btns.mode -width 9 -textvariable [itcl::scope mode_i] -state readonly
+      bind $root.btns.mode <<ComboboxSelected>> "set [itcl::scope scnt] 0"
+      $root.btns.mode  configure -values {"Up" "Down" "Both" "Pair"}
+      pack $root.btns.mode -side left -anchor e -fill x -expand 1
+    }
 
-    pack $root.btns.rbtn $root.btns.sbtn $root.btns.mode -side left -anchor e -fill x -expand 1
+    # start/stop buttons
+    button $root.btns.rbtn -text "(Re)start" -command "$this restart"
+    button $root.btns.sbtn -text "Stop"    -command "$this stop"
+    pack $root.btns.rbtn $root.btns.sbtn -side left -anchor e -fill x -expand 1
+
     grid $root.btns -columnspan 4 -sticky ew
 
     if {$color ne {}} {widget_bg $root $color}
