@@ -13,6 +13,8 @@
 #   -show_mode -- Show mode combobox (1|0, default 1)
 #   -on   -- initial state, 1|0, default 1
 #   -idle_delay -- delay in OFF mode
+#   -cmd_start  -- Run command when start button is pressed
+#   -cmd_stop   -- Run command when stop button is pressed
 #   -bar_w -bar_h -- dimensions of the progress bar. Defaultt 256,10. Set to 0 to hide the bar.
 #   -color        -- configure interface color
 #
@@ -80,6 +82,8 @@ itcl::class widget_sweep {
   variable stop_fl 0;    # set by "stop" method/button
   variable finished 0;
   variable show_mode 1;
+  variable cmd_start {};
+  variable cmd_stop {};
 
   # interface values
   variable vmin_i  0
@@ -114,6 +118,8 @@ itcl::class widget_sweep {
       {-limit_max}   lim_max   +inf\
       {-limit_min}   lim_min   -inf\
       {-idle_delay}  dt0       1\
+      {-cmd_start}   cmd_start  {}\
+      {-cmd_stop}   cmd_stop   {}\
       {-bar_w}       bar_w     256\
       {-bar_h}       bar_h     10\
       {-color}       color     {}\
@@ -193,10 +199,16 @@ itcl::class widget_sweep {
 
 
   # restart sweep
-  method restart {} { set restart_fl 1 }
+  method restart {} {
+    if {$cmd_start !={}} {eval $cmd_start}
+    set restart_fl 1
+  }
 
   # stop sweep
-  method stop {} { set stop_fl 1 }
+  method stop {} {
+    if {$cmd_stop !={}} {eval $cmd_stop}
+    set stop_fl 1
+  }
 
   method do_step {} {
 
