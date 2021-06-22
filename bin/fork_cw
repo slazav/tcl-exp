@@ -73,7 +73,7 @@ tk appname "$pars(name)"
 ##########################################################################
 ##########################################################################
 
-# last measurel values
+# last measured values
 set fre {};
 set wid {};
 set amp {};
@@ -99,11 +99,6 @@ blt::vector create fity
 blt::vector create oldf
 blt::vector create oldx
 blt::vector create oldy
-
-##########################################################################
-## functions for the monitor class
-
-
 
 ##########################################################################
 # do adjustments after fitting data
@@ -457,9 +452,7 @@ proc mk_frame_meas_tabs {w} {
 
   button $f.f1.meas  -command set_ac_shift -text "Measure and set"
   button $f.f1.reset -command clear_ac_shift -text "Reset to zero"
-  pack $f.f1.meas -expand 0 -fill x -anchor ne
-  pack $f.f1.reset -expand 0 -fill x -anchor ne
-
+  pack $f.f1.meas $f.f1.reset -expand 0 -fill x -anchor ne -side left
 
   ###########
   ## resonance measurements
