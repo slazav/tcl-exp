@@ -224,7 +224,7 @@ proc process_sweep_data {} {
   # result, 14 values:
   global fitres
   array unset fitres
-  foreach n {T E A Ae B Be C Ce D De f0 f0e df dfe E Ee F Fe} v $res {
+  foreach n {T err A Ae B Be C Ce D De f0 f0e df dfe E Ee F Fe} v $res {
     if {$v == {}} {set v 0}
     set fitres($n) $v
   }
@@ -269,7 +269,7 @@ proc process_sweep_data {} {
      -xdata oldf -ydata oldy -symbol circle
 
   # skip bad fits
-  if {$fitres(E)/$fitres(amp) > $pars(error_limit)} {error "Bad fit: [expr $fitres(E)/$fitres(amp)]"}
+  if {$fitres(err)/$fitres(amp) > $pars(error_limit)} {error "Bad fit: [expr $fitres(err)/$fitres(amp)]"}
 
   # values for result time plot
   tplot_res add_data [list $fitres(T) $fitres(df) $fitres(f0) $fitres(amp)]
