@@ -44,7 +44,7 @@ if {$cmd == "sweep_pair"} {
   if {$v != {}} {send $app {$gen} set_volt $v}
   send $app sweep_pan set_mode "Pair"
   send $app sweep_pan restart
-  after 200
+  send $app sweep_pan do_step
   while {[send $app sweep_pan is_on]} {
     after 200
   }
@@ -52,7 +52,7 @@ if {$cmd == "sweep_pair"} {
 }
 
 
-puts "Unknown commend: $cmd"
+puts "Unknown command: $cmd"
 
 
 ######################################################################
