@@ -162,13 +162,12 @@ itcl::class manual_db {
     for {set i 1} {$i<$num} {incr i} {
       set r [lindex [$dbdev cmd get_prev $dbname $t] 0]
       if {$r=={}} {break}
-      set t [lindex $r 0]
-      set v [$func_fmt [lrange $r 1 end]]
+      regexp {^ *(\S+) +(.*)$} $r x t v
       set ts [clock format [expr int($t)] -format "%Y-%m-%d %H:%M:%S"]
       if {$i < [$listbox size]} {$listbox delete $i}
-      $listbox insert $i "$ts $v"
+      $listbox insert $i "$ts [$func_fmt $v]"
       set lst($i) $t
-      set data($i) $r
+      set data($i) $v
       set t "$t-"; # it will be passed to $dbdev command
     }
     DeviceDelete [namespace current]::$dbdev
@@ -222,9 +221,7 @@ itcl::class manual_db {
     if {$i=={}} { return }
     if {$i!=0} {
       set t $lst($i)
-      set r $data($i)
-      set t [lindex $r 0]
-      $func_set [lrange $r 1 end]
+      $func_set $data($i)
       set tstamp [clock format [expr int($t)] -format "%Y-%m-%d %H:%M:%S"]
       .f1.new_btn configure -state disabled
       .f1.mod_btn configure -state active

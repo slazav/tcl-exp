@@ -32,6 +32,7 @@ tk appname "$pars(name)"
 ##########################################################################
 set T0  {};      # last measured time (seconds)
 set D0  {};      # last measured data (list)
+set ps_pr 0;     # previous value of ps heater voltage
 
 array unset Df;  # formatted data (see -dfmt option)
 set Tf  {};  # current formatted time (-tfmt option)
@@ -85,7 +86,7 @@ proc func_stop {} {
 
 # Do a single measurement, return data
 proc func_meas {} {
-  global pars capbr_d T0 D0 D1 Tf Df D1f
+  global pars capbr_d T0 D0 D1 Tf Df D1f ps_pr
 
   set T0 [expr [clock microseconds]/1e6]
   if {$pars(mplex_dev) eq {}} {
@@ -167,12 +168,18 @@ proc func_meas {} {
       $pars(db_dev) cmd put_flt Rbath$i $T0 $D(R$i)
     }
     $pars(db_dev) cmd put_flt he_level $T0 $D(he_level) $D(he_level_cnv)
-    $pars(db_dev) cmd put_flt demag_i  $T0 $D(demag_i)  $D(demag_i_cnv)
-    $pars(db_dev) cmd put_flt demag_v  $T0 $D(demag_v)
+    $pars(db_dev) cmd put_flt demag_vi $T0 $D(demag_v) $D(demag_i)
+    if {$D(demag_ps) > 4.0} {
+      $pars(db_dev) cmd put_flt demag_pc $T0 $D(demag_v) $D(demag_i)
+    }
+    if {$D(demag_ps) < 4.0 && $ps_pr >= 4.0} {
+      $pars(db_dev) cmd put comments $T0 "demag -> [format %.3f $D(demag_i_cnv)] A"
+    }
     $pars(db_dev) cmd put_flt demag_ps $T0 $D(demag_ps)
     $pars(db_dev) cmd put_flt press_cell_cap $T0 $D(press_cell_c) $D(press_cell_l)
     $pars(db_dev) cmd sync
   }
+  set ps_pr $D(demag_ps)
 }
 
 # Build GUI frame in <root> (user-supplied function)

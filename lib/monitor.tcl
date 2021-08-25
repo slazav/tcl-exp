@@ -286,8 +286,7 @@ itcl::class Monitor {
   method stop {} {
     set onoff_fl 0
     if {$::errorInfo != {}} {return}
-    if {!$is_opened} { set_status ""}\
-    else { set_status "Stopping..."}
+    if {$is_opened} { set_status "Stopping..."}
 
     # If we are waiting for a next measurement interrupt the waiting
     if {$loop_handle != {} && !$wait_meas} {

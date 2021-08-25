@@ -23,9 +23,6 @@ set default_pars {
   res_db       {}         {fit result database}
   sweep_db     {}         {sweep database (record all measured points: T, F,X,Y)}
   pars_db      {}         {sweep parameters database (record sweep parameters: T0, dT, vmin, vmax, npts, dt, dtf, dir, volt, ph)}
-  record_res   {1}        {record fit results checkbox}
-  record_sweep {1}        {record sweep data checkbox}
-  record_pars  {1}        {record sweep parameters checkbox}
   limit_fmin   {0}        {sweep low limit}
   limit_fmax   {inf}      {sweep high limit}
   fmin         {600}      {starting value for sweep low end}
@@ -40,17 +37,31 @@ set default_pars {
   amp_fmt      {%.3e}     {amp format string for the interface}
   fre_fmt      {%.3f}     {fre format string for the interface}
   wid_fmt      {%.3f}     {wid format string for the interface}
+  drv_fmt      {%.3f}     {drive format string for adjustments}
   ph_fmt       {%.1f}     {phase format string for the interface}
   vertical     0          {vertical design of the intereface}
+  geometry     {}         {set initial window geometry}
   plot_maxt    {600}      {timeplot span}
   adj_freq     {0}        {adjust central frequency, 0|1}
   adj_fspan    {0}        {adjust frequency span, 0|1}
+  adj_fmin     {0}        {min frequency limit for adjustment}
+  adj_fmax     {10000}    {max frequency limit for adjustment}
   adj_drive    {0}        {adjust drive, 0|1}
+  adj_dmin     {0.02}     {min limit for drive adjustment}
+  adj_dmax     {20.0}     {max limit for drive adjustment}
   adj_time     {0}        {adjust timings, 0|1}
+  adj_tmin     {0.5}      {min limit for time adjustment}
+  adj_tmax     {20.0}     {max limit for time adjustment}
   adj_phase    {0}        {adjust phase, 0|1}
   fspan_size   {6}        {frequency span / width}
   amp_target   {1}        {amplitude target}
   set_from_res_db {0}     {set initial sweep parameters using last value from res_db}
+  bg_fmin      {100}      {starting value for background measurement low end}
+  bg_fmax      {5000}     {starting value for background measurement high end}
+  bg_npts      {300}      {starting value for background measurement number of points}
+  bg_dt        {0.5}      {starting value for background measurement period}
+  bg_dtf       {1}        {starting value for background measurement first point delay}
+  meas_mode    {sweep}    {measurement mode: sweep, bgsweep, resonance}
 }
 
 if {[llength $argv]>0 } {
@@ -60,12 +71,14 @@ else {
   foreach {name def title} $default_pars { set pars($name) $def }
 }
 
+array unset fitres
+
 tk appname "$pars(name)"
 
 ##########################################################################
 ##########################################################################
 
-# last measurel values
+# last measured values
 set fre {};
 set wid {};
 set amp {};
@@ -83,26 +96,6 @@ set gen [DeviceRole $pars(gen_dev) ac_source];
 if {$pars(db_dev)!={}} { Device $pars(db_dev) }
 
 ##########################################################################
-## functions for the monitor class
-
-# This function is executed in the beginning of each step.
-# Here we get new frequncy and delay from sweeper and change
-# generator frequency.
-proc func_meas {} {
-  global pars
-  sweep_pan do_step
-
-  # set generator panel to readonly state when sweeper is active
-  #$::gen readonly [sweep_pan is_on]
-
-  # set generator frequency
-  if {[sweep_pan is_on] } {
-    $::gen set_freq [sweep_pan get_val]
-  }
-
-  # set monitor period
-  mon set_period [sweep_pan get_delay]
-}
 
 # blt vectors for fit result
 blt::vector create fitf
@@ -112,25 +105,299 @@ blt::vector create oldf
 blt::vector create oldx
 blt::vector create oldy
 
+blt::vector create bgf
+blt::vector create bgx
+blt::vector create bgy
+
+##########################################################################
+# do adjustments after fitting data
+proc adjust_sweep_pars {} {
+
+  global pars
+  global fitres
+
+  # Note that sweep_pan set interface values which are validated
+  # and applied on the next step.
+
+  if {$pars(adj_freq) || $pars(adj_fspan)} {
+    set f1 [sweep_pan get_vmin]
+    set f2 [sweep_pan get_vmax]
+
+    if {$pars(adj_freq)} {
+      set sh [expr $fitres(f0)-($f1+$f2)/2.0]
+      set f1 [expr $f1+$sh]
+      set f2 [expr $f2+$sh]
+    }
+
+    if {$pars(adj_fspan)} {
+      set fcnt [expr ($f1+$f2)/2.0]
+      set span [expr abs($fitres(df)*$pars(fspan_size))]
+      set f1 [expr $fcnt - $span/2.0]
+      set f2 [expr $fcnt + $span/2.0]
+    }
+
+    set span [expr abs($f2-$f1)]
+    if {$f2 < $f1 } {
+      set f1 $f2
+      set f2 [expr $f1+$span]
+    }
+    if {$f1 < $pars(adj_fmin) } {
+      set f1 $pars(adj_fmin)
+      set f2 [expr $f1+$span]
+    }
+    if {$f2 > $pars(adj_fmax) } {
+      set f2 $pars(adj_fmax)
+      set f1 [expr $f2-$span]
+    }
+    sweep_pan set_vmin [format $pars(fre_fmt) $f1]
+    sweep_pan set_vmax [format $pars(fre_fmt) $f2]
+  }
+
+  if {$pars(adj_drive)} {
+    set v [$::gen get_volt]
+    set v [format $pars(drv_fmt) [expr $v*$pars(amp_target)/$fitres(amp)]]
+    if {$v > $pars(adj_dmax) } {set v $pars(adj_dmax)}
+    if {$v < $pars(adj_dmin) } {set v $pars(adj_dmin)}
+    $::gen set_volt $v
+  }\
+  else {
+    set pars(amp_target) [format %.4e $fitres(amp)]
+  }
+
+  if {$pars(adj_time)} {
+    set dt1  [expr 1.0/$fitres(df)]
+    set dt2  [$::lockin get_tconst]
+    set dt [expr 3.0*max($dt1,$dt2)]
+    if {$dt > $pars(adj_tmax) } {set dt $pars(adj_tmax)}
+    if {$dt < $pars(adj_tmin) } {set dt $pars(adj_tmin)}
+    set dtf [expr {[sweep_pan get_mode] eq "Both"? $dt : 10*$dt}]
+    sweep_pan set_dt   [format %.3f $dt]
+    sweep_pan set_dtf  [format %.3f $dtf]
+  }
+
+  if {$pars(adj_phase)} {
+    set p [$::gen get_phase]
+    set p [expr {$p + $fitres(ph)}]
+    $::gen set_phase [format %.2f $p]
+  }
+}
+
+# get sweep data, do fit, put values to databases.
+proc process_sweep_data {} {
+
+  global pars
+  #puts "stop sweep"
+
+  # get data from timeplot (BLT-vectors):
+  set tv [tplot_sweep get_tvec]
+  set fv [tplot_sweep get_dvec 0]
+  set xv [tplot_sweep get_dvec 1]
+  set yv [tplot_sweep get_dvec 2]
+
+  # put sweep data in the database
+  if {$pars(db_dev) != {} && $pars(sweep_db) != {}} {
+    for {set i 0} {$i < [$tv length]} {incr i} {
+      $pars(db_dev) cmd put $pars(sweep_db) [$tv index $i] [$fv index $i] [$xv index $i] [$yv index $i]
+    }
+  }
+
+  # put sweep parameters in the database
+  if {$pars(db_dev) != {} && $pars(pars_db) != {}} {
+    set t0 [$tv index 0]
+    set dt [expr [$tv index end] - [$tv index 0]]
+    $pars(db_dev) cmd put $pars(pars_db) $t0 $dt\
+      [sweep_pan get_vmin] [sweep_pan get_vmax] [sweep_pan get_npts]\
+      [sweep_pan get_dt] [sweep_pan get_dtf] [sweep_pan get_dir]\
+      [$::gen get_volt] [$::gen get_phase]
+  }
+
+  # do fit
+  set conn [open "| fit_res" RDWR]
+  fconfigure $conn -blocking true -buffering line
+  for {set i 0} {$i < [$tv length]} {incr i} {
+    puts $conn "[$tv index $i] [$fv index $i] [$xv index $i] [$yv index $i]"
+  }
+  close $conn write
+  set res [gets $conn]
+  close $conn
+
+  # result, 14 values:
+  global fitres
+  array unset fitres
+  foreach n {T err A Ae B Be C Ce D De f0 f0e df dfe E Ee F Fe} v $res {
+    if {$v == {}} {set v 0}
+    set fitres($n) $v
+  }
+  set fitres(amp) [expr {abs(hypot($fitres(C),$fitres(D))/$fitres(f0)/$fitres(df))}]
+  set fitres(ph)  [expr {180/3.1415926*atan2($fitres(C),$fitres(D))}]
+
+  # format values for interface
+  global fre_f wid_f amp_f ph_f
+  set fre_f [format $pars(fre_fmt) $fitres(f0)]
+  set wid_f [format $pars(wid_fmt) $fitres(df)]
+  set amp_f [format $pars(amp_fmt) $fitres(amp)]
+  set ph_f  [format $pars(ph_fmt)  $fitres(ph)]
+
+  # update plot
+  set G [tplot_sweep get_graph]
+
+  # delete previous fits
+  if {[$G element names fitx] != {}} {$G element delete fitx}
+  if {[$G element names fity] != {}} {$G element delete fity}
+  if {[$G element names oldx] != {}} {$G element delete oldx}
+  if {[$G element names oldy] != {}} {$G element delete oldy}
+
+  # add new fits
+  set f1 [$fv index 0]
+  set f2 [$fv index end]
+  fitf seq $f1 $f2 [expr ($f2-$f1)/1024]
+  fitx expr {$fitres(A) + ($fitres(C)*($fitres(f0)^2-fitf^2)+$fitres(D)*(fitf*$fitres(df)))/(($fitres(f0)^2-fitf^2)^2 + (fitf*$fitres(df))^2) + $fitres(E)*(fitf-$fitres(f0))}
+  fity expr {$fitres(B) + ($fitres(D)*($fitres(f0)^2-fitf^2)-$fitres(C)*(fitf*$fitres(df)))/(($fitres(f0)^2-fitf^2)^2 + (fitf*$fitres(df))^2) + $fitres(F)*(fitf-$fitres(f0))}
+
+  $G element create fitx -outline black -mapx xF -mapy y\
+     -xdata fitf -ydata fitx -symbol {}
+  $G element create fity -outline black -mapx xF -mapy y\
+     -xdata fitf -ydata fity -symbol {}
+
+  # add new data
+  oldf expr $fv
+  oldx expr $xv
+  oldy expr $yv
+  $G element create oldx -color #FF8080 -pixel 1.5 -mapx xF -mapy y\
+     -xdata oldf -ydata oldx -symbol circle
+  $G element create oldy -color #8080FF -pixel 1.5 -mapx xF -mapy y\
+     -xdata oldf -ydata oldy -symbol circle
+
+  # skip bad fits
+  if {$fitres(err)/$fitres(amp) > $pars(error_limit)} {error "Bad fit: [expr $fitres(err)/$fitres(amp)]"}
+
+  # values for result time plot
+  tplot_res add_data [list $fitres(T) $fitres(df) $fitres(f0) $fitres(amp)]
+
+  # put values into database
+  if {$pars(db_dev) != {} && $pars(res_db) != {}} {
+    $pars(db_dev) cmd put $pars(res_db) $fitres(T) [$::gen get_volt] [lrange $res 1 end]
+  }
+
+  # Adjust sweep parameters.
+  adjust_sweep_pars
+}
+
+###
+proc process_bgsweep_data {} {
+
+  global pars
+
+  # get data from timeplot (BLT-vectors):
+  set tv [tplot_sweep get_tvec]
+  set fv [tplot_sweep get_dvec 0]
+  set xv [tplot_sweep get_dvec 1]
+  set yv [tplot_sweep get_dvec 2]
+
+  # put bgsweep data in the database
+  if {$pars(db_dev) != {} && $pars(bgsweep_db) != {}} {
+    for {set i 0} {$i < [$tv length]} {incr i} {
+      $pars(db_dev) cmd put $pars(bgsweep_db) [$tv index $i] [$fv index $i] [$xv index $i] [$yv index $i]
+    }
+  }
+
+  # put sweep parameters in the database
+  if {$pars(db_dev) != {} && $pars(bgpars_db) != {}} {
+    set t0 [$tv index 0]
+    set dt [expr [$tv index end] - [$tv index 0]]
+    $pars(db_dev) cmd put $pars(bgpars_db) $t0 $dt\
+      [sweep_pan get_vmin] [sweep_pan get_vmax] [sweep_pan get_npts]\
+      [sweep_pan get_dt] [sweep_pan get_dtf] [sweep_pan get_dir]\
+      [$::gen get_volt] [$::gen get_phase]
+  }
+
+  # update plot
+  set G [tplot_sweep get_graph]
+
+  # delete previous fits
+  if {[$G element names bgx] != {}} {$G element delete bgx}
+  if {[$G element names bgy] != {}} {$G element delete bgy}
+
+  # add new data
+  bgf expr $fv
+  bgx expr $xv
+  bgy expr $yv
+  $G element create bgx -color #FF8080 -mapx xF -mapy y -symbol none\
+     -xdata bgf -ydata bgx
+  $G element create bgy -color #8080FF -mapx xF -mapy y -symbol none\
+     -xdata bgf -ydata bgy
+
+  tplot_sweep clear
+  bgsweep_pan stop
+}
+
+
+
+##########################################################################
+proc switch_meas_sweep {} {
+  global pars
+  set pars(meas_mode) "sweep"
+  bgsweep_pan stop
+}
+
+proc switch_meas_bgsweep {} {
+  global pars
+  set pars(meas_mode) "bgsweep"
+  sweep_pan stop
+}
+
+##########################################################################
+# This function is executed in the beginning of each step.
+# Here we get new frequncy and delay from sweeper and change
+# generator frequency.
+proc func_meas {} {
+  global pars
+  sweep_pan do_step
+  bgsweep_pan do_step
+
+  if {$pars(meas_mode) eq "sweep"} {
+    bgsweep_pan stop
+    bgsweep_pan do_step
+
+    # set generator panel to readonly state when sweeper is active
+    #$::gen readonly [sweep_pan is_on]
+
+    # set generator frequency
+    if {[sweep_pan is_on] } {
+      $::gen set_freq [sweep_pan get_val]
+    }
+
+    # set monitor period
+    mon set_period [sweep_pan get_delay]
+    return
+  }
+
+  if {$pars(meas_mode) eq "bgsweep"} {
+    sweep_pan stop
+    sweep_pan do_step
+
+    #$::gen readonly [bgsweep_pan is_on]
+
+    # set generator frequency
+    if {[bgsweep_pan is_on] } {
+      $::gen set_freq [bgsweep_pan get_val]
+    }
+
+    # set monitor period
+    mon set_period [bgsweep_pan get_delay]
+    return
+  }
+}
+
+##########################################################################
 # This function is executed after the delay, just before
 # the next step. Here we measure the new value and collect data.
 proc func_meas_e {} {
   global pars
-  global fre wid amp ph
-  global fre_f wid_f amp_f ph_f
 
-  ####################
-  if {[sweep_pan is_first]} {
-    #puts "start sweep"
-    tplot_sweep clear
-  }
-
-  if {[sweep_pan is_cancelled]} {return}
-
-  ####################
   # do the measurement
   set t [expr [clock microsecond]/1e6]
-  set f [sweep_pan get_val]
+  set f [$::gen get_freq]
 
   set v [$::lockin get]
   if {$pars(swap_xy)} {
@@ -147,197 +414,198 @@ proc func_meas_e {} {
     set F [$::gen get_volt]
     set N 1e-7
     set L 1e-5
+
     # Random number with normal distribution (see Muller_transform):
-    set N [expr $N*sqrt(-2.0 * log(rand()))*cos(2*3.1415926*rand())]
-    set x [expr {$N + $F*($f*$df)/(($f0**2-$f**2)**2 + ($f*$df)**2)}]
-    set y [expr {$N + $F*($f0**2-$f**2)/(($f0**2-$f**2)**2 + ($f*$df)**2)}]
+    set Nx [expr $N*sqrt(-2.0 * log(rand()))*cos(2*3.1415926*rand())]
+    set Ny [expr $N*sqrt(-2.0 * log(rand()))*cos(2*3.1415926*rand())]
+
+    set Bx [expr 0.000001*$F]
+    set By [expr -0.000001*$F]
+
+    set x [expr $Nx+$Bx]
+    set y [expr $Ny+$By]
+
+    if {$pars(meas_mode) eq "sweep"} {
+      set Sx [expr {$F*($f*$df)/(($f0**2-$f**2)**2 + ($f*$df)**2)}]
+      set Sy [expr {$F*($f0**2-$f**2)/(($f0**2-$f**2)**2 + ($f*$df)**2)}]
+      set x [expr $x+$Sx]
+      set y [expr $y+$Sy]
+    }
+
     if {$x>+$L} {set x +$L}
     if {$x<-$L} {set x -$L}
     if {$y>+$L} {set y +$L}
     if {$y<-$L} {set y -$L}
   }
 
-  if {[sweep_pan is_on]} {
-    tplot_sweep add_data [list $t $f $x $y]
+  if {$pars(meas_mode) eq "sweep"} {
+    if {[sweep_pan is_first]} { tplot_sweep clear }
+    if {[sweep_pan is_cancelled]} {return}
+    if {[sweep_pan is_on]} { tplot_sweep add_data [list $t $f $x $y] }
+    if {[sweep_pan is_last] } { process_sweep_data }
+    return
   }
 
-  ####################
-  # finish the sweep
-
-
-  if {[sweep_pan is_last] } {
-    #puts "stop sweep"
-
-    # get data from timeplot (BLT-vectors):
-    set tv [tplot_sweep get_tvec]
-    set fv [tplot_sweep get_dvec 0]
-    set xv [tplot_sweep get_dvec 1]
-    set yv [tplot_sweep get_dvec 2]
-
-
-    # put sweep data in the database
-    if {$pars(record_sweep)} {
-      for {set i 0} {$i < [$tv length]} {incr i} {
-        $pars(db_dev) cmd put $pars(sweep_db) [$tv index $i] [$fv index $i] [$xv index $i] [$yv index $i]
-      }
-    }
-
-    # put sweep parameters in the database
-    if {$pars(record_pars)} {
-      set t0 [$tv index 0]
-      set dt [expr [$tv index end] - [$tv index 0]]
-      $pars(db_dev) cmd put $pars(pars_db) $t0 $dt\
-        [sweep_pan get_vmin] [sweep_pan get_vmax] [sweep_pan get_npts]\
-        [sweep_pan get_dt] [sweep_pan get_dtf] [sweep_pan get_dir]\
-        [$::gen get_volt] [$::gen get_phase]
-    }
-
-    # do fit
-    set conn [open "| fit_res" RDWR]
-    fconfigure $conn -blocking true -buffering line
-    for {set i 0} {$i < [$tv length]} {incr i} {
-      puts $conn "[$tv index $i] [$fv index $i] [$xv index $i] [$yv index $i]"
-    }
-    close $conn write
-    set res [gets $conn]
-    close $conn
-
-    # result, 14 values:
-    array unset r
-    foreach n {T E A Ae B Be C Ce D De F0 F0e dF dFe } v $res {
-      set r($n) $v
-    }
-    set fre $r(F0)
-    set wid $r(dF)
-    set amp [expr {abs(hypot($r(C),$r(D))/$fre/$wid)}]
-    set ph  [expr {180/3.1415926*atan2($r(C),$r(D))}]
-
-
-    # format values for interface
-    set fre_f [format $pars(fre_fmt) $fre]
-    set wid_f [format $pars(wid_fmt) $wid]
-    set amp_f [format $pars(amp_fmt) $amp]
-    set ph_f  [format $pars(ph_fmt)  $ph]
-
-
-    # update plot
-    set G [tplot_sweep get_graph]
-
-    # delete previous fits
-    if {[$G element names fitx] != {}} {$G element delete fitx}
-    if {[$G element names fity] != {}} {$G element delete fity}
-    if {[$G element names oldx] != {}} {$G element delete oldx}
-    if {[$G element names oldy] != {}} {$G element delete oldy}
-
-    # add new fits
-    set f1 [$fv index 0]
-    set f2 [$fv index end]
-    fitf seq $f1 $f2 [expr ($f2-$f1)/1024]
-    fitx expr {$r(A) + ($r(C)*($fre^2-fitf^2)+$r(D)*(fitf*$wid))/(($fre^2-fitf^2)^2 + (fitf*$wid)^2)}
-    fity expr {$r(B) + ($r(D)*($fre^2-fitf^2)-$r(C)*(fitf*$wid))/(($fre^2-fitf^2)^2 + (fitf*$wid)^2)}
-
-    $G element create fitx -outline black -mapx xF -mapy y\
-       -xdata fitf -ydata fitx -symbol {}
-    $G element create fity -outline black -mapx xF -mapy y\
-       -xdata fitf -ydata fity -symbol {}
-
-    # add new data
-    oldf expr $fv
-    oldx expr $xv
-    oldy expr $yv
-    $G element create oldx -color #FF8080 -pixel 1.5 -mapx xF -mapy y\
-       -xdata oldf -ydata oldx -symbol circle
-    $G element create oldy -color #8080FF -pixel 1.5 -mapx xF -mapy y\
-       -xdata oldf -ydata oldy -symbol circle
-
-    # skip bad fits
-    if {$r(E)/$amp > $pars(error_limit)} {error "Bad fit: [expr $r(E)/$amp]"}
-
-    # values for result time plot
-    tplot_res add_data [list $r(T) $wid $fre $amp]
-
-    # put values into database
-    if {$pars(record_res)} {
-      $pars(db_dev) cmd put $pars(res_db) $r(T) [$::gen get_volt] [lrange $res 1 end]
-    }
-
-    # Adjust values.
-    # Note that sweep_pan set interface values which are validated
-    # and applied on the next step.
-    if {$pars(adj_freq)} {
-      set f1 [sweep_pan get_vmin]
-      set f2 [sweep_pan get_vmax]
-      set sh [expr $fre-($f1+$f2)/2.0]
-      set f1 [expr $f1+$sh]
-      set f2 [expr $f2+$sh]
-      sweep_pan set_vmin [format $pars(fre_fmt) $f1]
-      sweep_pan set_vmax [format $pars(fre_fmt) $f2]
-    }
-
-    if {$pars(adj_fspan)} {
-      set f1 [sweep_pan get_vmin]
-      set f2 [sweep_pan get_vmax]
-      set fcnt [expr ($f1+$f2)/2.0]
-      set span [expr $wid*$pars(fspan_size)]
-      set f1 [expr $fcnt - $span/2.0]
-      set f2 [expr $fcnt + $span/2.0]
-      sweep_pan set_vmin [format $pars(fre_fmt) $f1]
-      sweep_pan set_vmax [format $pars(fre_fmt) $f2]
-    }
-
-    if {$pars(adj_drive)} {
-      set v [$::gen get_volt]
-      $::gen set_volt [expr $v*$pars(amp_target)/$amp]
-    }\
-    else {
-      set pars(amp_target) [format %.4e $amp]
-    }
-
-    if {$pars(adj_time)} {
-      set dt1  [expr 1.0/$wid]
-      set dt2  [$::lockin get_tconst]
-      set dt [expr 3.0*max($dt1,$dt2)]
-      set dtf [expr {[sweep_pan get_mode] eq "Both"? $dt : 10*$dt}]
-      sweep_pan set_dt   [format %.3f $dt]
-      sweep_pan set_dtf  [format %.3f $dtf]
-    }
-
-    if {$pars(adj_phase)} {
-      set p [$::gen get_phase]
-      set p [expr {$p + $ph}]
-      $::gen set_phase [format %.2f $p]
-    }
-
+  if {$pars(meas_mode) eq "bgsweep"} {
+    if {[bgsweep_pan is_first]} { tplot_sweep clear }
+    if {[bgsweep_pan is_cancelled]} {return}
+    if {[bgsweep_pan is_on]} { tplot_sweep add_data [list $t $f $x $y] }
+    if {[bgsweep_pan is_last] } { process_bgsweep_data }
+    return
   }
+
 }
+
+######################################################################
+### GUI
+# top frame with measurement results
+proc mk_frame_top {w} {
+  frame $w
+
+  labelframe $w.fre -text {Frequency [Hz]}
+  label $w.fre.val -textvariable fre_f -font {-size 15} -text 0
+  pack $w.fre.val
+
+  labelframe $w.wid -text {Width [Hz]}
+  label $w.wid.val -textvariable wid_f  -font {-size 15} -text 0
+  pack $w.wid.val
+
+  labelframe $w.amp -text {Amplitude [Vrms]}
+  label $w.amp.val -textvariable amp_f  -font {-size 15} -text 0
+  pack $w.amp.val
+
+  labelframe $w.ph -text {Phase [deg]}
+  label $w.ph.val -textvariable ph_f  -font {-size 15} -text 0
+  pack $w.ph.val
+
+  pack $w.fre $w.wid $w.amp $w.ph -side left -fill x -expand 1
+}
+
+# measurement type frame (sweeps/offsets/resonance tabset)
+proc mk_frame_meas_tabs {w} {
+  global pars
+
+  blt::tabset $w
+
+  set f $w.sweeps
+  frame $f
+  $w insert end sweeps -window $f\
+     -anchor n -text "Sweeps" -fill both -padx 3 -pady 3
+ 
+  # sweep panel
+  widget_sweep sweep_pan $f.sw\
+    -title "Sweeps:"\
+    -vmin_label "F1" -vmax_label "F2"\
+    -vmin $pars(fmin) -vmax $pars(fmax)\
+    -limit_min $pars(limit_fmin)\
+    -limit_max $pars(limit_fmax)\
+    -npts $pars(npts)\
+    -mode $pars(mode)\
+    -dt   $pars(dt)\
+    -dtf  $pars(dtf)\
+    -cmd_start switch_meas_sweep
+
+  pack $f.sw -expand 0 -fill x -anchor ne
+  widget_bg $f.sw #E0F0F0
+
+  # adjust panel
+  labelframe $f.adj -text "Adjust:" -font {-weight bold -size 10}
+  checkbutton $f.adj.f0  -text "Central frequency" -variable pars(adj_freq)
+  checkbutton $f.adj.df  -text "Frequency span" -variable pars(adj_fspan)
+  checkbutton $f.adj.drv -text "Drive (constant amplitude)" -variable pars(adj_drive)
+  checkbutton $f.adj.tt  -text "Time step" -variable pars(adj_time)
+  checkbutton $f.adj.ph  -text "Phase" -variable pars(adj_phase)
+
+  label $f.adj.am_l -text "Target amplitude:"
+  entry $f.adj.am_v -width 12 -textvariable pars(amp_target)
+
+  grid $f.adj.f0 $f.adj.df  -sticky nw
+  grid $f.adj.drv -sticky nw -columnspan 2
+  grid $f.adj.am_l $f.adj.am_v -sticky nw -padx 5 -pady 2
+  grid $f.adj.tt $f.adj.ph  -sticky nw
+
+  pack $f.adj -expand 0 -fill x -anchor ne
+  widget_bg $f.adj #E0E0F0
+
+  ###########
+  ## adjustment parameters
+
+  set f $w.adjpar
+  frame $f
+  $w insert end adjpar -window $f\
+     -anchor n -text "Adj.Pars" -fill both -padx 3 -pady 3
+
+  label $f.fspan_l -text "Span size (in line widths):"
+  entry $f.fspan_v -width 4 -textvariable pars(fspan_size)
+  grid $f.fspan_l $f.fspan_v -sticky nw
+
+  label $f.flim_l -text "Frequency limits:"
+  entry $f.fmin -width 10 -textvariable pars(adj_fmin)
+  entry $f.fmax -width 10 -textvariable pars(adj_fmax)
+  grid $f.flim_l -sticky nw -columnspan 2
+  grid $f.fmin $f.fmax -sticky nw
+
+  label $f.dlim_l -text "Drive limits:"
+  entry $f.dmin -width 10 -textvariable pars(adj_dmin)
+  entry $f.dmax -width 10 -textvariable pars(adj_dmax)
+  grid $f.dlim_l -sticky nw -columnspan 2
+  grid $f.dmin $f.dmax -sticky nw
+
+  label $f.tlim_l -text "Time step limits:"
+  entry $f.tmin -width 10 -textvariable pars(adj_tmin)
+  entry $f.tmax -width 10 -textvariable pars(adj_tmax)
+  grid $f.tlim_l -sticky nw -columnspan 2
+  grid $f.tmin $f.tmax -sticky nw
+
+  ###########
+  ## offsets measurements
+  set f $w.conf_offs
+  frame $f
+  $w insert end offs -window $f\
+     -anchor n -text "Offsets" -fill both -padx 3 -pady 3
+
+  labelframe $f.f1 -text "Generator AC offset"
+  pack $f.f1 -expand 0 -fill x -anchor ne
+
+  button $f.f1.meas  -command set_ac_shift -text "Measure and set"
+  button $f.f1.reset -command clear_ac_shift -text "Reset to zero"
+  pack $f.f1.meas $f.f1.reset -expand 0 -fill x -anchor ne -side left
+
+  # bgsweep panel
+  widget_sweep bgsweep_pan $f.sw\
+    -title "Background measurement:"\
+    -vmin_label "F1" -vmax_label "F2"\
+    -vmin $pars(bg_fmin) -vmax $pars(bg_fmax)\
+    -npts $pars(bg_npts)\
+    -mode "Up"\
+    -show_mode 0\
+    -on 0\
+    -dt   $pars(bg_dt)\
+    -dtf  $pars(bg_dtf)\
+    -cmd_start switch_meas_bgsweep
+
+  pack $f.sw -expand 0 -fill x -anchor ne
+
+  ###########
+  ## resonance measurements
+  set f $w.conf_res
+  frame $f
+  $w insert end conf3 -window $f\
+     -anchor n -text "Resonance" -fill both -padx 3 -pady 3
+
+  button $f.start -command on_res_mode -text "Start"
+  pack $f.start -expand 0 -fill x -anchor ne
+}
+
 
 # Build GUI frame in <root>
 proc func_mkint {w} {
-  global pars Tf Df
-
+  global pars
 
   ############################
   # top frame with measurement results
-  frame $w.res
+  mk_frame_top $w.res
   pack $w.res -fill x -expand 0
-
-  labelframe $w.res.fre -text {Frequency [Hz]}
-  label $w.res.fre.val -textvariable fre_f -font {-size 15} -text 0
-  pack $w.res.fre.val
-
-  labelframe $w.res.wid -text {Width [Hz]}
-  label $w.res.wid.val -textvariable wid_f  -font {-size 15} -text 0
-  pack $w.res.wid.val
-
-  labelframe $w.res.amp -text {Amplitude [Vrms]}
-  label $w.res.amp.val -textvariable amp_f  -font {-size 15} -text 0
-  pack $w.res.amp.val
-
-  labelframe $w.res.ph -text {Phase [deg]}
-  label $w.res.ph.val -textvariable ph_f  -font {-size 15} -text 0
-  pack $w.res.ph.val
-
-  pack $w.res.fre $w.res.wid $w.res.amp $w.res.ph -side left -fill x -expand 1
 
   ############################
   # tabs
@@ -356,20 +624,8 @@ proc func_mkint {w} {
   set f_conf $f_meas.conf
   frame $f_conf
 
-  # sweep panel
-  widget_sweep sweep_pan $f_conf.sw\
-    -title "Sweeps:"\
-    -vmin_label "F1" -vmax_label "F2"\
-    -vmin $pars(fmin) -vmax $pars(fmax)\
-    -limit_min $pars(limit_fmin)\
-    -limit_max $pars(limit_fmax)\
-    -npts $pars(npts)\
-    -mode $pars(mode)\
-    -dt   $pars(dt)\
-    -dtf  $pars(dtf)
-
-  pack $f_conf.sw -expand 0 -fill x -anchor ne
-  widget_bg $f_conf.sw #E0F0F0
+  mk_frame_meas_tabs $f_conf.meas_tabs
+  pack $f_conf.meas_tabs -expand 0 -fill x -anchor ne
 
   # lock-in panel
   $::lockin make_widget $f_conf.lockin\
@@ -379,59 +635,10 @@ proc func_mkint {w} {
 
   # generator panel
   $::gen make_widget $f_conf.gen\
-    -title "Generator:" -show_offs 0 -show_phase 1
+    -title "Generator:" -show_offs 0 -show_phase 1 -show_ac_shift 1
   pack $f_conf.gen -expand 0 -fill x -anchor ne
   widget_bg $f_conf.gen #F0F0E0
 
-  # adjust panel
-  set ajd_pan $f_conf.adj
-  labelframe $ajd_pan -text "Adjust:" -font {-weight bold -size 10}
-  checkbutton $ajd_pan.f0  -text "Central frequency" -variable pars(adj_freq)
-  checkbutton $ajd_pan.df  -text "Frequency span" -variable pars(adj_fspan)
-  checkbutton $ajd_pan.drv -text "Drive (constant amplitude)" -variable pars(adj_drive)
-  checkbutton $ajd_pan.tt  -text "Timings" -variable pars(adj_time)
-  checkbutton $ajd_pan.ph  -text "Phase" -variable pars(adj_phase)
-
-  label $ajd_pan.df_l -text "Span size in line widths:"
-  entry $ajd_pan.df_v -width 12 -textvariable pars(fspan_size)
-
-  label $ajd_pan.am_l -text "Target amplitude:"
-  entry $ajd_pan.am_v -width 12 -textvariable pars(amp_target)
-
-  grid $ajd_pan.f0  -sticky nw -columnspan 2
-  grid $ajd_pan.df  -sticky nw -columnspan 2
-  grid $ajd_pan.df_l $ajd_pan.df_v -sticky nw -padx 5 -pady 2
-  grid $ajd_pan.drv -sticky nw -columnspan 2
-  grid $ajd_pan.am_l $ajd_pan.am_v -sticky nw -padx 5 -pady 2
-  grid $ajd_pan.tt  -sticky nw -columnspan 2
-  grid $ajd_pan.ph  -sticky nw -columnspan 2
-
-  pack $ajd_pan -expand 0 -fill x -anchor ne
-  widget_bg $ajd_pan #E0E0F0
-
-
-  # record_res and record_sweep checkboxes
-  label $f_conf.record_l -text "Record: "
-  checkbutton $f_conf.record_res -text "fit results"\
-   -variable pars(record_res)
-  checkbutton $f_conf.record_sweep -text "data"\
-   -variable pars(record_sweep)
-  checkbutton $f_conf.record_pars -text "pars"\
-   -variable pars(record_pars)
-  if {$pars(db_dev)=={} || $pars(res_db)=={}} {
-    $f_conf.record_res configure -state disabled
-    set pars(record_res) 0
-  }
-  if {$pars(db_dev)=={} || $pars(sweep_db)=={}} {
-    $f_conf.record_sweep configure -state disabled
-    set pars(record_sweep) 0
-  }
-  if {$pars(db_dev)=={} || $pars(pars_db)=={}} {
-    $f_conf.record_pars configure -state disabled
-    set pars(record_pars) 0
-  }
-  pack $f_conf.record_l $f_conf.record_res $f_conf.record_pars $f_conf.record_sweep\
-    -expand 1 -fill x -anchor w -side left
 
   ####
   # sweep timeplot (4 columns: f, x, y, a)
@@ -476,9 +683,8 @@ proc func_mkint {w} {
   $w.tabs insert end tplot_res -window $w.tabs.tplot\
      -anchor n -text "Time Plot" -fill both -padx 3 -pady 3
 
-
   ##########################################################################
-  # set sweep parameters from prefious fit
+  # set sweep parameters from previous fit
 
   if {$pars(set_from_res_db) && $pars(db_dev)!={} && $pars(res_db)!={}} {
     set last [lindex [$pars(db_dev) cmd get $pars(res_db)] 0]
@@ -500,6 +706,55 @@ proc func_mkint {w} {
   }
 }
 
+proc on_res_mode {} {
+  global fitres pars
+  if {![array exists fitres] ||
+       [array names fitres -exact A] == {} ||
+       [array names fitres -exact B] == {} ||
+       [array names fitres -exact C] == {} ||
+       [array names fitres -exact D] == {} ||
+       [array names fitres -exact E] == {} ||
+       [array names fitres -exact F] == {}} {
+    set pars(meas_mode) "sweeps"
+    return
+  }
+  sweep_pan stop
+}
+
+
+proc set_ac_shift {} {
+  $::gen set_ac_shift 0
+  set ph [$::gen get_phase]
+  set v0 [$::gen get_volt]
+  set dt [expr round(5*[$::lockin get_tconst]*1000)]
+
+  after $dt
+  set XY1 [$::lockin get]
+  $::gen set_phase [expr $ph+180]
+
+  after $dt
+  set XY2 [$::lockin get]
+
+  set x1 [lindex $XY1 0]
+  set y1 [lindex $XY1 1]
+  set x2 [lindex $XY2 0]
+  set y2 [lindex $XY2 1]
+
+  # abs(V2-V1), abs(V2+V1)
+  set Am [expr {sqrt(($x2-$x1)**2 + ($y2-$y1)**2)}]
+  set Ap [expr {sqrt(($x2+$x1)**2 + ($y2+$y1)**2)}]
+
+  # arg(V2-V1), arg(V2+V1)
+  set Pm [expr {180/3.148926*atan2($y2-$y1, $x2-$x1)}]
+  set Pp [expr {180/3.148926*atan2($y2+$y1, $x2+$x1)}]
+
+  $::gen set_phase [expr $ph+$Pm-$Pp]
+  $::gen set_ac_shift [format %.4f [expr $v0*$Ap/$Am]]
+}
+
+proc clear_ac_shift {} {
+  $::gen set_ac_shift 0
+}
 
 ##########################################################################
 ##########################################################################
@@ -511,3 +766,4 @@ Monitor mon .m -name $pars(name) -period 1 -onoff 1\
 
 pack .m -expand 1 -fill both
 wm protocol . WM_DELETE_WINDOW { mon do_exit }
+if {$pars(geometry) != {}} {wm geometry . $pars(geometry)}
