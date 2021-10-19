@@ -33,7 +33,7 @@ set options [list \
 {-v -volt}     volt     {0.01}\
 {-o -offs}     offs     {0.0}\
 {-V -vcc}      vcc      {3}\
-{-I -icc}      icc      {0.0005}\
+{-I -icc}      icc      {0}\
 {-F -fmin}     fmin     {25e3}\
 {-G -fmax}     fmax     {2e6}\
 {-n}           npts     {100}\
@@ -50,16 +50,18 @@ set icc_on [opt_on "-I -icc"]
 
 xblt::parse_options "get_gain_freq" $argv $options
 
-if { ${vcc_on} > 0 && ${icc_on} == 0} {
-  set dc_mode volt
-  set dc_m v
-  set pcc $vcc
-} elseif { ${icc_on} > 0 && ${vcc_on} == 0} {
-  set dc_mode curr
-  set dc_m i
-  set pcc $icc
-} else {
-  error "confusing options: -vcc $vcc -icc $icc"
+if {$ps_dev != {}} {
+  if { ${vcc_on} > 0 && ${icc_on} == 0} {
+    set dc_mode volt
+    set dc_m v
+    set pcc $vcc
+  } elseif { ${icc_on} > 0 && ${vcc_on} == 0} {
+    set dc_mode curr
+    set dc_m i
+    set pcc $icc
+  } else {
+    error "confusing options: -vcc $vcc -icc $icc"
+  }
 }
 
 if {$npts <= 0} {error "$npts <= 0"}
@@ -95,7 +97,11 @@ if {$ps_dev != {}} {
 # initial delay
 after [expr {int($del*1000)}]
 
-puts "# freq volt ${dc_m}cc gain x y"
+if {$ps_dev != {}} {
+  puts "# freq volt ${dc_m}cc gain x y"
+} else {
+  puts "# freq volt gain x y"
+}
 set f $fmin
 set f_set nan
 for {set i 0} {$i < $npts} {incr i} {
@@ -108,7 +114,11 @@ for {set i 0} {$i < $npts} {incr i} {
     set y [lindex $out 1]
     if {$x eq NaN || $y eq NaN} { set g NaN }\
     else {set g [expr {sqrt($x**2+$y**2)/$gfact/$volt}]}
-    puts "$f_set $volt $pcc $g $x $y"
+    if {$ps_dev != {}} {
+      puts "$f_set $volt $pcc $g $x $y"
+    } else {
+      puts "$f_set $volt $g $x $y"
+    }
   }
   set f [expr {$log? $f*$dfk : $f+$df}]
 
