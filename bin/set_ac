@@ -14,7 +14,7 @@ package require xBlt
 # -O -off   -- turn the output off (default 0)
 
 set options [list \
-{-g -dev}  dev  {gen0:1}\
+{-d -dev}  dev  {gen0:1}\
 {-v -volt} volt     {0.002}\
 {-f -freq} freq     {10e6}\
 {-o -offs} offs     {0}\
