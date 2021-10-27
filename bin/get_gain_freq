@@ -26,6 +26,9 @@ package require xBlt
 # -g -gfactor   -- gain factor, ratio of measured/set signal for direct connecton (default 1)
 #  (for lockin -g 1/sqrt(8), for osc -g 1/sqrt(2) )
 # -a -autorange -- do autorange: 0 - never, 1 - on first point, 2 - on each point (default 0)
+# -meas_lockin  -- use lock-in device role for measurements instead of gauge (default 0)
+#                  (at the moment -autorange does not work for lock-in role)
+# -meas_pars    -- parameters for creating measurement device in lock-in role (default {})
 
 set options [list \
 {-g -gen_dev}  gen_dev  {gen0:1}\
@@ -44,6 +47,8 @@ set options [list \
 {-t -tconst}   tconst   {0.1}\
 {-g -gfactor}  gfact    {1}\
 {-a -autorange} arange  {0}\
+{-meas_lockin} meas_lockin {0}\
+{-meas_pars}   meas_pars   {}\
 ]
 
 
@@ -88,7 +93,11 @@ $gen set_ac $fmin $volt $offs
 $gen set_sync 1
 
 ## prepare lock-in
-set gauge [DeviceRole $meas_dev gauge]
+if {$meas_lockin} {
+  set gauge [DeviceRole $meas_dev lock-in {*}$meas_pars]
+} else {
+  set gauge [DeviceRole $meas_dev gauge]
+}
 $gauge set_tconst $tconst
 
 if {$ps_dev != {}} {
@@ -112,7 +121,7 @@ for {set i 0} {$i < $npts} {incr i} {
     set f_set [format "%.0f" $f]
     $gen set_ac $f_set $volt $offs
     after [expr {int($dt*1000)}]
-    if {($arange>1) || ($arange==1 && $i==0)} {
+    if {(($arange>1) || ($arange==1 && $i==0)) $$ !$meas_lockin} {
       set out [$gauge get_auto]
     } else {
       set out [$gauge get]
