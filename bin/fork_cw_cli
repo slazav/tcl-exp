@@ -1,0 +1,60 @@
+#!/usr/bin/wish
+
+proc usage {} {
+  puts {
+    fork_cw_cli -- command line tool for controlling fork_cw interface
+
+    Usage: sweeper_cli <name> <command>
+
+    <name> name of the sweeper which is set in its configuration file
+    <command>:
+      set_volt <volt> -- set voltage
+      get_volt -- get voltage
+      sweep_pair [<volt>] -- set voltage, make 2 sweeps, wait
+  }
+  exit 1
+}
+
+set name [lindex $argv 0]
+set cmd  [lindex $argv 1]
+
+if {$name == {}} usage
+if {$cmd  == {}} usage
+
+######################################################################
+# Connect to a program and ask for its state
+
+set app $name
+
+if {$cmd == "set_volt"} {
+  set v [lindex $argv 2]
+  send $app {$gen} set_volt $v
+  exit 0
+}
+
+if {$cmd == "get_volt"} {
+  set v [lindex $argv 2]
+  puts [send $app {$gen} get_volt]
+  exit 0
+}
+
+# sweep_pair [volt]
+if {$cmd == "sweep_pair"} {
+  set v [lindex $argv 2]
+  if {$v != {}} {send $app {$gen} set_volt $v}
+  send $app sweep_pan set_mode "Pair"
+  send $app sweep_pan restart
+  send $app sweep_pan do_step
+  while {[send $app sweep_pan is_on]} {
+    after 200
+  }
+  exit 0
+}
+
+
+puts "Unknown command: $cmd"
+
+
+######################################################################
+wm withdraw .
+after idle exit 0
