@@ -395,9 +395,14 @@ proc func_meas {} {
 proc func_meas_e {} {
   global pars
 
+  ####################
+  if {[sweep_pan is_first]} { tplot_sweep clear }
+  if {[sweep_pan is_cancelled]} {return}
+
+  ####################
   # do the measurement
   set t [expr [clock microsecond]/1e6]
-  set f [$::gen get_freq]
+  set f [sweep_pan get_val]
 
   set v [$::lockin get]
   if {$pars(swap_xy)} {
