@@ -605,7 +605,7 @@ proc mk_frame_meas_tabs {w} {
 
 # Build GUI frame in <root>
 proc func_mkint {w} {
-  global pars
+  global fitres pars
 
   ############################
   # top frame with measurement results
@@ -693,21 +693,15 @@ proc func_mkint {w} {
 
   if {$pars(set_from_res_db) && $pars(db_dev)!={} && $pars(res_db)!={}} {
     set last [lindex [$pars(db_dev) cmd get $pars(res_db)] 0]
-    set last_f0 [lindex $last 11]
-    set last_df [lindex $last 13]
 
-    set span [expr $last_df*$pars(fspan_size)]
-    set f1 [expr $last_f0 - abs($span)/2.0]
-    set f2 [expr $last_f0 + abs($span)/2.0]
-    sweep_pan set_vmin [format $pars(fre_fmt) $f1]
-    sweep_pan set_vmax [format $pars(fre_fmt) $f2]
-
-    set dt1  [expr 1.0/$last_df]
-    set dt2  [$::lockin get_tconst]
-    set dt [expr 3.0*max($dt1,$dt2)]
-    set dtf [expr {[sweep_pan get_mode] eq "Both"? $dt : 10*$dt}]
-    sweep_pan set_dt   [format %.3f $dt]
-    sweep_pan set_dtf  [format %.3f $dtf]
+    foreach n {T drive err A Ae B Be C Ce D De f0 f0e df dfe E Ee F Fe} v $last {
+      if {$n == "drive"} {continue}
+      if {$v == {}} {set v 0}
+      set fitres($n) $v
+    }
+    set fitres(amp) [expr {abs(hypot($fitres(C),$fitres(D))/$fitres(f0)/$fitres(df))}]
+    set fitres(ph)  [expr {180/3.1415926*atan2($fitres(C),$fitres(D))}]
+    adjust_sweep_pars
   }
 }
 
