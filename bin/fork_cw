@@ -56,12 +56,7 @@ set default_pars {
   fspan_size   {6}        {frequency span / width}
   amp_target   {1}        {amplitude target}
   set_from_res_db {0}     {set initial sweep parameters using last value from res_db}
-  bg_fmin      {100}      {starting value for background measurement low end}
-  bg_fmax      {5000}     {starting value for background measurement high end}
-  bg_npts      {300}      {starting value for background measurement number of points}
-  bg_dt        {0.5}      {starting value for background measurement period}
-  bg_dtf       {1}        {starting value for background measurement first point delay}
-  meas_mode    {sweep}    {measurement mode: sweep, bgsweep, resonance}
+  meas_mode    {sweeps}    {sweeps/resonance}
 }
 
 if {[llength $argv]>0 } {
@@ -78,7 +73,7 @@ tk appname "$pars(name)"
 ##########################################################################
 ##########################################################################
 
-# last measured values
+# last measurel values
 set fre {};
 set wid {};
 set amp {};
@@ -105,9 +100,10 @@ blt::vector create oldf
 blt::vector create oldx
 blt::vector create oldy
 
-blt::vector create bgf
-blt::vector create bgx
-blt::vector create bgy
+##########################################################################
+## functions for the monitor class
+
+
 
 ##########################################################################
 # do adjustments after fitting data
@@ -212,7 +208,7 @@ proc process_sweep_data {} {
   }
 
   # do fit
-  set conn [open "| fit_res" RDWR]
+  set conn [open "| fit_res --pars 8" RDWR]
   fconfigure $conn -blocking true -buffering line
   for {set i 0} {$i < [$tv length]} {incr i} {
     puts $conn "[$tv index $i] [$fv index $i] [$xv index $i] [$yv index $i]"
@@ -283,69 +279,6 @@ proc process_sweep_data {} {
   adjust_sweep_pars
 }
 
-###
-proc process_bgsweep_data {} {
-
-  global pars
-
-  # get data from timeplot (BLT-vectors):
-  set tv [tplot_sweep get_tvec]
-  set fv [tplot_sweep get_dvec 0]
-  set xv [tplot_sweep get_dvec 1]
-  set yv [tplot_sweep get_dvec 2]
-
-  # put bgsweep data in the database
-  if {$pars(db_dev) != {} && $pars(bgsweep_db) != {}} {
-    for {set i 0} {$i < [$tv length]} {incr i} {
-      $pars(db_dev) cmd put $pars(bgsweep_db) [$tv index $i] [$fv index $i] [$xv index $i] [$yv index $i]
-    }
-  }
-
-  # put sweep parameters in the database
-  if {$pars(db_dev) != {} && $pars(bgpars_db) != {}} {
-    set t0 [$tv index 0]
-    set dt [expr [$tv index end] - [$tv index 0]]
-    $pars(db_dev) cmd put $pars(bgpars_db) $t0 $dt\
-      [sweep_pan get_vmin] [sweep_pan get_vmax] [sweep_pan get_npts]\
-      [sweep_pan get_dt] [sweep_pan get_dtf] [sweep_pan get_dir]\
-      [$::gen get_volt] [$::gen get_phase]
-  }
-
-  # update plot
-  set G [tplot_sweep get_graph]
-
-  # delete previous fits
-  if {[$G element names bgx] != {}} {$G element delete bgx}
-  if {[$G element names bgy] != {}} {$G element delete bgy}
-
-  # add new data
-  bgf expr $fv
-  bgx expr $xv
-  bgy expr $yv
-  $G element create bgx -color #FF8080 -mapx xF -mapy y -symbol none\
-     -xdata bgf -ydata bgx
-  $G element create bgy -color #8080FF -mapx xF -mapy y -symbol none\
-     -xdata bgf -ydata bgy
-
-  tplot_sweep clear
-  bgsweep_pan stop
-}
-
-
-
-##########################################################################
-proc switch_meas_sweep {} {
-  global pars
-  set pars(meas_mode) "sweep"
-  bgsweep_pan stop
-}
-
-proc switch_meas_bgsweep {} {
-  global pars
-  set pars(meas_mode) "bgsweep"
-  sweep_pan stop
-}
-
 ##########################################################################
 # This function is executed in the beginning of each step.
 # Here we get new frequncy and delay from sweeper and change
@@ -353,40 +286,17 @@ proc switch_meas_bgsweep {} {
 proc func_meas {} {
   global pars
   sweep_pan do_step
-  bgsweep_pan do_step
 
-  if {$pars(meas_mode) eq "sweep"} {
-    bgsweep_pan stop
-    bgsweep_pan do_step
+  # set generator panel to readonly state when sweeper is active
+  #$::gen readonly [sweep_pan is_on]
 
-    # set generator panel to readonly state when sweeper is active
-    #$::gen readonly [sweep_pan is_on]
-
-    # set generator frequency
-    if {[sweep_pan is_on] } {
-      $::gen set_freq [sweep_pan get_val]
-    }
-
-    # set monitor period
-    mon set_period [sweep_pan get_delay]
-    return
+  # set generator frequency
+  if {[sweep_pan is_on] } {
+    $::gen set_freq [sweep_pan get_val]
   }
 
-  if {$pars(meas_mode) eq "bgsweep"} {
-    sweep_pan stop
-    sweep_pan do_step
-
-    #$::gen readonly [bgsweep_pan is_on]
-
-    # set generator frequency
-    if {[bgsweep_pan is_on] } {
-      $::gen set_freq [bgsweep_pan get_val]
-    }
-
-    # set monitor period
-    mon set_period [bgsweep_pan get_delay]
-    return
-  }
+  # set monitor period
+  mon set_period [sweep_pan get_delay]
 }
 
 ##########################################################################
@@ -394,6 +304,7 @@ proc func_meas {} {
 # the next step. Here we measure the new value and collect data.
 proc func_meas_e {} {
   global pars
+  global fitres
 
   ####################
   if {[sweep_pan is_first]} { tplot_sweep clear }
@@ -419,46 +330,19 @@ proc func_meas_e {} {
     set F [$::gen get_volt]
     set N 1e-7
     set L 1e-5
-
     # Random number with normal distribution (see Muller_transform):
-    set Nx [expr $N*sqrt(-2.0 * log(rand()))*cos(2*3.1415926*rand())]
-    set Ny [expr $N*sqrt(-2.0 * log(rand()))*cos(2*3.1415926*rand())]
-
-    set Bx [expr 0.000001*$F]
-    set By [expr -0.000001*$F]
-
-    set x [expr $Nx+$Bx]
-    set y [expr $Ny+$By]
-
-    if {$pars(meas_mode) eq "sweep"} {
-      set Sx [expr {$F*($f*$df)/(($f0**2-$f**2)**2 + ($f*$df)**2)}]
-      set Sy [expr {$F*($f0**2-$f**2)/(($f0**2-$f**2)**2 + ($f*$df)**2)}]
-      set x [expr $x+$Sx]
-      set y [expr $y+$Sy]
-    }
-
+    set N [expr $N*sqrt(-2.0 * log(rand()))*cos(2*3.1415926*rand())]
+    set x [expr {$N + $F*($f*$df)/(($f0**2-$f**2)**2 + ($f*$df)**2)}]
+    set y [expr {$N + $F*($f0**2-$f**2)/(($f0**2-$f**2)**2 + ($f*$df)**2)}]
     if {$x>+$L} {set x +$L}
     if {$x<-$L} {set x -$L}
     if {$y>+$L} {set y +$L}
     if {$y<-$L} {set y -$L}
   }
 
-  if {$pars(meas_mode) eq "sweep"} {
-    if {[sweep_pan is_first]} { tplot_sweep clear }
-    if {[sweep_pan is_cancelled]} {return}
-    if {[sweep_pan is_on]} { tplot_sweep add_data [list $t $f $x $y] }
-    if {[sweep_pan is_last] } { process_sweep_data }
-    return
-  }
+  if {[sweep_pan is_on]} { tplot_sweep add_data [list $t $f $x $y] }
 
-  if {$pars(meas_mode) eq "bgsweep"} {
-    if {[bgsweep_pan is_first]} { tplot_sweep clear }
-    if {[bgsweep_pan is_cancelled]} {return}
-    if {[bgsweep_pan is_on]} { tplot_sweep add_data [list $t $f $x $y] }
-    if {[bgsweep_pan is_last] } { process_bgsweep_data }
-    return
-  }
-
+  if {[sweep_pan is_last] } { process_sweep_data }
 }
 
 ######################################################################
@@ -507,8 +391,7 @@ proc mk_frame_meas_tabs {w} {
     -npts $pars(npts)\
     -mode $pars(mode)\
     -dt   $pars(dt)\
-    -dtf  $pars(dtf)\
-    -cmd_start switch_meas_sweep
+    -dtf  $pars(dtf)
 
   pack $f.sw -expand 0 -fill x -anchor ne
   widget_bg $f.sw #E0F0F0
@@ -574,22 +457,9 @@ proc mk_frame_meas_tabs {w} {
 
   button $f.f1.meas  -command set_ac_shift -text "Measure and set"
   button $f.f1.reset -command clear_ac_shift -text "Reset to zero"
-  pack $f.f1.meas $f.f1.reset -expand 0 -fill x -anchor ne -side left
+  pack $f.f1.meas -expand 0 -fill x -anchor ne
+  pack $f.f1.reset -expand 0 -fill x -anchor ne
 
-  # bgsweep panel
-  widget_sweep bgsweep_pan $f.sw\
-    -title "Background measurement:"\
-    -vmin_label "F1" -vmax_label "F2"\
-    -vmin $pars(bg_fmin) -vmax $pars(bg_fmax)\
-    -npts $pars(bg_npts)\
-    -mode "Up"\
-    -show_mode 0\
-    -on 0\
-    -dt   $pars(bg_dt)\
-    -dtf  $pars(bg_dtf)\
-    -cmd_start switch_meas_bgsweep
-
-  pack $f.sw -expand 0 -fill x -anchor ne
 
   ###########
   ## resonance measurements
