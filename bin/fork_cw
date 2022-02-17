@@ -761,7 +761,7 @@ proc clear_ac_shift {} {
 Monitor mon .m -name $pars(name) -period 1 -onoff 1\
   -func_start {} -func_stop {}\
   -func_meas func_meas -func_meas_e func_meas_e -func_mkint func_mkint\
-  -show_ctl 0 -show_title 1 -verb 0 -wait_meas 1
+  -show_ctl 0 -show_title 1 -verb 0 -wait_meas 0
 
 pack .m -expand 1 -fill both
 wm protocol . WM_DELETE_WINDOW { mon do_exit }
