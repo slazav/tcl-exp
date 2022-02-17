@@ -165,7 +165,7 @@ proc adjust_sweep_pars {} {
   }
 
   if {$pars(adj_time)} {
-    set dt1  [expr 1.0/$fitres(df)]
+    set dt1  [expr 1.0/abs($fitres(df))]
     set dt2  [$::lockin get_tconst]
     set dt [expr 3.0*max($dt1,$dt2)]
     if {$dt > $pars(adj_tmax) } {set dt $pars(adj_tmax)}
