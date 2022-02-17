@@ -179,6 +179,19 @@ proc adjust_sweep_pars {} {
   }
 }
 
+# load sweep settings from the database
+proc load_pars {} {
+  global pars
+  if {$pars(db_dev)=={} || $pars(pars_db)=={}} {error "No database"}
+  set last [lindex [$pars(db_dev) cmd get $pars(pars_db)] 0]
+  sweep_pan set_vmin [lindex $last 2]
+  sweep_pan set_vmax [lindex $last 3]
+  sweep_pan set_npts [lindex $last 4]
+  sweep_pan set_dt   [lindex $last 5]
+  sweep_pan set_dtf   [lindex $last 6]
+}
+
+
 # get sweep data, do fit, put values to databases.
 proc process_sweep_data {} {
 
@@ -409,11 +422,13 @@ proc mk_frame_meas_tabs {w} {
   checkbutton $f.adj.tt  -text "Time step" -variable pars(adj_time)
   checkbutton $f.adj.ph  -text "Phase" -variable pars(adj_phase)
   entry $f.adj.am_v -width 12 -textvariable pars(amp_target)
+  button $f.adj.load -text "Load from DB" -command load_pars
 
   grid $f.adj.lof -sticky nw -columnspan 2
   grid $f.adj.f0 $f.adj.df  -sticky nw
   grid $f.adj.drv $f.adj.am_v -sticky nw
   grid $f.adj.tt $f.adj.ph  -sticky nw
+  grid $f.adj.load -sticky nw -padx 2 -pady 2
 
   pack $f.adj -expand 0 -fill x -anchor ne
   widget_bg $f.adj #E0E0F0
