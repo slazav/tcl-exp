@@ -56,7 +56,6 @@ set default_pars {
   adj_phase    {0}        {adjust phase, 0|1}
   fspan_size   {6}        {frequency span / width}
   amp_target   {1}        {amplitude target}
-  set_from_res_db {0}     {set initial sweep parameters using last value from res_db}
   meas_mode    {sweeps}    {sweeps/resonance}
 }
 
@@ -576,21 +575,6 @@ proc func_mkint {w} {
   $w.tabs insert end tplot_res -window $w.tabs.tplot\
      -anchor n -text "Time Plot" -fill both -padx 3 -pady 3
 
-  ##########################################################################
-  # set sweep parameters from previous fit
-
-  if {$pars(set_from_res_db) && $pars(db_dev)!={} && $pars(res_db)!={}} {
-    set last [lindex [$pars(db_dev) cmd get $pars(res_db)] 0]
-
-    foreach n {T drive err A Ae B Be C Ce D De f0 f0e df dfe E Ee F Fe} v $last {
-      if {$n == "drive"} {continue}
-      if {$v == {}} {set v 0}
-      set fitres($n) $v
-    }
-    set fitres(amp) [expr {abs(hypot($fitres(C),$fitres(D))/$fitres(f0)/$fitres(df))}]
-    set fitres(ph)  [expr {180/3.1415926*atan2($fitres(C),$fitres(D))}]
-    adjust_sweep_pars
-  }
 }
 
 proc on_res_mode {} {
