@@ -400,16 +400,13 @@ proc mk_frame_meas_tabs {w} {
   labelframe $f.adj -text "Adjust:" -font {-weight bold -size 10}
   checkbutton $f.adj.f0  -text "Central frequency" -variable pars(adj_freq)
   checkbutton $f.adj.df  -text "Frequency span" -variable pars(adj_fspan)
-  checkbutton $f.adj.drv -text "Drive (constant amplitude)" -variable pars(adj_drive)
+  checkbutton $f.adj.drv -text "Target amplitude:" -variable pars(adj_drive)
   checkbutton $f.adj.tt  -text "Time step" -variable pars(adj_time)
   checkbutton $f.adj.ph  -text "Phase" -variable pars(adj_phase)
-
-  label $f.adj.am_l -text "Target amplitude:"
   entry $f.adj.am_v -width 12 -textvariable pars(amp_target)
 
   grid $f.adj.f0 $f.adj.df  -sticky nw
-  grid $f.adj.drv -sticky nw -columnspan 2
-  grid $f.adj.am_l $f.adj.am_v -sticky nw -padx 5 -pady 2
+  grid $f.adj.drv $f.adj.am_v -sticky nw
   grid $f.adj.tt $f.adj.ph  -sticky nw
 
   pack $f.adj -expand 0 -fill x -anchor ne
