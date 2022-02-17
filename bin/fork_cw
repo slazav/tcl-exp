@@ -42,6 +42,7 @@ set default_pars {
   vertical     0          {vertical design of the intereface}
   geometry     {}         {set initial window geometry}
   plot_maxt    {600}      {timeplot span}
+  lin_offs     {0}        {Fit with constant/linear offset, 0|1}
   adj_freq     {0}        {adjust central frequency, 0|1}
   adj_fspan    {0}        {adjust frequency span, 0|1}
   adj_fmin     {0}        {min frequency limit for adjustment}
@@ -208,7 +209,8 @@ proc process_sweep_data {} {
   }
 
   # do fit
-  set conn [open "| fit_res --pars 8" RDWR]
+  set npars [expr {$pars(lin_offs)? "--pars 8":"--pars 6"}]
+  set conn [open "| fit_res $npars" RDWR]
   fconfigure $conn -blocking true -buffering line
   for {set i 0} {$i < [$tv length]} {incr i} {
     puts $conn "[$tv index $i] [$fv index $i] [$xv index $i] [$yv index $i]"
@@ -330,10 +332,12 @@ proc func_meas_e {} {
     set F [$::gen get_volt]
     set N 1e-7
     set L 1e-5
+    set OffX [expr {$F/($f*$df)*(0.1 + ($f-$f0)/$f0*0.05)}]
+    set OffY [expr {$F/($f*$df)*(0.2 + ($f-$f0)/$f0*0.02)}]
     # Random number with normal distribution (see Muller_transform):
     set N [expr $N*sqrt(-2.0 * log(rand()))*cos(2*3.1415926*rand())]
-    set x [expr {$N + $F*($f*$df)/(($f0**2-$f**2)**2 + ($f*$df)**2)}]
-    set y [expr {$N + $F*($f0**2-$f**2)/(($f0**2-$f**2)**2 + ($f*$df)**2)}]
+    set x [expr {$N + $OffX + $F*($f*$df)/(($f0**2-$f**2)**2 + ($f*$df)**2)}]
+    set y [expr {$N + $OffY + $F*($f0**2-$f**2)/(($f0**2-$f**2)**2 + ($f*$df)**2)}]
     if {$x>+$L} {set x +$L}
     if {$x<-$L} {set x -$L}
     if {$y>+$L} {set y +$L}
@@ -397,7 +401,8 @@ proc mk_frame_meas_tabs {w} {
   widget_bg $f.sw #E0F0F0
 
   # adjust panel
-  labelframe $f.adj -text "Adjust:" -font {-weight bold -size 10}
+  labelframe $f.adj -text "Fit and Adjust:" -font {-weight bold -size 10}
+  checkbutton $f.adj.lof -text "Use linear offsets in the fit" -variable pars(lin_offs)
   checkbutton $f.adj.f0  -text "Central frequency" -variable pars(adj_freq)
   checkbutton $f.adj.df  -text "Frequency span" -variable pars(adj_fspan)
   checkbutton $f.adj.drv -text "Target amplitude:" -variable pars(adj_drive)
@@ -405,6 +410,7 @@ proc mk_frame_meas_tabs {w} {
   checkbutton $f.adj.ph  -text "Phase" -variable pars(adj_phase)
   entry $f.adj.am_v -width 12 -textvariable pars(amp_target)
 
+  grid $f.adj.lof -sticky nw -columnspan 2
   grid $f.adj.f0 $f.adj.df  -sticky nw
   grid $f.adj.drv $f.adj.am_v -sticky nw
   grid $f.adj.tt $f.adj.ph  -sticky nw
