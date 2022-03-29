@@ -53,7 +53,9 @@ proc func_start {} {
 
   if {$pars(mplex_dev)!={}} {
     Device $pars(mplex_dev)
-    set capbr_d [DeviceRole $pars(capbr_dev) gauge]
+    if {$pars(capbr_dev) ne {}} {
+      set capbr_d [DeviceRole $pars(capbr_dev) gauge]
+    }
 
     # Channels 101-109: bath resistors
     # Set delay to wait for stabilisation of filtered lines.
@@ -92,7 +94,7 @@ proc func_meas {} {
   if {$pars(mplex_dev) eq {}} {
     set D0 {}
     for {set i 0} {$i < 14} {incr i} {
-      lappend D0 [expr {1000*rand() + 100*$i}]
+      lappend D0 0
     }
   }\
   else {
@@ -101,9 +103,7 @@ proc func_meas {} {
   }
 
   if {$capbr_d eq {}} {
-    for {set i 0} {$i < 2} {incr i} {
-      lappend D1 [expr {1000*rand() + 100*$i}]
-    }
+    set D1 {0 0}
   }\
   else {
     set D1 [$capbr_d get]
@@ -163,20 +163,24 @@ proc func_meas {} {
 
   # put data to database
   if {$pars(db_dev)!={}} {
-    for {set i 1} {$i <= 9} {incr i} {
-      if {$D(R$i) != $D(R$i)} continue
-      $pars(db_dev) cmd put_flt Rbath$i $T0 $D(R$i)
+    if {$pars(mplex_dev) ne {}} {
+      for {set i 1} {$i <= 9} {incr i} {
+        if {$D(R$i) != $D(R$i)} continue
+        $pars(db_dev) cmd put_flt Rbath$i $T0 $D(R$i)
+      }
+      $pars(db_dev) cmd put_flt he_level $T0 $D(he_level) $D(he_level_cnv)
+      $pars(db_dev) cmd put_flt demag_vi $T0 $D(demag_v) $D(demag_i)
+      if {$D(demag_ps) > 4.0} {
+        $pars(db_dev) cmd put_flt demag_pc $T0 $D(demag_v) $D(demag_i)
+      }
+      if {$D(demag_ps) < 4.0 && $ps_pr >= 4.0} {
+        $pars(db_dev) cmd put comments $T0 "demag -> [format %.3f $D(demag_i_cnv)] A"
+      }
+      $pars(db_dev) cmd put_flt demag_ps $T0 $D(demag_ps)
     }
-    $pars(db_dev) cmd put_flt he_level $T0 $D(he_level) $D(he_level_cnv)
-    $pars(db_dev) cmd put_flt demag_vi $T0 $D(demag_v) $D(demag_i)
-    if {$D(demag_ps) > 4.0} {
-      $pars(db_dev) cmd put_flt demag_pc $T0 $D(demag_v) $D(demag_i)
+    if {$capbr_d ne {}} {
+      $pars(db_dev) cmd put_flt press_cell_cap $T0 $D(press_cell_c) $D(press_cell_l)
     }
-    if {$D(demag_ps) < 4.0 && $ps_pr >= 4.0} {
-      $pars(db_dev) cmd put comments $T0 "demag -> [format %.3f $D(demag_i_cnv)] A"
-    }
-    $pars(db_dev) cmd put_flt demag_ps $T0 $D(demag_ps)
-    $pars(db_dev) cmd put_flt press_cell_cap $T0 $D(press_cell_c) $D(press_cell_l)
     $pars(db_dev) cmd sync
   }
   set ps_pr $D(demag_ps)
