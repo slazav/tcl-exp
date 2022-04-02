@@ -109,6 +109,7 @@ set resistance 0;   ## resistance value in the interface
 set dev_status {};  ## device status string (CC, OV etc)
 
 set state 0;      ## does sweeper work?
+set inv 0;        ## invert current?
 set sweeps -1;    ## number of sweeps
 set rate   $pars(def_rate)
 set dest1  $pars(minI)
@@ -272,10 +273,13 @@ proc on_new_com {t com} {
 
 ## update values command
 proc on_new_val {t cm cs vm {m 0} {st {}}} {
-  global pars c_k
+  global pars c_k inv
   set ::current    [format "%.3f" [expr $cm/$c_k]]
   set ::resistance [format "%.3f" [expr { $cm!=0? $vm/$cm:0} ]]
   set ::dev_status [sweeper get_stat]
+
+  set cs [expr $cs*($inv?-1:+1)]
+  set cm [expr $cm*($inv?-1:+1)]
   time_plot add_data [list $t [expr $cm/$c_k] [expr $cs/$c_k] $vm $::resistance {*}$m]
 
   if { $::pars(db)!={} && $::pars(db_val) != {}} {
@@ -406,8 +410,9 @@ proc make_control {root} {
   enable 0
 
   frame $root.b;  # button frame
-  checkbutton $root.b.oo -text "on/off" -variable ::state -command {do_onoff $::state}
-  grid $root.b.oo -sticky w
+  checkbutton $root.b.oo  -text "on/off"   -variable ::state -command {do_onoff $::state}
+  checkbutton $root.b.inv -text "negative" -variable ::inv
+  grid $root.b.oo $root.b.inv -sticky w
   pack $root.b -fill x
 
 }
