@@ -89,9 +89,6 @@ SweepController sweeper\
   -ps_dev2    $pars(ps_dev2)\
   -antipar    $pars(antipar)\
   -gauge      $pars(gauge_dev)\
-  -db_dev     $pars(db)\
-  -db_val     $pars(db_val)\
-  -db_ann     $pars(db_ann)\
   -max_volt   $pars(ovp)\
   -max_rate   [expr $pars(max_rate)*$r_k]\
   -gain       $pars(gain)\
@@ -100,6 +97,9 @@ SweepController sweeper\
   -idle_tstep $pars(idle_tstep)\
   -on_new_val on_new_val\
   -on_new_com on_new_com
+
+# Open database if needed
+if {$pars(db) != {} && [itcl::find objects $pars(db)]=={}} { Device $pars(db) }
 
 ##########################################################
 ## interface for external use
@@ -255,13 +255,17 @@ set plot_widget {}
 
 proc on_new_com {t com} {
   time_plot add_comment $t $com
-  # put a high-level comment after finishing sweep:
-  if {[regexp {finished} $com] } {
-    if {$::pars(db)!={} && $::pars(db_comm)!={}} {
-      Device $::pars(db)
-      $::pars(db) cmd put $::pars(db_comm) now "$::pars(name) -> $::current $::pars(c_units)"
-      itcl::delete object $::pars(db)
+
+  if {$::pars(db)!={}} {
+    # put annotation
+    if {$::pars(db_ann) != {} } {
+      $::pars(db) cmd "put $::pars(db_ann) $t $com"
     }
+    # put a high-level comment after finishing sweep:
+    if {[regexp {finished} $com] && $::pars(db_comm)!={}} {
+      $::pars(db) cmd put $::pars(db_comm) now "$::pars(name) -> $::current $::pars(c_units)"
+    }
+    $::pars(db) cmd "sync"
   }
   return
 }
@@ -273,6 +277,12 @@ proc on_new_val {t cm cs vm {m 0} {st {}}} {
   set ::resistance [format "%.3f" [expr { $cm!=0? $vm/$cm:0} ]]
   set ::dev_status [sweeper get_stat]
   time_plot add_data [list $t [expr $cm/$c_k] [expr $cs/$c_k] $vm $::resistance {*}$m]
+
+  if { $::pars(db)!={} && $::pars(db_val) != {}} {
+    $::pars(db) cmd "put $::pars(db_val) $t $cm $cs $vm $m"
+    $::pars(db) cmd "sync"
+  }
+
   gint_update_val $m
   gint_update_st $st
   return

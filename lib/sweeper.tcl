@@ -9,9 +9,6 @@ package require xBlt
 # -P -ps_dev2     -- power supply device - 2nd channel
 # -A -antipar     -- anti-parallel connection
 # -G -gauge       -- gauge device
-# -d -db_dev      -- database device (can be empty)
-# -n -db_val      -- database name for numerical values
-# -a -db_ann      -- database name for annatations
 # -v -max_volt    -- max voltage, V (default 1)
 # -m -max_rate    -- max rate, A/S (default 1)
 # -g -gain        -- gain, ratio of solenoid current and device current (default 1), can be negative
@@ -71,9 +68,6 @@ itcl::class SweepController {
   variable ps_dev2
   variable antipar
   variable g_dev
-  variable db_dev
-  variable db_val
-  variable db_ann
   variable max_volt
   variable max_rate
   variable gain;
@@ -113,9 +107,6 @@ itcl::class SweepController {
       {-P -ps_dev2}  ps_dev2  {}\
       {-A -antipar}  antipar  0\
       {-G -gauge}    g_dev    {}\
-      {-d -db_dev}   db_dev   {}\
-      {-n -db_val}   db_val   {}\
-      {-a -db_ann}   db_ann   {}\
       {-v -max_volt} max_volt {1}\
       {-m -max_rate} max_rate {1}\
       {-g -gain}     gain     {1.0}\
@@ -179,9 +170,6 @@ itcl::class SweepController {
       uplevel \#0 [eval {gint_update_c}]
     }
 
-    # Open database if needed
-    if {$db_dev != {} && [itcl::find objects $db_dev]=={}} { Device $db_dev }
-
     # reset the device and starm main loop
     set tstep $idle_tstep
     set state 1
@@ -204,10 +192,6 @@ itcl::class SweepController {
   method put_comment {c} {
     set t [expr [clock milliseconds]/1000.0]
     if {$on_new_com != {}} { uplevel \#0 [eval {$on_new_com $t $c}]}
-    if {$db_dev != {} && $db_ann != {} } {
-      $db_dev cmd "put $db_ann $t $c"
-      $db_dev cmd "sync"
-    }
   }
 
   # put value into the database
@@ -217,10 +201,6 @@ itcl::class SweepController {
     set vm [expr {abs($vm1)>abs($vm2)? $vm1:$vm2}]
     set t [expr [clock milliseconds]/1000.0]
     if {$on_new_val != {}} { uplevel \#0 [eval {$on_new_val $t $cm $cs $vm $mval $mst}]}
-    if { $db_dev != {} && $db_val != {}} {
-      $db_dev cmd "put $db_val $t $cm $cs $vm $mval"
-      $db_dev cmd "sync"
-    }
   }
 
   ######################################
@@ -255,7 +235,6 @@ itcl::class SweepController {
         itcl::delete object $dev2
         set dev2 {}
       }
-      if {[is_obj $db_dev]} { itcl::delete object $db_dev }
       if {[is_obj $g_dev]}  { itcl::delete object $g_dev }
       set in_the_loop 0
       return
