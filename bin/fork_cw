@@ -527,7 +527,7 @@ proc func_mkint {w} {
 
   # generator panel
   $::gen make_widget $f_conf.gen\
-    -title "Generator:" -show_offs 0 -show_phase 1 -show_ac_shift 1
+    -title "Generator:" -show_ac_shift 0
   pack $f_conf.gen -expand 0 -fill x -anchor ne
   widget_bg $f_conf.gen #F0F0E0
 
