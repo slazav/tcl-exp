@@ -158,6 +158,12 @@ proc adjust_sweep_pars {} {
       set f2 $pars(adj_fmax)
       set f1 [expr $f2-$span]
     }
+    if {$f1 < $pars(adj_fmin) } {
+      set f1 $pars(adj_fmin)
+    }
+    if {$f2 > $pars(adj_fmax) } {
+      set f2 $pars(adj_fmax)
+    }
     sweep_pan set_vmin [format $pars(fre_fmt) $f1]
     sweep_pan set_vmax [format $pars(fre_fmt) $f2]
   }
