@@ -56,8 +56,18 @@ set default_pars {
   adj_phase    {0}        {adjust phase, 0|1}
   fspan_size   {6}        {frequency span / width}
   amp_target   {1}        {amplitude target}
-  meas_mode    {sweeps}    {sweeps/resonance}
+  meas_mode    {sweeps}   {sweeps/resonance}
+  bg6x         {}         {bg parameters for x}
+  bg6y         {}         {bg parameters for y}
 }
+
+# Background data
+# Fx(x) = (a1 + b1*x + c1*x**2 + d1*x**3)/((x**2-f1**2)**2 + (g1*x)**2)
+# Fy(x) = (a2 + b2*x + c2*x**2 + d2*x**3)/((x**2-f1**2)**2 + (g1*x)**2)
+# bg6x: [a1,b1,c1,d1,f1,g1]
+# bg6y: [a2,b2,c2,d2,f2,g2]
+# x in kHz, Fx, Fy in uV for 1V drive
+
 
 if {[llength $argv]>0 } {
   read_conf [lindex $argv 0] pars $default_pars
@@ -99,6 +109,9 @@ blt::vector create fity
 blt::vector create oldf
 blt::vector create oldx
 blt::vector create oldy
+blt::vector create basef
+blt::vector create basex
+blt::vector create basey
 
 ##########################################################################
 ## functions for the monitor class
@@ -190,6 +203,20 @@ proc load_pars {} {
   sweep_pan set_dtf   [lindex $last 6]
 }
 
+# add base to blt vector
+proc add_base {vec vecf drive xy} {
+  global pars
+  if {[llength $pars(bg6$xy)] == 6} {
+    set A [lindex $pars(bg6$xy) 0]
+    set B [lindex $pars(bg6$xy) 1]
+    set C [lindex $pars(bg6$xy) 2]
+    set D [lindex $pars(bg6$xy) 3]
+    set F [lindex $pars(bg6$xy) 4]
+    set G [lindex $pars(bg6$xy) 5]
+    $vec expr {$vec + $drive*1e-6*($A+$B*$vecf*1e-3+$C*$vecf^2*1e-6+$D*$vecf^3*1e-9)/(($vecf^2*1e-6-$F^2)^2 + ($G*$vecf*1e-3)^2)}
+  }
+}
+
 
 # get sweep data, do fit, put values to databases.
 proc process_sweep_data {} {
@@ -202,6 +229,8 @@ proc process_sweep_data {} {
   set fv [tplot_sweep get_dvec 0]
   set xv [tplot_sweep get_dvec 1]
   set yv [tplot_sweep get_dvec 2]
+  set drive [$::gen get_volt]
+  set phase [$::gen get_phase]
 
   # put sweep data in the database
   if {$pars(db_dev) != {} && $pars(sweep_db) != {}} {
@@ -217,15 +246,26 @@ proc process_sweep_data {} {
     $pars(db_dev) cmd put $pars(pars_db) $t0 $dt\
       [sweep_pan get_vmin] [sweep_pan get_vmax] [sweep_pan get_npts]\
       [sweep_pan get_dt] [sweep_pan get_dtf] [sweep_pan get_dir]\
-      [$::gen get_volt] [$::gen get_phase]
+      $drive $phase
   }
+
+  ##
+
+  # baseline
+  basef expr $fv
+  basex expr basef*0
+  basey expr basef*0
+  add_base basex basef $drive x
+  add_base basey basef $drive y
 
   # do fit
   set npars [expr {$pars(lin_offs)? "--pars 8":"--pars 6"}]
   set conn [open "| fit_res $npars" RDWR]
   fconfigure $conn -blocking true -buffering line
   for {set i 0} {$i < [$tv length]} {incr i} {
-    puts $conn "[$tv index $i] [$fv index $i] [$xv index $i] [$yv index $i]"
+    set xx [expr {[$xv index $i] - [basex index $i]}]
+    set yy [expr {[$yv index $i] - [basey index $i]}]
+    puts $conn "[$tv index $i] [$fv index $i] $xx $yy"
   }
   close $conn write
   set res [gets $conn]
@@ -256,6 +296,8 @@ proc process_sweep_data {} {
   if {[$G element names fity] != {}} {$G element delete fity}
   if {[$G element names oldx] != {}} {$G element delete oldx}
   if {[$G element names oldy] != {}} {$G element delete oldy}
+  if {[$G element names basex] != {}} {$G element delete basex}
+  if {[$G element names basey] != {}} {$G element delete basey}
 
   # add new fits
   set f1 [$fv index 0]
@@ -264,10 +306,23 @@ proc process_sweep_data {} {
   fitx expr {$fitres(A) + ($fitres(C)*($fitres(f0)^2-fitf^2)+$fitres(D)*(fitf*$fitres(df)))/(($fitres(f0)^2-fitf^2)^2 + (fitf*$fitres(df))^2) + $fitres(E)*(fitf-$fitres(f0))}
   fity expr {$fitres(B) + ($fitres(D)*($fitres(f0)^2-fitf^2)-$fitres(C)*(fitf*$fitres(df)))/(($fitres(f0)^2-fitf^2)^2 + (fitf*$fitres(df))^2) + $fitres(F)*(fitf-$fitres(f0))}
 
+  add_base fitx fitf $drive x
+  add_base fity fitf $drive y
+
   $G element create fitx -outline black -mapx xF -mapy y\
      -xdata fitf -ydata fitx -symbol {}
   $G element create fity -outline black -mapx xF -mapy y\
      -xdata fitf -ydata fity -symbol {}
+
+  # add baseline
+  if {[llength $pars(bg6x)] == 6} {
+    $G element create basex -color red -mapx xF -mapy y\
+     -xdata basef -ydata basex -symbol {}
+  }
+  if {[llength $pars(bg6y)] == 6} {
+    $G element create basey -color blue -mapx xF -mapy y\
+       -xdata basef -ydata basey -symbol {}
+  }
 
   # add new data
   oldf expr $fv
@@ -286,7 +341,7 @@ proc process_sweep_data {} {
 
   # put values into database
   if {$pars(db_dev) != {} && $pars(res_db) != {}} {
-    $pars(db_dev) cmd put $pars(res_db) $fitres(T) [$::gen get_volt] [lrange $res 1 end]
+    $pars(db_dev) cmd put $pars(res_db) $fitres(T) $drive [lrange $res 1 end]
   }
 
   # Adjust sweep parameters.
@@ -337,6 +392,7 @@ proc func_meas_e {} {
     set x [lindex $v 0]
     set y [lindex $v 1]
   }
+
 
   if {$pars(lockin_dev) eq "TEST"} {
     set f0 1024
