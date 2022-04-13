@@ -56,7 +56,8 @@ set default_pars {
   adj_phase    {0}        {adjust phase, 0|1}
   fspan_size   {6}        {frequency span / width}
   amp_target   {1}        {amplitude target}
-  meas_mode    {sweeps}   {sweeps/resonance}
+  meas_mode    {sweeps}   {sweeps/track}
+  track_period {0.5}      {track period, s} 
   bg6x         {}         {bg parameters for x}
   bg6y         {}         {bg parameters for y}
 }
@@ -99,6 +100,7 @@ set ph_f {};
 set lockin [DeviceRole $pars(lockin_dev) lock-in {*}$pars(lockin_pars)];
 set gen [DeviceRole $pars(gen_dev) ac_source];
 if {$pars(db_dev)!={}} { Device $pars(db_dev) }
+
 
 ##########################################################################
 
@@ -223,6 +225,26 @@ proc add_base {vec vecf drive xy} {
   }
 }
 
+# same for f,x,y value
+proc get_base {f drive} {
+  global pars
+  set ret {}
+  foreach xy {x y} {
+    if {[llength $pars(bg6$xy)] == 6} {
+      set A [lindex $pars(bg6$xy) 0]
+      set B [lindex $pars(bg6$xy) 1]
+      set C [lindex $pars(bg6$xy) 2]
+      set D [lindex $pars(bg6$xy) 3]
+      set F [lindex $pars(bg6$xy) 4]
+      set G [lindex $pars(bg6$xy) 5]
+      lappend ret [expr {$drive*1e-6*($A+$B*$f*1e-3+$C*$f**2*1e-6+$D*$f**3*1e-9)/(($f**2*1e-6-$F**2)**2 + ($G*$f*1e-3)**2)}]
+    } else {
+      lappend ret 0
+    }
+  }
+  return $ret
+}
+
 
 # get sweep data, do fit, put values to databases.
 proc process_sweep_data {} {
@@ -286,6 +308,7 @@ proc process_sweep_data {} {
   }
   set fitres(amp) [expr {abs(hypot($fitres(C),$fitres(D))/$fitres(f0)/$fitres(df))}]
   set fitres(ph)  [expr {180/3.1415926*atan2($fitres(C),$fitres(D))}]
+  set fitres(drive) $drive
 
   # format values for interface
   global fre_f wid_f amp_f ph_f
@@ -360,7 +383,11 @@ proc process_sweep_data {} {
 # generator frequency.
 proc func_meas {} {
   global pars
+
+
   sweep_pan do_step
+
+  if {$pars(meas_mode) eq "track"} { return }
 
   # set generator panel to readonly state when sweeper is active
   #$::gen readonly [sweep_pan is_on]
@@ -381,14 +408,18 @@ proc func_meas_e {} {
   global pars
   global fitres
 
+
   ####################
-  if {[sweep_pan is_first]} { tplot_sweep clear }
-  if {[sweep_pan is_cancelled]} {return}
+  if {$pars(meas_mode) eq "sweep"} {
+    if {[sweep_pan is_first]} { tplot_sweep clear }
+    if {[sweep_pan is_cancelled]} {return}
+  }
 
   ####################
   # do the measurement
-  set t [expr [clock microsecond]/1e6]
-  set f [sweep_pan get_val]
+  set t     [expr [clock microsecond]/1e6]
+  set f     [$::gen get_freq]
+  set drive [$::gen get_volt]
 
   set v [$::lockin get]
   if {$pars(swap_xy)} {
@@ -418,9 +449,65 @@ proc func_meas_e {} {
     if {$y<-$L} {set y -$L}
   }
 
-  if {[sweep_pan is_on]} { tplot_sweep add_data [list $t $f $x $y] }
+  if {$pars(meas_mode) eq "track"} {
 
-  if {[sweep_pan is_last] } { process_sweep_data }
+    # subtract pre-measured baseline and fitted baseline
+    set base [get_base $f $drive]
+    set x [expr {$x - [lindex $base 0] - $fitres(A) - $fitres(E)*($f-$fitres(f0))}]
+    set y [expr {$y - [lindex $base 1] - $fitres(B) - $fitres(F)*($f-$fitres(f0))}]
+
+    # drive factor
+    set x [expr {$x/$fitres(drive)*$drive}]
+    set y [expr {$y/$fitres(drive)*$drive}]
+
+    # calculate new f0 and df
+    # x + iy = (C + iD)/(f0^2 - f^2 + 1i*f*df)
+
+    # f0^2 = f^2 + Re[(C + iD)/(x + iy)] = f^2 + (C*x + D*y)/(x^2 + y^2)
+    # df  = Im[(C + iD)/(x + iy)]/f      = 1/f * (D*x - C*y)/(x^2 + y^2)
+
+    set f0 [expr {sqrt($f**2 + ($fitres(C)*$x + $fitres(D)*$y)/($x**2+$y**2))}]
+    set df [expr {($fitres(D)*$x - $fitres(C)*$y)/($x**2+$y**2)/$f}]
+    set amp [expr {abs(hypot($fitres(C),$fitres(D))/$f0/$df)}]
+
+    tplot_res add_data [list $t $df $f0 $amp]
+
+    # adjust frequency-dependent baseline:
+    # A + E*(f-f0) = An + E*(f-f0n)
+    # B + F*(f-f0) = Bn + F*(f-f0n)
+    # An = A + E*(f0n-f0)
+    # Bn = B + F*(f0n-f0)
+    set fitres(A) [expr {$fitres(A) + $fitres(E)*($f0-$fitres(f0))}]
+    set fitres(B) [expr {$fitres(B) + $fitres(F)*($f0-$fitres(f0))}]
+    set fitres(f0) $f0
+    set fitres(df) $df
+    set fitres(f0e) 0
+    set fitres(dfe) 0
+    set fitres(amp) $amp
+
+    # format values for interface
+    global fre_f wid_f amp_f ph_f
+    set fre_f [format $pars(fre_fmt) $fitres(f0)]
+    set wid_f [format $pars(wid_fmt) $fitres(df)]
+    set amp_f [format $pars(amp_fmt) $fitres(amp)]
+    set ph_f  [format $pars(ph_fmt)  $fitres(ph)]
+
+    # put values into database
+    if {$pars(db_dev) != {} && $pars(res_db) != {}} {
+      set res [list $t $drive]
+      foreach n {err A Ae B Be C Ce D De f0 f0e df dfe E Ee F Fe} {
+        lappend res $fitres($n)
+      }
+      $pars(db_dev) cmd put $pars(res_db) {*}$res
+    }
+
+    # adjust generator frequency
+    $::gen set_freq $f0
+  }\
+  else {
+    if {[sweep_pan is_on]} { tplot_sweep add_data [list $t $f $x $y] }
+    if {[sweep_pan is_last] } { process_sweep_data }
+  }
 }
 
 ######################################################################
@@ -448,7 +535,7 @@ proc mk_frame_top {w} {
   pack $w.fre $w.wid $w.amp $w.ph -side left -fill x -expand 1
 }
 
-# measurement type frame (sweeps/offsets/resonance tabset)
+# measurement type frame (sweeps/offsets/track tabset)
 proc mk_frame_meas_tabs {w} {
   global pars
 
@@ -458,7 +545,7 @@ proc mk_frame_meas_tabs {w} {
   frame $f
   $w insert end sweeps -window $f\
      -anchor n -text "Sweeps" -fill both -padx 3 -pady 3
- 
+
   # sweep panel
   widget_sweep sweep_pan $f.sw\
     -title "Sweeps:"\
@@ -469,7 +556,9 @@ proc mk_frame_meas_tabs {w} {
     -npts $pars(npts)\
     -mode $pars(mode)\
     -dt   $pars(dt)\
-    -dtf  $pars(dtf)
+    -dtf  $pars(dtf)\
+    -cmd_start on_track_stop\
+    -cmd_stop  on_track_stop
 
   pack $f.sw -expand 0 -fill x -anchor ne
   widget_bg $f.sw #E0F0F0
@@ -540,15 +629,6 @@ proc mk_frame_meas_tabs {w} {
   pack $f.f1.reset -expand 0 -fill x -anchor ne
 
 
-  ###########
-  ## resonance measurements
-  set f $w.conf_res
-  frame $f
-  $w insert end conf3 -window $f\
-     -anchor n -text "Resonance" -fill both -padx 3 -pady 3
-
-  button $f.start -command on_res_mode -text "Start"
-  pack $f.start -expand 0 -fill x -anchor ne
 }
 
 
@@ -623,8 +703,12 @@ proc func_mkint {w} {
 
   ############################
   ### Timeplot
+  set f_res $w.tabs.res
+  frame $f_res
+  $w.tabs insert end res -window $f_res\
+     -anchor n -text "Res/Track" -fill both -padx 3 -pady 3
 
-  TimePlot tplot_res $w.tabs.tplot\
+  TimePlot tplot_res $f_res.tplot\
    -ncols      3\
    -maxt       $pars(plot_maxt)\
    -colors     {}\
@@ -634,25 +718,30 @@ proc func_mkint {w} {
    -ssizes     {}\
    -fmts       {$pars(wid_fmt) $pars(fre_fmt) $pars(amp_fmt)}\
 
-  $w.tabs insert end tplot_res -window $w.tabs.tplot\
-     -anchor n -text "Time Plot" -fill both -padx 3 -pady 3
-
+  pack $f_res.tplot -expand 1 -fill both -anchor ne
+  button $f_res.start -command on_track_start -text "Start"
+  button $f_res.stop  -command on_track_stop  -text "Stop"
+  pack $f_res.start $f_res.stop -side left -expand 0 -anchor nw
 }
 
-proc on_res_mode {} {
+proc on_track_start {} {
   global fitres pars
-  if {![array exists fitres] ||
-       [array names fitres -exact A] == {} ||
-       [array names fitres -exact B] == {} ||
-       [array names fitres -exact C] == {} ||
-       [array names fitres -exact D] == {} ||
-       [array names fitres -exact E] == {} ||
-       [array names fitres -exact F] == {}} {
-    set pars(meas_mode) "sweeps"
-    return
-  }
+  if {$pars(meas_mode) eq "track"} return
+  if {![array exists fitres]} { error "No measured resonance available" }
+
   sweep_pan stop
+  sweep_pan do_step
+  mon set_period $pars(track_period)
+  $::gen set_freq $fitres(f0)
+  set pars(meas_mode) "track"
 }
+
+proc on_track_stop {} {
+  global pars
+  if {$pars(meas_mode) eq "sweep"} return
+  set pars(meas_mode) "sweep"
+}
+
 
 
 proc set_ac_shift {} {
