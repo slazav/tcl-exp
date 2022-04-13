@@ -191,6 +191,7 @@ itcl::class Monitor {
         set is_opened 0
         set onoff_fl 0
         set_status "Error while starting: $::errorInfo" red
+        puts stderr "Error while starting: $::errorInfo"
         return
       }
       $status_w set_img triangle_right green
@@ -200,7 +201,10 @@ itcl::class Monitor {
     if {$verb>0 && $::errorInfo == {}} {set_status "Measuring..."}
     set ::errorInfo {}
     run_cmd $func_meas
-    if {$::errorInfo != {}} {set_status "Error: $::errorInfo" red}
+    if {$::errorInfo != {}} {
+      set_status "Error: $::errorInfo" red
+      puts stderr "Error: $::errorInfo"
+    }
 
     # Set up the next iteration
     if {[regexp {^[0-9.]+$} $period]} {
@@ -219,7 +223,10 @@ itcl::class Monitor {
   # just before the next step.
   method main_loop_e {} {
     run_cmd $func_meas_e
-    if {$::errorInfo != {}} {set_status "Error: $::errorInfo" red}\
+    if {$::errorInfo != {}} {
+      set_status "Error: $::errorInfo" red
+      puts stderr "Error: $::errorInfo"
+    }\
     else {set_status {}}
 
     # Close devices if needed
@@ -229,6 +236,7 @@ itcl::class Monitor {
       run_cmd $func_stop
       if {$::errorInfo != {}} {
         set_status "Error while stopping: $::errorInfo" red
+        puts stderr "Error while stopping: $::errorInfo"
       }
       set is_opened 0
       $status_w set_img square red
@@ -250,6 +258,7 @@ itcl::class Monitor {
     if {$::errorInfo != {}} {
       set is_opened 0
       set_status "Error while starting: $::errorInfo" red
+      puts stderr "Error while starting: $::errorInfo"
       return
     }
     # stop do not modify status to keep previous message if any
@@ -257,6 +266,7 @@ itcl::class Monitor {
     if {$::errorInfo != {}} {
       set is_opened 0
       set_status "Error while stopping: $::errorInfo" red
+      puts stderr "Error while stopping: $::errorInfo"
       return
     }
     set_status {}
