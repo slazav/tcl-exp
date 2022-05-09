@@ -58,6 +58,8 @@ set default_pars {
   amp_target   {1}        {amplitude target}
   meas_mode    {sweeps}   {sweeps/track}
   track_period {0.5}      {track period, s} 
+  track_del    {10}       {initial delay for track mode, s} 
+  track_fixf   {0}        {fixed frequency in tracking mode} 
   bg6x         {}         {bg parameters for x}
   bg6y         {}         {bg parameters for y}
 }
@@ -451,14 +453,22 @@ proc func_meas_e {} {
 
   if {$pars(meas_mode) eq "track"} {
 
+    # If drive has changed, rescale resonance parameters
+    if {$drive != $fitres(drive)} {
+      set k [expr {$drive/$fitres(drive)}]
+      set fitres(A) [expr {$k*$fitres(A)}]
+      set fitres(B) [expr {$k*$fitres(B)}]
+      set fitres(C) [expr {$k*$fitres(C)}]
+      set fitres(D) [expr {$k*$fitres(D)}]
+      set fitres(E) [expr {$k*$fitres(E)}]
+      set fitres(F) [expr {$k*$fitres(F)}]
+      set fitres(drive) $drive
+    }
+
     # subtract pre-measured baseline and fitted baseline
     set base [get_base $f $drive]
     set x [expr {$x - [lindex $base 0] - $fitres(A) - $fitres(E)*($f-$fitres(f0))}]
     set y [expr {$y - [lindex $base 1] - $fitres(B) - $fitres(F)*($f-$fitres(f0))}]
-
-    # drive factor
-    set x [expr {$x/$fitres(drive)*$drive}]
-    set y [expr {$y/$fitres(drive)*$drive}]
 
     # calculate new f0 and df
     # x + iy = (C + iD)/(f0^2 - f^2 + 1i*f*df)
@@ -466,6 +476,7 @@ proc func_meas_e {} {
     # f0^2 = f^2 + Re[(C + iD)/(x + iy)] = f^2 + (C*x + D*y)/(x^2 + y^2)
     # df  = Im[(C + iD)/(x + iy)]/f      = 1/f * (D*x - C*y)/(x^2 + y^2)
 
+    # Calculate new freq, width, amplitude
     set f0 [expr {sqrt($f**2 + ($fitres(C)*$x + $fitres(D)*$y)/($x**2+$y**2))}]
     set df [expr {($fitres(D)*$x - $fitres(C)*$y)/($x**2+$y**2)/$f}]
     set amp [expr {abs(hypot($fitres(C),$fitres(D))/$f0/$df)}]
@@ -501,8 +512,16 @@ proc func_meas_e {} {
       $pars(db_dev) cmd put $pars(res_db) {*}$res
     }
 
+    # put sweep data in the database
+    if {$pars(db_dev) != {} && $pars(sweep_db) != {}} {
+      $pars(db_dev) cmd put $pars(sweep_db) $t $f $x $y
+    }
+
     # adjust generator frequency
-    $::gen set_freq $f0
+    if {!$pars(track_fixf)} {
+      $::gen set_freq $f0
+    }
+
   }\
   else {
     if {[sweep_pan is_on]} { tplot_sweep add_data [list $t $f $x $y] }
@@ -702,7 +721,7 @@ proc func_mkint {w} {
   }
 
   ############################
-  ### Timeplot
+  ### Timeplot/Track
   set f_res $w.tabs.res
   frame $f_res
   $w.tabs insert end res -window $f_res\
@@ -719,11 +738,15 @@ proc func_mkint {w} {
    -fmts       {$pars(wid_fmt) $pars(fre_fmt) $pars(amp_fmt)}\
 
   pack $f_res.tplot -expand 1 -fill both -anchor ne
+  label $f_res.l -text "Track mode: "
   button $f_res.start -command on_track_start -text "Start"
   button $f_res.stop  -command on_track_stop  -text "Stop"
-  pack $f_res.start $f_res.stop -side left -expand 0 -anchor nw
+  checkbutton $f_res.ff -text "Fix Freq" -variable pars(track_fixf)
+  pack $f_res.l $f_res.start $f_res.stop $f_res.ff -side left -expand 0 -anchor nw
 }
 
+############################
+# Track start/stop buttons
 proc on_track_start {} {
   global fitres pars
   if {$pars(meas_mode) eq "track"} return
@@ -733,6 +756,7 @@ proc on_track_start {} {
   sweep_pan do_step
   mon set_period $pars(track_period)
   $::gen set_freq $fitres(f0)
+  after [expr {int($pars(track_del)*1000)}]
   set pars(meas_mode) "track"
 }
 
