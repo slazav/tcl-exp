@@ -60,6 +60,7 @@ set default_pars {
   track_period {0.5}      {track period, s} 
   track_del    {10}       {initial delay for track mode, s} 
   track_fixf   {0}        {fixed frequency in tracking mode} 
+  track_fixa   {0}        {fixed amplitude in tracking mode} 
   bg6x         {}         {bg parameters for x}
   bg6y         {}         {bg parameters for y}
 }
@@ -480,6 +481,7 @@ proc func_meas_e {} {
     set f0 [expr {sqrt($f**2 + ($fitres(C)*$x + $fitres(D)*$y)/($x**2+$y**2))}]
     set df [expr {($fitres(D)*$x - $fitres(C)*$y)/($x**2+$y**2)/$f}]
     set amp [expr {abs(hypot($fitres(C),$fitres(D))/$f0/$df)}]
+    set ak [expr $amp/$fitres(amp)]
 
     tplot_res add_data [list $t $df $f0 $amp]
 
@@ -520,6 +522,11 @@ proc func_meas_e {} {
     # adjust generator frequency
     if {!$pars(track_fixf)} {
       $::gen set_freq $f0
+    }
+
+    # adjust drive
+    if {!$pars(track_fixa)} {
+      $::gen set_volt [expr $drive * $pars(amp_target)/$amp]
     }
 
   }\
@@ -742,7 +749,8 @@ proc func_mkint {w} {
   button $f_res.start -command on_track_start -text "Start"
   button $f_res.stop  -command on_track_stop  -text "Stop"
   checkbutton $f_res.ff -text "Fix Freq" -variable pars(track_fixf)
-  pack $f_res.l $f_res.start $f_res.stop $f_res.ff -side left -expand 0 -anchor nw
+  checkbutton $f_res.fa -text "Fix Amp" -variable pars(track_fixa)
+  pack $f_res.l $f_res.start $f_res.stop $f_res.ff $f_res.fa -side left -expand 0 -anchor nw
 }
 
 ############################
