@@ -60,7 +60,7 @@ else {
 set c_k {}
 if {$pars(c_units)=={A}}      { set c_k 1 }
 if {$pars(c_units)=={mA}}     { set c_k 1e-3 }
-if {$pars(c_units)=={uI}}     { set c_k 1e-6 }
+if {$pars(c_units)=={uA}}     { set c_k 1e-6 }
 if {$c_k == {}} {error "unknown current units: $pars(c_units)"}
 
 # Set rate multiplier

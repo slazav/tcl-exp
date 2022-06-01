@@ -24,7 +24,7 @@ package require xBlt
 #  turn_off {}  -- stop main loop and close devices
 #  get_mcurr {} -- get measured current (from the last loop step)
 #  get_scurr {} -- get set current (from the last loop step)
-#  get_colt {}  -- get measured voltage (from the last loop step)
+#  get_volt {}  -- get measured voltage (from the last loop step)
 #  get_stat {}  -- get device status
 #  get_mval {}  -- get gauge data
 #  get_dir  {}  -- get direction (-1,0,1)
