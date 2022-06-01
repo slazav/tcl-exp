@@ -1,0 +1,352 @@
+#!/usr/bin/wish
+
+## Interface for voltage sweeper
+
+package require xBlt 3
+package require Exp
+
+######################################################
+### Read parameters from configuration file
+
+set default_pars {
+  name        {Default sweeper} {program title}
+  ps_dev      TEST  {1st power supply device}
+  ocp           1   {overcurrent protection, A}
+  ramp_tstep  0.2   {ramping time step}
+  idle_tstep  0.5   {idle time step}
+  v_units      V    {current units: V, mV, uV}
+  r_units      V/s  {rate units, V/s, mV/s, uV/s, V/min, mV/min, uV/min, V/h, mV/h, uV/h}
+  maxV          2   {max current, v_units}
+  minV          0   {min current, v_units}
+  max_rate     0.01 {max rate, r_units}
+  def_rate    0.001 {default rate, r_units}
+  skip         1    {do not write a point if current was not set}
+  db           {}   {db device}
+  db_val       {}   {database for sweeper values}
+  db_ann       {}   {database for sweeper comments}
+  db_comm      {}   {database for high-level comments}
+  interface_type {grad}   {interface control type: nmr, grad, hs}
+  plot_ncols   4    {number of columns in the plot}
+  plot_maxt    600  {max time span in the plot}
+  plot_maxn    0    {max number of points in the plot}
+  plot_names   {Vmeas Vset I R}   {column names}
+  plot_titles  {}      {column titles}
+  plot_colors  {}      {column colors}
+  plot_hides   {}      {column hides}
+  plot_logs    {}      {column log scales}
+  plot_symbols {}      {symbols}
+  plot_ssizes  {}      {symbol sizes}
+  plot_fmts    {}      {column format settings}
+  plot_comm    1       {use comment in the plot}
+  plot_marker  0       {use marker in the plot}
+  plots_x   {time Vset} {x data for plots}
+  plots_y   {{} {}}     {y data for plots}
+  plots_zst    {}       {zoom styles for plots}
+}
+
+if {[llength $argv]>0 } {
+  read_conf [lindex $argv 0] pars $default_pars
+}\
+else {
+  foreach {name def title} $default_pars { set pars($name) $def }
+}
+
+# Set voltage multiplier
+set v_k {}
+if {$pars(v_units)=={V}}      { set v_k 1 }
+if {$pars(v_units)=={mV}}     { set v_k 1e-3 }
+if {$pars(v_units)=={uV}}     { set v_k 1e-6 }
+if {$v_k == {}} {error "unknown current units: $pars(v_units)"}
+
+# Set rate multiplier
+set r_k {}
+if {$pars(r_units)=={V/s}}    { set r_k 1 }
+if {$pars(r_units)=={mV/s}}   { set r_k 1e-3 }
+if {$pars(r_units)=={uV/s}}   { set r_k 1e-6 }
+if {$pars(r_units)=={V/min}}  { set r_k [expr 1.0/60]}
+if {$pars(r_units)=={mV/min}} { set r_k [expr 1e-3/60]}
+if {$pars(r_units)=={uA/min}} { set r_k [expr 1e-6/60]}
+if {$pars(r_units)=={V/h}}  { set r_k [expr 1.0/3600]}
+if {$pars(r_units)=={mV/h}} { set r_k [expr 1e-3/3600]}
+if {$pars(r_units)=={uV/h}} { set r_k [expr 1e-6/3600]}
+if {$r_k == {}} {error "unknown rate units: $pars(r_units)"}
+
+
+wm title . "vsweeper: $pars(name)"
+tk appname "vsweeper: $pars(name)"
+set root .f
+
+######################################################
+### Create current sweeper
+
+VSweepController sweeper\
+  -ps_dev     $pars(ps_dev)\
+  -max_curr   $pars(ocp)\
+  -max_rate   [expr $pars(max_rate)*$r_k]\
+  -skip       $pars(skip)\
+  -ramp_tstep $pars(ramp_tstep)\
+  -idle_tstep $pars(idle_tstep)\
+  -on_new_val on_new_val\
+  -on_new_com on_new_com
+
+# Open database if needed
+if {$pars(db) != {} && [itcl::find objects $pars(db)]=={}} { Device $pars(db) }
+
+##########################################################
+## interface for external use
+
+set coltage 0;      ## voltage value shown in the interface
+set resistance 0;   ## resistance value in the interface
+set dev_status {};  ## device status string (CC, OV etc)
+
+set state 0;      ## does sweeper work?
+set inv 0;        ## invert voltage?
+set sweeps -1;    ## number of sweeps
+set rate   $pars(def_rate)
+set dest1  $pars(minV)
+set dest2  $pars(maxV)
+
+# set/get sweep limits (V/mV/uV)
+proc set_limits {v1 v2} {
+  global pars v_k
+  if {$v1 < $pars(minV)} {set v1 $pars(minV)}
+  if {$v1 > $pars(maxV)} {set v1 $pars(maxV)}
+  if {$v2 < $pars(minV)} {set v2 $pars(minV)}
+  if {$v2 > $pars(maxV)} {set v2 $pars(maxV)}
+  sweeper set_limits [expr $v1*$v_k] [expr $v2*$v_k]
+  set l [sweeper get_limits]
+  set ::dest1 [expr [lindex $l 0]/$v_k]
+  set ::dest2 [expr [lindex $l 1]/$v_k]
+}
+proc get_limits {} {
+   global v_k
+   set l [sweeper get_limits]
+   set v1 [expr [lindex $l 0]/$v_k]
+   set v2 [expr [lindex $l 1]/$v_k]
+   return [list $v1 $v2]
+}
+
+proc set_ulimit {v} { set_limits $::dest1 $v }
+proc set_llimit {v} { set_limits $v $::dest2 }
+proc get_dir  {}   { return [sweeper get_dir] }
+proc get_rate {}   { return [expr [sweeper get_rate]/$::r_k] }
+
+proc sweep {dir n} {
+  global r_k state dest1 dest2 rate
+  if {$state == 0} {return}
+  set_limits $dest1 $dest2
+  sweeper go [expr $r_k*$rate] $dir $n
+}
+
+proc sweep_to2 {} {
+  global r_k
+  if {$::state == 0} {return}
+  set_limits $::dest2 $::dest2
+  sweeper go [expr $r_k*$::rate] 1 1
+}
+
+proc stop {} {
+  if {$::state == 0} {return}
+  sweeper stop
+}
+proc go_back {} {
+  if {$::state == 0} {return}
+  sweeper go_back
+}
+
+##########################################################
+
+proc do_reset {} {
+  if {$::state == 0} {return}
+  sweeper reset
+}
+
+proc do_onoff {state} {
+  if {$state == 0} { sweeper turn_off }\
+  else { sweeper turn_on }
+  enable $state
+  set ::state $state
+}
+
+set control_widgets {}; # list of widgets to be enabled/disabled
+
+proc enable {v} {
+  foreach w $::control_widgets {
+    foreach ch [winfo children $w] {
+      if {[catch {$ch configure -state [expr {$v?{normal}:{disabled}}]}]} { }
+  }
+  }
+}
+
+set plot_widget {}
+
+##########################################################
+
+proc on_new_com {t com} {
+  time_plot add_comment $t $com
+
+  if {$::pars(db)!={}} {
+    # put annotation
+    if {$::pars(db_ann) != {} } {
+      $::pars(db) cmd "put $::pars(db_ann) $t $com"
+    }
+    # put a high-level comment after finishing sweep:
+    if {[regexp {finished} $com] && $::pars(db_comm)!={}} {
+      $::pars(db) cmd put $::pars(db_comm) now "$::pars(name) -> $::voltage $::pars(v_units)"
+    }
+    $::pars(db) cmd "sync"
+  }
+  return
+}
+
+## update values command
+proc on_new_val {t vm vs cm {st {}}} {
+  global pars v_k inv
+  set ::voltage    [format "%.3f" [expr $vm/$v_k]]
+  set ::resistance [format "%.3f" [expr { $vm!=0? $vm/$cm:0} ]]
+  set ::dev_status [sweeper get_stat]
+
+  set vs [expr $vs*($inv?-1:+1)]
+  set vm [expr $vm*($inv?-1:+1)]
+  time_plot add_data [list $t [expr $vm/$v_k] [expr $vs/$v_k] $cm $::resistance]
+
+  if { $::pars(db)!={} && $::pars(db_val) != {}} {
+    $::pars(db) cmd "put $::pars(db_val) $t $vm $vs $cm"
+    $::pars(db) cmd "sync"
+  }
+  return
+}
+
+##########################################################
+## make interface
+
+## "NMR" version
+proc make_control {root} {
+  labelframe $root -padx 5 -pady 5
+
+  frame $root.m;  # measure frame
+  label $root.m.vV -font {-size 14 -weight bold} -textvariable ::voltage
+  label $root.m.uV -text " $::pars(v_units), " -font {-size 12}
+  label $root.m.vR -font {-size 14 -weight bold} -textvariable ::resistance
+  label $root.m.uR -text " Ohm " -font {-size 12}
+  label $root.m.st -font {-size 14 -weight bold} -fg darkgreen -textvariable ::dev_status
+  grid $root.m.vV $root.m.uV\
+       $root.m.vR $root.m.uR $root.m.st -sticky w
+  pack $root.m -fill x
+
+  if {$::pars(interface_type) == {nmr}} {
+    frame $root.c
+
+    frame $root.c.g1;  # go frame
+    label $root.c.g1.ldest1 -text "destination 1: " -padx 2 -pady 2
+    entry $root.c.g1.dest1  -width 10 -textvariable ::dest1
+    label $root.c.g1.udest1 -text "($::pars(v_units)), "
+    label $root.c.g1.ldest2 -text "destination 2: " -padx 2 -pady 2
+    entry $root.c.g1.dest2  -width 10 -textvariable ::dest2
+    label $root.c.g1.udest2 -text "($::pars(v_units)), "
+    label $root.c.g1.lrate -text "rate: " -padx 2 -pady 2
+    entry $root.c.g1.rate -width 6 -textvariable ::rate
+    label $root.c.g1.urate -text "($::pars(r_units)) "
+    label $root.c.g1.lsweeps -text "sweeps: " -padx 2 -pady 2
+    entry $root.c.g1.sweeps -width 6 -textvariable ::sweeps
+
+    grid $root.c.g1.ldest1 $root.c.g1.dest1 $root.c.g1.udest1\
+         $root.c.g1.lrate $root.c.g1.rate $root.c.g1.urate\
+       -sticky w
+    grid $root.c.g1.ldest2  $root.c.g1.dest2 $root.c.g1.udest2\
+         $root.c.g1.lsweeps $root.c.g1.sweeps\
+       -sticky w
+
+    frame $root.c.g2;  # go frame
+    button $root.c.g2.b1   -text "Go down" -padx 10 -pady 3 -command {sweep -1 $::sweeps}
+    button $root.c.g2.b2   -text "Go up"   -padx 10 -pady 3 -command {sweep +1 $::sweeps}
+    button $root.c.g2.b3   -text "Go back" -padx 10 -pady 3 -command go_back
+    button $root.c.g2.b4   -text "Stop" -padx 10 -pady 3 -command stop
+    grid $root.c.g2.b1 $root.c.g2.b2 $root.c.g2.b3 $root.c.g2.b4 -sticky we -padx 3
+
+    button $root.c.g2.b5   -text "To lower limit"   -pady 3 -command {sweep -1 1}
+    button $root.c.g2.b6   -text "To upper limit"   -pady 3 -command {sweep +1 1}
+    button $root.c.g2.b7   -text "To Zero" -pady 3 -command {set_llimit 0; sweep -1 1}
+    grid $root.c.g2.b5 $root.c.g2.b6 $root.c.g2.b7 -sticky we -padx 3
+
+    grid columnconfigure $root.c {1 2} -weight 1
+    pack $root.c -fill x -expand yes
+
+    set ::control_widgets [list $root.m $root.c.g1 $root.c.g2]
+  }
+
+  if {$::pars(interface_type) == {grad}} {
+    frame $root.g1;  # go frame
+    label $root.g1.ldest2 -text "destination: " -padx 2 -pady 2
+    entry $root.g1.dest2  -width 10 -textvariable ::dest2
+    label $root.g1.udest2 -text "($::pars(v_units)), "
+    label $root.g1.lrate -text "rate: " -padx 2 -pady 2
+    entry $root.g1.rate -width 6 -textvariable ::rate
+    label $root.g1.urate -text "($::pars(r_units)) "
+    button $root.g1.gu   -text "Go"   -pady 3 -command {sweep_to2}
+    button $root.g1.gd   -text "To Zero" -pady 3 -command {set_limits 0 0; sweep_to2}
+    button $root.g1.st   -text "Stop" -pady 3 -command stop
+    grid $root.g1.ldest2 $root.g1.dest2 $root.g1.udest2\
+         $root.g1.lrate $root.g1.rate $root.g1.urate\
+         $root.g1.gu $root.g1.st $root.g1.gd\
+       -sticky w -padx 3
+    pack $root.g1 -fill x
+    set ::control_widgets [list $root.m $root.g1]
+  }
+
+  if {$::pars(interface_type) == {hs}} {
+    frame $root.g2;  # go frame
+    button $root.g2.gu   -text "Up"   -padx 10 -pady 3 -command {sweep +1 1}
+    button $root.g2.gd   -text "Down" -padx 10 -pady 3 -command {sweep -1 1}
+    grid $root.g2.gu $root.g2.gd -sticky we -padx 3
+    pack $root.g2 -fill x -expand yes
+    set ::control_widgets [list $root.m $root.g2]
+  }
+  enable 0
+
+  frame $root.b;  # button frame
+  checkbutton $root.b.oo  -text "on/off"   -variable ::state -command {do_onoff $::state}
+  checkbutton $root.b.inv -text "negative" -variable ::inv
+  grid $root.b.oo $root.b.inv -sticky w
+  pack $root.b -fill x
+
+}
+
+######################
+# program title
+frame .n
+label .n.name   -text "$pars(name)" -font {-size 20}
+pack .n.name -side left -padx 10
+
+pack .n -anchor w
+
+######################
+# buttons
+make_control $root
+pack $root -anchor w -fill x -expand 0
+
+######################
+# make graph
+TimePlot time_plot .tplot\
+   -ncols $pars(plot_ncols)\
+   -maxt $pars(plot_maxt)\
+   -colors $pars(plot_colors)\
+   -titles $pars(plot_titles)\
+   -names  $pars(plot_names)\
+   -hides    $pars(plot_hides)\
+   -logs     $pars(plot_logs)\
+   -symbols  $pars(plot_symbols)\
+   -ssizes   $pars(plot_ssizes)\
+   -fmts     $pars(plot_fmts)\
+   -plots_x  $pars(plots_x)\
+   -plots_y  $pars(plots_y)\
+   -zstyles  $pars(plots_zst)\
+   -use_comm   $pars(plot_comm)\
+   -use_marker $pars(plot_marker)
+
+pack .tplot -fill both -expand 1
+
+##########################################################
+
+set_limits $dest1 $dest2
+

@@ -3,7 +3,7 @@
 
 set _name    Exp
 set _version 1.0
-set _files   {sweeper timeplot statusbar read_conf fit_res manual_db rbridge370ac\
+set _files   {vsweeper sweeper timeplot statusbar read_conf fit_res manual_db rbridge370ac\
               monitor dataconvs widgets temp_curve widget_ac_source widget_sweep}
 
 set _pcmd {}
