@@ -58,9 +58,9 @@ set default_pars {
   amp_target   {1}        {amplitude target}
   meas_mode    {sweeps}   {sweeps/track}
   track_period {0.5}      {track period, s} 
-  track_del    {10}       {initial delay for track mode, s} 
-  track_fixf   {0}        {fixed frequency in tracking mode} 
-  track_fixa   {0}        {fixed amplitude in tracking mode} 
+  track_del    {10}       {initial delay for track mode, s}
+  track_adjf   {1}        {adjust frequency in tracking mode 0..1}
+  track_adja   {0}        {adjust amplitude in tracking mode 0|1}
   bg6x         {}         {bg parameters for x}
   bg6y         {}         {bg parameters for y}
 }
@@ -520,12 +520,16 @@ proc func_meas_e {} {
     }
 
     # adjust generator frequency
-    if {!$pars(track_fixf)} {
-      $::gen set_freq $f0
+    if {$pars(track_adjf)>0} {
+      set k  $pars(track_adjf)
+      if ($k<0) {set k 0}
+      if ($k>1) {set k 1}
+      set fa [expr $f0*$k + $f*(1-$k)]
+      $::gen set_freq $fa
     }
 
     # adjust drive
-    if {!$pars(track_fixa)} {
+    if {$pars(track_adja)} {
       $::gen set_volt [expr $drive * $pars(amp_target)/$amp]
     }
 
@@ -748,9 +752,10 @@ proc func_mkint {w} {
   label $f_res.l -text "Track mode: "
   button $f_res.start -command on_track_start -text "Start"
   button $f_res.stop  -command on_track_stop  -text "Stop"
-  checkbutton $f_res.ff -text "Fix Freq" -variable pars(track_fixf)
-  checkbutton $f_res.fa -text "Fix Amp" -variable pars(track_fixa)
-  pack $f_res.l $f_res.start $f_res.stop $f_res.ff $f_res.fa -side left -expand 0 -anchor nw
+  label $f_res.ffl -text "AdjFre:"
+  entry  $f_res.ff -textvariable pars(track_adjf) -width 4
+  checkbutton $f_res.fa -text "AdjAmp" -variable pars(track_adja)
+  pack $f_res.l $f_res.start $f_res.stop $f_res.ffl $f_res.ff $f_res.fa -side left -expand 0 -anchor nw
 }
 
 ############################
