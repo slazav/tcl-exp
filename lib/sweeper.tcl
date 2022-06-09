@@ -262,16 +262,33 @@ itcl::class SweepController {
       set vm2 [expr -$vm2]
     }
 
-    # get device state
-    set st0 0
-    set st [ $dev1 get_stat ]
-    if {$st!="CC"} {set st0 1}
+    # Check device status. If it's not CC turn off device output
+    # This should work for devices witout OVP or with
+    # broken one (such as some Tenma PS).
+    # First check device2 and shut both devices if needed:
     if {$dev2 != {}} {
       set st2 [ $dev2 get_stat ]
-      if {$st2!="CC"} {set st0 1}
-      set st "$st:$st2"
+      if {$st2!="CC" && $st2!="OFF"} {
+        put_comment "devices OFF after status change: $st2"
+        $dev1 off
+        $dev2 off
+        set rate 0
+        set dir 0
+      }
+    }
+    set st1 [ $dev1 get_stat ]
+    if {$st1!="CC" && $st1!="OFF"} {
+      put_comment "device OFF after status change: $st1"
+      $dev1 off
+      set rate 0
+      set dir 0
     }
 
+    ## Set combined status
+    if {$dev2 != {}} {set st "$st1:$st2"}\
+    else {set st $st1}
+
+    ## Measurements
     if {$gdev != {}} {
       # set/get gauge range if needed
       if {$g_gr == 1} {
@@ -302,15 +319,24 @@ itcl::class SweepController {
       set msg {}
     }
 
-    # stop ramping if the real current jumped outside the i_prec parameter
-    # or device status is wrong
+    # Current jump
     if { abs($cm1-$cs1) > $i_prec ||\
-         abs($cm2-$cs2) > $i_prec2 || $st0} {
+         abs($cm2-$cs2) > $i_prec2} {
       set cs1 $cm1
       set cs2 $cm2
       set rate 0
       set dir 0
-      if {$st0} { put_comment "device status: $st" }\
+      put_comment "stop sweep after current jump to [expr $cs1+$cs2]"
+    }
+
+    # stop ramping if the real current jumped outside the i_prec parameter
+    # or device status is wrong
+    if { abs($cm1-$cs1) > $i_prec ||\
+         abs($cm2-$cs2) > $i_prec2} {
+      set cs1 $cm1
+      set cs2 $cm2
+      set rate 0
+      set dir 0
       else { put_comment "current jump to [expr $cs1+$cs2]" }
     }
 
@@ -492,6 +518,14 @@ itcl::class SweepController {
   ######################################
   # go to upper limit and then back
   method  go {rate_ {dir_ 1} {nsweeps_ -1}} {
+    # if one device is off do nothing
+    set st1 [ $dev1 get_stat ]
+    if {$st1 != "CC"} {return}
+    if {$dev2 != ""} {
+      set st2 [ $dev2 get_stat ]
+      if {$st2 != "CC"} {return}
+    }
+
     # if we are outside limits, then no need to change direction
     if {$dir>0 && [get_scurr]<$minlim} {set dir_ $dir}
     if {$dir<0 && [get_scurr]>$maxlim} {set dir_ $dir}
