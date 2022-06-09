@@ -283,7 +283,7 @@ proc on_new_val {t cm cs vm {m 0} {st {}}} {
   time_plot add_data [list $t [expr $cm/$c_k] [expr $cs/$c_k] $vm $::resistance {*}$m]
 
   if { $::pars(db)!={} && $::pars(db_val) != {}} {
-    $::pars(db) cmd "put $::pars(db_val) $t $cm $cs $vm $m"
+    $::pars(db) cmd "put_flt $::pars(db_val) $t $cm $cs $vm $m"
     $::pars(db) cmd "sync"
   }
 
