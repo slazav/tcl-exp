@@ -266,7 +266,6 @@ proc on_new_com {t com} {
     if {[regexp {finished} $com] && $::pars(db_comm)!={}} {
       $::pars(db) cmd put $::pars(db_comm) now "$::pars(name) -> $::current $::pars(c_units)"
     }
-    $::pars(db) cmd "sync"
   }
   return
 }
@@ -284,7 +283,6 @@ proc on_new_val {t cm cs vm {m 0} {st {}}} {
 
   if { $::pars(db)!={} && $::pars(db_val) != {}} {
     $::pars(db) cmd "put_flt $::pars(db_val) $t $cm $cs $vm $m"
-    $::pars(db) cmd "sync"
   }
 
   gint_update_val $m
