@@ -600,7 +600,6 @@ itcl::class ChanPanel {
     # Add data to the database
     if {$db_dev != {} && $db_name != {}} {
       $db_dev cmd put $db_name $tt $res $temp $pwr
-      $db_dev cmd sync
     }
 
     set gtimer {}
