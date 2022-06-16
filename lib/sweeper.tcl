@@ -329,17 +329,6 @@ itcl::class SweepController {
       put_comment "stop sweep after current jump to [expr $cs1+$cs2]"
     }
 
-    # stop ramping if the real current jumped outside the i_prec parameter
-    # or device status is wrong
-    if { abs($cm1-$cs1) > $i_prec ||\
-         abs($cm2-$cs2) > $i_prec2} {
-      set cs1 $cm1
-      set cs2 $cm2
-      set rate 0
-      set dir 0
-      else { put_comment "current jump to [expr $cs1+$cs2]" }
-    }
-
     if {$dir==0} {set tstep $idle_tstep}\
     else         {set tstep $ramp_tstep}
 
