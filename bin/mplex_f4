@@ -12,7 +12,6 @@ package require Exp;  # timeplot, monitor
 set default_pars {
   name         {Fridge4 multiplexer}  {program name}
   mplex_dev    {}         {gauge device, agilent multiplexer}
-  capbr_dev    {}         {capacitance bridge}
   db_dev       {}         {database device}
   tfmt         {%H:%M:%S} {time format string for the interface}
   period       {10}       {measurement period}
@@ -36,7 +35,6 @@ set ps_pr 0;     # previous value of ps heater voltage
 
 array unset Df;  # formatted data (see -dfmt option)
 set Tf  {};  # current formatted time (-tfmt option)
-set capbr_d {}
 
 
 ##########################################################################
@@ -53,9 +51,6 @@ proc func_start {} {
 
   if {$pars(mplex_dev)!={}} {
     Device $pars(mplex_dev)
-    if {$pars(capbr_dev) ne {}} {
-      set capbr_d [DeviceRole $pars(capbr_dev) gauge]
-    }
 
     # Channels 101-109: bath resistors
     # Set delay to wait for stabilisation of filtered lines.
@@ -63,18 +58,15 @@ proc func_start {} {
     dev_check $pars(mplex_dev) "SENSE:RES:NPLC 1, (@101:109)"
     dev_check $pars(mplex_dev) "ROUTE:CHAN:DEL 0.1,   (@101:109)"
 
-    # Channels 112: demag_i
-    dev_check $pars(mplex_dev) "CONF:VOLT:DC AUTO,DEF, (@112:114)"
-    dev_check $pars(mplex_dev) "SENSE:VOLT:DC:NPLC 1, (@112:114)"
-    dev_check $pars(mplex_dev) "ROUTE:CHAN:DEL 0,   (@112:114)"
-
-    # Channels 118: He level
-    dev_check $pars(mplex_dev) "CONF:VOLT:DC AUTO,DEF, (@118)"
-    dev_check $pars(mplex_dev) "SENSE:VOLT:DC:NPLC 10, (@118)"
-    dev_check $pars(mplex_dev) "ROUTE:CHAN:DEL 0,   (@118)"
+    # Channels 110-112: demag
+    # Channel  113: bath D
+    # Channel  114: He level
+    dev_check $pars(mplex_dev) "CONF:VOLT:DC AUTO,DEF, (@110:114)"
+    dev_check $pars(mplex_dev) "SENSE:VOLT:DC:NPLC 1, (@110:114)"
+    dev_check $pars(mplex_dev) "ROUTE:CHAN:DEL 0,   (@110:114)"
 
     # channels to read
-    dev_check $pars(mplex_dev) "ROUT:SCAN (@101:109,112:114,118)"
+    dev_check $pars(mplex_dev) "ROUT:SCAN (@101:114)"
   }
 }
 
@@ -88,9 +80,10 @@ proc func_stop {} {
 
 # Do a single measurement, return data
 proc func_meas {} {
-  global pars capbr_d T0 D0 D1 Tf Df D1f ps_pr
+  global pars capbr_d T0 D0 Tf Df D1f ps_pr
 
   set T0 [expr [clock microseconds]/1e6]
+
   if {$pars(mplex_dev) eq {}} {
     set D0 {}
     for {set i 0} {$i < 14} {incr i} {
@@ -102,15 +95,7 @@ proc func_meas {} {
     set D0 [split $D0, ","]
   }
 
-  if {$capbr_d eq {}} {
-    set D1 {0 0}
-  }\
-  else {
-    set D1 [$capbr_d get]
-  }
 
-  # format data and time for the interface
-  set Tf [clock format [expr int($T0)] -format $pars(tfmt)]
 
   # replace large values with NaN
   for {set i 0} {$i < [llength $D0]} {incr i} {
@@ -127,9 +112,8 @@ proc func_meas {} {
   set D(demag_i)  [lindex $D0 9]
   set D(demag_v)  [lindex $D0 10]
   set D(demag_ps) [lindex $D0 11]
-  set D(he_level) [lindex $D0 12]
-  set D(press_cell_c) [lindex $D1 0]
-  set D(press_cell_l) [lindex $D1 1]
+  set D(bath_d)   [lindex $D0 12]
+  set D(he_level) [lindex $D0 13]
 
   # convert He level, same units as on the screen (cm)
   set D(he_level_cnv) [expr {($D(he_level)-1.15e-3)/(1.093-1.15e-3)*547.0}]
@@ -137,7 +121,8 @@ proc func_meas {} {
   # convert demag current, same units as on the screen (A)
   set D(demag_i_cnv) [expr {$D(demag_i)/2.0569e-3}]
 
-  # format data
+  # format data and time for the interface
+  set Tf [clock format [expr int($T0)] -format $pars(tfmt)]
   for {set i 1} {$i <= 9} {incr i} {
     if {$D(R$i) != $D(R$i)} {
       set Df(R$i) NaN
@@ -149,8 +134,7 @@ proc func_meas {} {
   set Df(demag_v)  [format "%.2f" $D(demag_v) ]
   set Df(demag_i)  [format "%.2f" $D(demag_i_cnv) ]
   set Df(demag_ps) [format "%.2f" $D(demag_ps)]
-  set Df(press_cell_c) $D(press_cell_c)
-  set Df(press_cell_l) $D(press_cell_l)
+  set Df(bath_d)   [format "%.4f" $D(bath_d)]
 
   # append data to timeplot
   for {set i 1} {$i <= 9} {incr i} {
@@ -159,28 +143,24 @@ proc func_meas {} {
   }
   tplot_he_level add_data [list $T0 $D(he_level_cnv)]
   tplot_demag    add_data [list $T0 $D(demag_i_cnv) $D(demag_v) $D(demag_ps)]
-  tplot_pcell    add_data [list $T0 $D(press_cell_c) $D(press_cell_l)]
+  tplot_bath_d   add_data [list $T0 $D(bath_d)]
 
   # put data to database
-  if {$pars(db_dev)!={}} {
-    if {$pars(mplex_dev) ne {}} {
-      for {set i 1} {$i <= 9} {incr i} {
-        if {$D(R$i) != $D(R$i)} continue
-        $pars(db_dev) cmd put_flt Rbath$i $T0 $D(R$i)
-      }
-      $pars(db_dev) cmd put_flt he_level $T0 $D(he_level) $D(he_level_cnv)
-      $pars(db_dev) cmd put_flt demag_vi $T0 $D(demag_v) $D(demag_i)
-      if {$D(demag_ps) > 4.0} {
-        $pars(db_dev) cmd put_flt demag_pc $T0 $D(demag_v) $D(demag_i)
-      }
-      if {$D(demag_ps) < 4.0 && $ps_pr >= 4.0} {
-        $pars(db_dev) cmd put comments $T0 "demag -> [format %.3f $D(demag_i_cnv)] A"
-      }
-      $pars(db_dev) cmd put_flt demag_ps $T0 $D(demag_ps)
+  if {$pars(db_dev)!={} && $pars(mplex_dev) ne {}} {
+    for {set i 1} {$i <= 9} {incr i} {
+      if {$D(R$i) != $D(R$i)} continue
+      $pars(db_dev) cmd put_flt Rbath$i $T0 $D(R$i)
     }
-    if {$capbr_d ne {}} {
-      $pars(db_dev) cmd put_flt press_cell_cap $T0 $D(press_cell_c) $D(press_cell_l)
+    $pars(db_dev) cmd put_flt he_level $T0 $D(he_level) $D(he_level_cnv)
+    $pars(db_dev) cmd put_flt demag_vi $T0 $D(demag_v) $D(demag_i)
+    if {$D(demag_ps) > 4.0} {
+      $pars(db_dev) cmd put_flt demag_pc $T0 $D(demag_v) $D(demag_i)
     }
+    if {$D(demag_ps) < 4.0 && $ps_pr >= 4.0} {
+      $pars(db_dev) cmd put comments $T0 "demag -> [format %.3f $D(demag_i_cnv)] A"
+    }
+    $pars(db_dev) cmd put_flt demag_ps $T0 $D(demag_ps)
+    $pars(db_dev) cmd put_flt DBATH    $T0 $D(bath_d)
     $pars(db_dev) cmd sync
   }
   set ps_pr $D(demag_ps)
@@ -302,40 +282,37 @@ proc func_mkint {w} {
   grid rowconfigure $f_demag 1 -weight 1
   grid columnconfigure $f_demag 0 -weight 1
 
-  ### PressCell frame
+  ### BathD frame
 
-  set f_pcell $w.tabs.pcell
-  frame $f_pcell
-  $w.tabs insert end pcell -window $f_pcell\
-     -anchor n -text "Pcell" -fill both -padx 3 -pady 3
+  set f_bath_d $w.tabs.bath_d
+  frame $f_bath_d
+  $w.tabs insert end bath_d -window $f_bath_d\
+     -anchor n -text "Bath D" -fill both -padx 3 -pady 3
 
-  labelframe $f_pcell.tab -borderwidth 1
-  grid $f_pcell.tab -sticky we
+  labelframe $f_bath_d.tab -borderwidth 1
+  grid $f_bath_d.tab -sticky we
 
-  label $f_pcell.tab.tl -text "time:"
-  label $f_pcell.tab.t -fg darkgreen -font {-size 12} -textvariable Tf -width 8
-  label $f_pcell.tab.l1 -text "C:"
-  label $f_pcell.tab.v1 -fg darkgreen -font {-size 12} -textvariable Df(press_cell_c) -width 8
-  label $f_pcell.tab.l2 -text "L:"
-  label $f_pcell.tab.v2 -fg darkgreen -font {-size 12} -textvariable Df(press_cell_l) -width 8
-  pack $f_pcell.tab.tl $f_pcell.tab.t\
-       $f_pcell.tab.l1 $f_pcell.tab.v1\
-       $f_pcell.tab.l2 $f_pcell.tab.v2\
+  label $f_bath_d.tab.tl -text "time:"
+  label $f_bath_d.tab.t -fg darkgreen -font {-size 12} -textvariable Tf -width 8
+  label $f_bath_d.tab.l1 -text "V:"
+  label $f_bath_d.tab.v1 -fg darkgreen -font {-size 12} -textvariable Df(bath_d) -width 8
+  pack $f_bath_d.tab.tl $f_bath_d.tab.t\
+       $f_bath_d.tab.l1 $f_bath_d.tab.v1\
        -side left
 
-  TimePlot tplot_pcell $f_pcell.tplot\
-   -ncols      2\
+  TimePlot tplot_bath_d $f_bath_d.tplot\
+   -ncols      1\
    -maxt       $pars(plot_maxt)\
    -colors     {}\
-   -names      {{C} {L}}\
-   -titles     {{C,pF} {L,nS}}\
+   -names      {{V}}\
+   -titles     {{V}}\
    -symbols    {}\
    -ssizes     {}\
-   -fmts       %.6f\
+   -fmts       %.4f\
 
-  grid $f_pcell.tplot -sticky wens
-  grid rowconfigure $f_pcell 1 -weight 1
-  grid columnconfigure $f_pcell 0 -weight 1
+  grid $f_bath_d.tplot -sticky wens
+  grid rowconfigure $f_bath_d 1 -weight 1
+  grid columnconfigure $f_bath_d 0 -weight 1
 
 }
 
