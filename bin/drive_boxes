@@ -1,0 +1,110 @@
+#!/usr/bin/wish
+
+package require xBlt
+package require Device2
+package require itcl
+
+##########################################################################
+## write drive box paramerters to the database
+
+set default_pars {
+  name         {DriveBoxes}  {program name}
+  db_dev       {db}          {database device}
+  names {w1bh w2bh w1ta2 w2ta2 w1c w2c w1bt w2bt w1a w2a w1b w2b w2d w0ta2 mcta} {vibrating wire names}
+  box_types {V V V V F F F F F F F F F V V} {box type: V-variable, F-fixed}
+}
+
+if {[llength $argv]>0 } {
+  read_conf [lindex $argv 0] pars $default_pars
+}\
+else {
+  foreach {name def title} $default_pars { set pars($name) $def }
+}
+
+tk appname "$pars(name)"
+array unset res att
+set tstamp "now"
+
+##########################################################################
+proc on_update_time {} {
+  set ::tstamp [clock format [clock seconds] -format "%Y-%m-%d %H:%M:%S"]
+}
+
+proc on_apply {name} {
+  global tstamp res att
+
+  # timestamp, unix seconds or "now"
+  if {$tstamp ne "now"} {
+    set nt [exec date -d "$tstamp" +%s]
+  }\
+  else {
+    set nt $tstamp
+  }
+
+  # resistance, Ohm
+  if {![regexp {^([0-9]+)([kM]?)$} $res($name) v0 v1 v2} {
+    error "bad drive box resistance: $"
+  }
+  if     {$v1 eq "k"} {set R [expr {$v1*1000}]}\
+  elseif {$v1 eq "M"} {set R [expr {$v1*1000000}]}\
+  else   {ser R $v1}
+
+  Device2::ask db put ${name}_dbox $nt $R $att{$name}
+}
+
+proc on_reset {name} {
+  global res att
+  set l [Device2::ask db get ${name}_dbox]
+  set R [lindex $l 1]
+  if {$R>=1000} {set R "[expr int($R/1000)]k"}
+  set res($name) $R
+  set att($name) [lindex $l 2]
+}
+
+##########################################################################
+
+frame .n
+label .n.name -text "$pars(name)" -font {-size 14}
+pack .n.name  -side left -padx 10
+pack .n -anchor w
+
+labelframe .f -padx 5 -pady 5
+
+label .f.num  -text "#" -font {-weight bold -size 10}
+label .f.name -text "Wire" -font {-weight bold -size 10}
+label .f.box  -text "BoxRes" -font {-weight bold -size 10}
+label .f.att  -text "Att,dB" -font {-weight bold -size 10}
+grid .f.num .f.name .f.box .f.att
+
+set i 0
+foreach n $pars(names) t $pars(box_types) {
+  incr i
+  label .f.num$i  -text $i
+  label .f.name$i -text $n
+
+  if {$t eq "F"} {
+    label .f.box$i -textvariable ::res($n)
+  }\
+  elseif {$t eq "V"} {
+    ttk::combobox .f.box$i -width 4 -textvariable ::res($n)
+    # bind $root.btns.mode <<ComboboxSelected>> "set scnt 0"
+    .f.box$i configure -values {"0" "1k" "10k" "100k" "1M"}
+  }
+  entry .f.att$i -textvariable ::att($n) -width 4
+  button .f.apply$i -text "Apply" -command "on_apply $n"
+  button .f.reset$i -text "Reset" -command "on_reset $n"
+  grid .f.num$i .f.name$i .f.box$i .f.att$i .f.apply$i .f.reset$i
+  on_reset $n
+}
+pack .f -anchor w -fill x -expand 0
+
+## timestamp entry
+frame .t
+label  .t.l  -text "Time:" -anchor w
+entry  .t.v  -textvariable tstamp
+button .t.b1  -text "Update" -command {on_update_time}
+button .t.b2  -text "Reset"  -command {set ::tstamp "now"}
+grid .t.l .t.v .t.b1 .t.b2
+pack .t -anchor w
+
+
