@@ -1,0 +1,121 @@
+#!/usr/bin/wish
+
+## Interface for IVC heater:
+## Voltage on volt_dev (in our case it's 5V on relay) is ON or OFF
+## depending on a monitored value in the database (in our case it's helium-bath diode)
+
+package require DeviceRole
+package require Exp
+
+######################################################
+### Read parameters from configuration file
+
+set default_pars {
+  name       {IVC heater} {program title}
+  volt       {5}        {voltage}
+  volt_dev   {pst1}     {dc_source device}
+  mon_int    10         {monitoring time step, s}
+  db_dev     {db}       {database device (can be empty)}
+  db_comm    {}         {database name for text comments}
+  db_mon     {DBATH:f1} {which value to monitor}
+  mon_off    {290}      {above this value heater switched off}
+  mon_on     {250}      {below this value heater switched on}
+  mon_fmt    {%.3f}     {format for monitored value}
+  state      {0}        {initial state}
+}
+
+if {[llength $argv]>0 } {
+  read_conf [lindex $argv 0] pars $default_pars
+}\
+else {
+  foreach {name def title} $default_pars { set pars($name) $def }
+}
+
+# global parameters
+set monval 0
+set heater {}; # should not be 1 or 0 initially!
+set rh {}
+
+wm title . "heater: $pars(name)"
+tk appname "heater: $pars(name)"
+
+##########################################################
+
+proc put_comm {state} {
+  global pars
+  if {$pars(db_dev) ne {} && $pars(db_comm) ne {}} {
+    Device2::ask $pars(db_dev) put $pars(db_comm) now "$pars(name) $state"
+  }
+}
+
+proc heater_on {} {
+  global pars heater
+  if {$heater == 1} {return}
+  set dev [DeviceRole $pars(volt_dev) dc_source]
+  $dev set_volt $pars(volt)
+  .f.heatv configure -foreground red -text {ON}
+  put_comm ON
+  set heater 1
+}
+
+proc heater_off {} {
+  global pars heater
+  if {$heater == 0} {return}
+  set dev [DeviceRole $pars(volt_dev) dc_source]
+  $dev off
+  if {$pars(state)} { .f.heatv configure -foreground blue -text {OFF}}\
+  else              { .f.heatv configure -foreground black -text {OFF} }
+  put_comm OFF
+  set heater 0
+}
+
+proc run {} {
+  global pars mon_val heater rh
+  # update monitored value
+  if {$pars(db_dev) ne {} && $pars(db_mon) ne {}} {
+    set l [Device2::ask $pars(db_dev) get_prev $pars(db_mon)]
+    set mon_val [format $pars(mon_fmt) [lindex $l 1]]
+    if     {$mon_val < $pars(mon_on)}  { .f.monv configure -foreground blue }\
+    elseif {$mon_val > $pars(mon_off)} { .f.monv configure -foreground red }\
+    else   {.f.monv configure -foreground black}
+  }
+
+  # switch heater
+  if {$pars(state)} {
+    if     {$mon_val > $pars(mon_off)} {heater_off}\
+    elseif {$mon_val < $pars(mon_on)}  {heater_on}
+  }\
+  else { heater_off }
+  set rh [after [expr {int($pars(mon_int)*1000)}] run]
+}
+
+proc switch_state {} {
+  global rh
+  after cancel $rh
+  run
+}
+
+##########################################################
+## make interface
+
+frame .n
+label .n.name -text "$pars(name)" -font {-size 20}
+pack .n.name  -side left -padx 10
+pack .n -anchor w
+
+labelframe .f -padx 5 -pady 5
+label .f.monl -text "$pars(db_mon)"
+label .f.monv -textvariable ::mon_val -font {-weight bold}
+grid .f.monl .f.monv -padx 10
+
+label .f.heatl -text "Heater: "
+label .f.heatv -font {-weight bold}
+grid .f.heatl .f.heatv -padx 10
+
+checkbutton .f.on   -text "ON"  -pady 3 -variable ::pars(state) -command switch_state
+grid .f.on -padx 10
+pack .f -anchor w -fill x -expand 0
+
+##########################################################
+
+run
