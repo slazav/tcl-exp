@@ -1,8 +1,8 @@
 #!/usr/bin/wish
 
 ## Interface for IVC heater:
-## Voltage on volt_dev (in our case it's 5V on relay) is ON or OFF
-## depending on a monitored value in the database (in our case it's helium-bath diode)
+## heater is controlled with relay
+## Bath diode is monitored
 
 package require DeviceRole
 package require Exp
@@ -15,11 +15,12 @@ set default_pars {
   volt       {5}        {voltage}
   volt_dev   {pst1}     {dc_source device}
   mon_int    10         {monitoring time step, s}
+  mon_lim    600        {monitoring time limit, s}
   db_dev     {db}       {database device (can be empty)}
   db_comm    {}         {database name for text comments}
   db_mon     {DBATH:f1} {which value to monitor}
-  mon_off    {290}      {above this value heater switched off}
-  mon_on     {250}      {below this value heater switched on}
+  mon_off    {280}      {above this value heater switched off}
+  mon_on     {270}      {below this value heater switched on}
   mon_fmt    {%.3f}     {format for monitored value}
   state      {0}        {initial state}
 }
@@ -33,7 +34,8 @@ else {
 
 # global parameters
 set monval 0
-set heater {}; # should not be 1 or 0 initially!
+set textstatus ""
+set heater ""; # should not be 1 or 0 initially!
 set rh {}
 
 wm title . "heater: $pars(name)"
@@ -41,51 +43,77 @@ tk appname "heater: $pars(name)"
 
 ##########################################################
 
-proc put_comm {state} {
-  global pars
+proc put_comm {state text} {
+  global pars textstatus
+  set textstatus $text
   if {$pars(db_dev) ne {} && $pars(db_comm) ne {}} {
-    Device2::ask $pars(db_dev) put $pars(db_comm) now "$pars(name) $state"
+    Device2::ask $pars(db_dev) put $pars(db_comm) now "$pars(name): $state: $text"
   }
 }
 
-proc heater_on {} {
+proc heater_on {text} {
   global pars heater
   if {$heater == 1} {return}
   set dev [DeviceRole $pars(volt_dev) dc_source]
   $dev set_volt $pars(volt)
   .f.heatv configure -foreground red -text {ON}
-  put_comm ON
+  put_comm ON $text
   set heater 1
 }
 
-proc heater_off {} {
+proc heater_off {text} {
   global pars heater
   if {$heater == 0} {return}
-  set dev [DeviceRole $pars(volt_dev) dc_source]
-  $dev off
   if {$pars(state)} { .f.heatv configure -foreground blue -text {OFF}}\
   else              { .f.heatv configure -foreground black -text {OFF} }
-  put_comm OFF
+  set dev [DeviceRole $pars(volt_dev) dc_source]
+  if {[$dev get_volt] == 0} {return}
+  $dev off
+  put_comm OFF $text
   set heater 0
 }
 
 proc run {} {
   global pars mon_val heater rh
+
   # update monitored value
-  if {$pars(db_dev) ne {} && $pars(db_mon) ne {}} {
-    set l [Device2::ask $pars(db_dev) get_prev $pars(db_mon)]
-    set mon_val [format $pars(mon_fmt) [lindex $l 1]]
-    if     {$mon_val < $pars(mon_on)}  { .f.monv configure -foreground blue }\
-    elseif {$mon_val > $pars(mon_off)} { .f.monv configure -foreground red }\
-    else   {.f.monv configure -foreground black}
+  if {$pars(db_dev) eq {} || $pars(db_mon) eq {}} {
+    heater_off "no database"
+    set rh [after [expr {int($pars(mon_int)*1000)}] run]
+    return
   }
+  set l [Device2::ask $pars(db_dev) get_prev $pars(db_mon)]
+  if {$l eq {}} {
+    heater_off "empty value"
+    set rh [after [expr {int($pars(mon_int)*1000)}] run]
+    return
+  }
+
+  set mon_time [lindex $l 0]
+  set mon_val  [format $pars(mon_fmt) [lindex $l 1]]
+  if {$mon_time < [clock seconds] - $pars(mon_lim)} {
+    heater_off "Too old value"
+    set rh [after [expr {int($pars(mon_int)*1000)}] run]
+    return
+  }
+
+  # set color of the momitored value in the interface
+  if     {$mon_val < $pars(mon_on)}  { .f.monv configure -foreground blue }\
+  elseif {$mon_val > $pars(mon_off)} { .f.monv configure -foreground red }\
+  else   {.f.monv configure -foreground black}
 
   # switch heater
   if {$pars(state)} {
-    if     {$mon_val > $pars(mon_off)} {heater_off}\
-    elseif {$mon_val < $pars(mon_on)}  {heater_on}
+    if {$mon_val > $pars(mon_off)} {
+      heater_off ""
+    }\
+    elseif {$mon_val < $pars(mon_on)} {
+      heater_on ""
+    }
   }\
-  else { heater_off }
+  else {
+    heater_off ""
+  }
   set rh [after [expr {int($pars(mon_int)*1000)}] run]
 }
 
@@ -100,6 +128,7 @@ proc switch_state {} {
 
 frame .n
 label .n.name -text "$pars(name)" -font {-size 20}
+label .n.volt -font {-size 14 -weight bold} -textvariable ::pars(volt)
 pack .n.name  -side left -padx 10
 pack .n -anchor w
 
@@ -108,9 +137,16 @@ label .f.monl -text "$pars(db_mon)"
 label .f.monv -textvariable ::mon_val -font {-weight bold}
 grid .f.monl .f.monv -padx 10
 
+label .f.liml -text "Limits:"
+label .f.limv -text "$pars(mon_on) - $pars(mon_off)"
+grid .f.liml .f.limv -padx 10
+
 label .f.heatl -text "Heater: "
 label .f.heatv -font {-weight bold}
 grid .f.heatl .f.heatv -padx 10
+
+label .f.stat -textvariable textstatus
+grid .f.stat -padx 10 -columnspan 2 -sticky w
 
 checkbutton .f.on   -text "ON"  -pady 3 -variable ::pars(state) -command switch_state
 grid .f.on -padx 10
