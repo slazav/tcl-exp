@@ -104,15 +104,9 @@ proc measure {{first 0}} {
   }
 
   # put values into db
-  if {$pars(db_dev)!={}} {
+  if {$pars(db_dev)!={} && $pars(db_val)!={}} {
     Device $pars(db_dev)
-
-    if {$pars(db_val)!={}} {
-      $pars(db_dev) cmd put $pars(db_val) now_s $v $p }
-
-    if {$pars(db_comm)!={} && !$first && $old_voltage != $voltage} {
-      $pars(db_dev) cmd put $pars(db_comm) now_s "$pars(name): $voltage $pars(v_units), $power $pars(p_units) "}
-
+      $pars(db_dev) cmd put $pars(db_val) now_s $v $p
     itcl::delete object $pars(db_dev)
   }
 
@@ -123,7 +117,7 @@ proc measure {{first 0}} {
 }
 
 proc set_volt {v} {
-  global dev dest v_k pars
+  global dev dest v_k pars voltage power
 
 
   if {$dev=={}} return
@@ -132,6 +126,12 @@ proc set_volt {v} {
   if {$pars(max_volt) != {} && $real_v > $pars(max_volt)} {set real_v $pars(max_volt)}
   if {$pars(min_volt) != {} && $real_v < $pars(min_volt)} {set real_v $pars(min_volt)}
   set dest [expr {$real_v/$v_k*$pars(gain)}]
+
+  if {$pars(db_dev)!={} && $pars(db_comm)!={}} {
+    Device $pars(db_dev)
+    $pars(db_dev) cmd put $pars(db_comm) now_s "$pars(name): $voltage $pars(v_units), $power $pars(p_units) "
+    itcl::delete object $pars(db_dev)
+  }
 
   $dev set_volt [expr {$dest*$v_k/$pars(gain)}]
   after 100 measure
