@@ -42,14 +42,14 @@ proc on_apply {name} {
   }
 
   # resistance, Ohm
-  if {![regexp {^([0-9]+)([kM]?)$} $res($name) v0 v1 v2} {
+  if {![regexp {^([0-9]+)([kM]?)$} $res($name) v0 v1 v2]} {
     error "bad drive box resistance: $"
   }
-  if     {$v1 eq "k"} {set R [expr {$v1*1000}]}\
-  elseif {$v1 eq "M"} {set R [expr {$v1*1000000}]}\
-  else   {ser R $v1}
+  if     {$v2 eq "k"} {set R [expr {$v1*1000}]}\
+  elseif {$v2 eq "M"} {set R [expr {$v1*1000000}]}\
+  else   {set R $v1}
 
-  Device2::ask db put ${name}_dbox $nt $R $att{$name}
+  Device2::ask db put ${name}_dbox $nt $R $att($name)
 }
 
 proc on_reset {name} {
