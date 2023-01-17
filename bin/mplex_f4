@@ -109,8 +109,8 @@ proc func_meas {} {
   for {set i 1} {$i <=9} {incr i} {
     set D(R$i) [lindex $D0 [expr $i-1]]
   }
-  set D(demag_i)  [lindex $D0 9]
-  set D(demag_v)  [lindex $D0 10]
+  set D(demag_v)  [lindex $D0 9]
+  set D(demag_i)  [lindex $D0 10]
   set D(demag_ps) [lindex $D0 11]
   set D(bath_d)   [lindex $D0 12]
   set D(he_level) [lindex $D0 13]
