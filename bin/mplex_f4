@@ -130,9 +130,9 @@ proc func_meas {} {
       set Df(R$i) [format "%.2f" $D(R$i)]
     }
   }
-  set Df(he_level) [format "%.2f" $D(he_level_cnv)]
+  set Df(he_level) [format "%.1f" $D(he_level_cnv)]
   set Df(demag_v)  [format "%.2f" $D(demag_v) ]
-  set Df(demag_i)  [format "%.2f" $D(demag_i_cnv) ]
+  set Df(demag_i)  [format "%.3f" $D(demag_i_cnv) ]
   set Df(demag_ps) [format "%.2f" $D(demag_ps)]
   set Df(bath_d)   [format "%.4f" $D(bath_d)]
 
