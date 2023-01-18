@@ -11,6 +11,14 @@ proc usage {} {
       set_volt <volt> -- set voltage
       get_volt -- get voltage
       sweep_pair [<volt>] -- set voltage, make 2 sweeps, wait
+
+      set_ampsweep_max [<volt>] -- set max voltage for amp sweep
+      get_ampsweep_max  -- get value
+      set_ampsweep_step [<volt>] -- set step for amp sweep
+      get_ampsweep_step  -- get value
+      set_ampsweep_jump [0|1] -- set jump option for amp sweep
+      get_ampsweep_jump  -- get value
+      ampsweep_go  -- start amp sweep
   }
   exit 1
 }
@@ -33,7 +41,6 @@ if {$cmd == "set_volt"} {
 }
 
 if {$cmd == "get_volt"} {
-  set v [lindex $argv 2]
   puts [send $app {$gen} get_volt]
   exit 0
 }
@@ -48,6 +55,46 @@ if {$cmd == "sweep_pair"} {
   while {[send $app sweep_pan is_on]} {
     after 200
   }
+  exit 0
+}
+
+####
+
+if {$cmd == "set_ampsweep_max"} {
+  set v [lindex $argv 2]
+  send $app set pars(track_amp_mx) $v
+  exit 0
+}
+
+if {$cmd == "get_ampsweep_max"} {
+  puts [send $app set pars(track_amp_mx)]
+  exit 0
+}
+
+if {$cmd == "set_ampsweep_step"} {
+  set v [lindex $argv 2]
+  send $app set pars(track_amp_s) $v
+  exit 0
+}
+
+if {$cmd == "get_ampsweep_step"} {
+  puts [send $app set pars(track_amp_s)]
+  exit 0
+}
+
+if {$cmd == "set_ampsweep_jump"} {
+  set v [lindex $argv 2]
+  send $app set pars(track_amp_j) $v
+  exit 0
+}
+
+if {$cmd == "get_ampsweep_jump"} {
+  puts [send $app set pars(track_amp_j)]
+  exit 0
+}
+
+if {$cmd == "ampsweep_go"} {
+  send $app on_track_ampsw
   exit 0
 }
 

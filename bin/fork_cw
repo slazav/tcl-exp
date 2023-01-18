@@ -61,6 +61,13 @@ set default_pars {
   track_del    {10}       {initial delay for track mode, s}
   track_adjf   {1}        {adjust frequency in tracking mode 0..1}
   track_adja   {0}        {adjust amplitude in tracking mode 0|1}
+  track_skip   {0}        {skip bad points (|f-f0|/df > k)}
+  track_amp_d  {0}        {direction of amp sweep, -1,0,+1}
+  track_amp_mx {10}       {max value for amp sweep, V}
+  track_amp_mn {0}        {min value for amp sweep, V}
+  track_amp_f0 {0}        {frequency to return after sweep}
+  track_amp_s  {0.02}     {step for amp sweep, V}
+  track_amp_j  {0}        {jump down instead of sweeping}
   bg6x         {}         {bg parameters for x}
   bg6y         {}         {bg parameters for y}
 }
@@ -117,11 +124,6 @@ blt::vector create oldy
 blt::vector create basef
 blt::vector create basex
 blt::vector create basey
-
-##########################################################################
-## functions for the monitor class
-
-
 
 ##########################################################################
 # do adjustments after fitting data
@@ -454,6 +456,7 @@ proc func_meas_e {} {
 
   if {$pars(meas_mode) eq "track"} {
 
+
     # If drive has changed, rescale resonance parameters
     if {$drive != $fitres(drive)} {
       set k [expr {$drive/$fitres(drive)}]
@@ -483,8 +486,6 @@ proc func_meas_e {} {
     set amp [expr {abs(hypot($fitres(C),$fitres(D))/$f0/$df)}]
     set ak [expr $amp/$fitres(amp)]
 
-    tplot_res add_data [list $t $df $f0 $amp]
-
     # adjust frequency-dependent baseline:
     # A + E*(f-f0) = An + E*(f-f0n)
     # B + F*(f-f0) = Bn + F*(f-f0n)
@@ -498,25 +499,33 @@ proc func_meas_e {} {
     set fitres(dfe) 0
     set fitres(amp) $amp
 
-    # format values for interface
-    global fre_f wid_f amp_f ph_f
-    set fre_f [format $pars(fre_fmt) $fitres(f0)]
-    set wid_f [format $pars(wid_fmt) $fitres(df)]
-    set amp_f [format $pars(amp_fmt) $fitres(amp)]
-    set ph_f  [format $pars(ph_fmt)  $fitres(ph)]
+    # skip point if needed
+    set point_skipped 1
+    if {$pars(track_skip)==0 || abs($f-$f0)/$df < $pars(track_skip)} {
+      set point_skipped 0
 
-    # put values into database
-    if {$pars(db_dev) != {} && $pars(res_db) != {}} {
-      set res [list $t $drive]
-      foreach n {err A Ae B Be C Ce D De f0 f0e df dfe E Ee F Fe} {
-        lappend res $fitres($n)
+      tplot_res add_data [list $t $df $f0 $amp]
+
+      # format values for interface
+      global fre_f wid_f amp_f ph_f
+      set fre_f [format $pars(fre_fmt) $fitres(f0)]
+      set wid_f [format $pars(wid_fmt) $fitres(df)]
+      set amp_f [format $pars(amp_fmt) $fitres(amp)]
+      set ph_f  [format $pars(ph_fmt)  $fitres(ph)]
+
+      # put values into database
+      if {$pars(db_dev) != {} && $pars(res_db) != {}} {
+        set res [list $t $drive]
+        foreach n {err A Ae B Be C Ce D De f0 f0e df dfe E Ee F Fe} {
+          lappend res $fitres($n)
+        }
+        $pars(db_dev) cmd put $pars(res_db) {*}$res
       }
-      $pars(db_dev) cmd put $pars(res_db) {*}$res
-    }
 
-    # put sweep data in the database
-    if {$pars(db_dev) != {} && $pars(sweep_db) != {}} {
-      $pars(db_dev) cmd put $pars(sweep_db) $t $f $x $y
+      # put sweep data in the database
+      if {$pars(db_dev) != {} && $pars(sweep_db) != {}} {
+        $pars(db_dev) cmd put $pars(sweep_db) $t $f $x $y
+      }
     }
 
     # adjust generator frequency
@@ -529,8 +538,31 @@ proc func_meas_e {} {
     }
 
     # adjust drive
-    if {$pars(track_adja)} {
-      $::gen set_volt [expr $drive * $pars(amp_target)/$amp]
+    set new_drive 0
+    if {$pars(track_adja) && $pars(track_amp_d) == 0} {
+      set new_drive [expr $drive * $pars(amp_target)/$amp]
+    }
+
+    # is amp sweep is needed:
+    if {$pars(track_amp_d) > 0} {
+      set new_drive [expr $drive + $pars(track_amp_s)]
+      if {$new_drive > $pars(track_amp_mx)} {
+        set new_drive $pars(track_amp_mx)
+        set pars(track_amp_d) -1
+      }
+    }\
+    elseif {$pars(track_amp_d) < 0} {
+      set new_drive [expr $drive - $pars(track_amp_s)]
+      if {$new_drive < $pars(track_amp_mn) || $pars(track_amp_j)} {
+        set new_drive $pars(track_amp_mn)
+        set pars(track_amp_d) 0
+      }
+      if {$pars(track_amp_j)} {
+        $::gen set_freq $pars(track_amp_f0)
+      }
+    }
+    if {$new_drive > 0 && !$point_skipped} {
+      $::gen set_volt $new_drive
     }
 
   }\
@@ -693,13 +725,13 @@ proc func_mkint {w} {
 
   # lock-in panel
   $::lockin make_widget $f_conf.lockin\
-    -title "Lock-in:" -bar_w 256
+    -title "Lock-in" -bar_w 256
   pack $f_conf.lockin -expand 0 -fill x -anchor ne
   widget_bg $f_conf.lockin #F0E0F0
 
   # generator panel
   $::gen make_widget $f_conf.gen\
-    -title "Generator:" -show_ac_shift 0
+    -title "Generator" -show_ac_shift 0
   pack $f_conf.gen -expand 0 -fill x -anchor ne
   widget_bg $f_conf.gen #F0F0E0
 
@@ -748,14 +780,49 @@ proc func_mkint {w} {
    -ssizes     {}\
    -fmts       {$pars(wid_fmt) $pars(fre_fmt) $pars(amp_fmt)}\
 
-  pack $f_res.tplot -expand 1 -fill both -anchor ne
-  label $f_res.l -text "Track mode: "
-  button $f_res.start -command on_track_start -text "Start"
-  button $f_res.stop  -command on_track_stop  -text "Stop"
-  label $f_res.ffl -text "AdjFre:"
-  entry  $f_res.ff -textvariable pars(track_adjf) -width 4
-  checkbutton $f_res.fa -text "AdjAmp" -variable pars(track_adja)
-  pack $f_res.l $f_res.start $f_res.stop $f_res.ffl $f_res.ff $f_res.fa -side left -expand 0 -anchor nw
+  grid $f_res.tplot -sticky wens
+#  pack $f_res.tplot -expand 1 -fill both -anchor ne
+
+  frame $f_res.tr1
+  label $f_res.tr1.l -text "Track mode: "
+  button $f_res.tr1.start -command on_track_start -text "Start"
+  button $f_res.tr1.stop  -command on_track_stop  -text "Stop"
+  grid $f_res.tr1.l $f_res.tr1.start $f_res.tr1.stop
+  grid $f_res.tr1 -sticky we
+
+  frame $f_res.tr2
+  label $f_res.tr2.ffl -text "AdjFre:"
+  entry  $f_res.tr2.ff -textvariable pars(track_adjf) -width 4
+  checkbutton $f_res.tr2.fa -text "AdjAmp" -variable pars(track_adja)
+  grid $f_res.tr2.ffl $f_res.tr2.ff $f_res.tr2.fa -sticky ew
+  grid $f_res.tr2 -sticky we
+
+  frame $f_res.tr3
+  label $f_res.tr3.sk_l -text "Skip bad pts (0 for keep all):"
+  entry  $f_res.tr3.sk_v -textvariable pars(track_skip) -width 5
+  grid $f_res.tr3.sk_l $f_res.tr3.sk_v -sticky ew
+  grid $f_res.tr3 -sticky we
+
+  frame $f_res.tr4
+  label $f_res.tr4.asw_l -text "AmpSweep:"
+  button $f_res.tr4.aswb1  -command on_track_ampsw  -text "Go Up"
+  button $f_res.tr4.aswb2  -command "set pars(track_amp_d) -1"  -text "Go Down"
+
+  label $f_res.tr4.aswm_l -text "Max:"
+  entry $f_res.tr4.aswm_v -textvariable pars(track_amp_mx) -width 5
+  label $f_res.tr4.asws_l -text "Step:"
+  entry $f_res.tr4.asws_v -textvariable pars(track_amp_s) -width 5
+
+  grid $f_res.tr4.asw_l $f_res.tr4.aswb1 $f_res.tr4.aswb2 -sticky ew
+  grid $f_res.tr4.aswm_l $f_res.tr4.aswm_v $f_res.tr4.asws_l $f_res.tr4.asws_v -sticky ew
+  grid $f_res.tr4 -sticky we
+
+  checkbutton $f_res.j -text "Jump down" -variable pars(track_amp_j)
+  grid $f_res.j -sticky we
+
+  grid rowconfigure $f_res 0 -weight 1
+  grid columnconfigure $f_res 0 -weight 1
+
 }
 
 ############################
@@ -779,7 +846,15 @@ proc on_track_stop {} {
   set pars(meas_mode) "sweep"
 }
 
-
+proc on_track_ampsw {} {
+  global pars fitres
+  if {$pars(meas_mode) eq "sweep"} return
+  if {$pars(track_amp_d)!=0} return
+  if {$pars(track_amp_mx) < $fitres(drive)} return
+  set pars(track_amp_d) 1
+  set pars(track_amp_mn) $fitres(drive)
+  set pars(track_amp_f0) $fitres(f0)
+}
 
 proc set_ac_shift {} {
   $::gen set_ac_shift 0
