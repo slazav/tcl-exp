@@ -156,7 +156,6 @@ proc func_meas_e {} {
   global pars
   global fitres
 
-
   ####################
   if {$pars(meas_mode) eq "sweep"} {
     if {[sweep_pan is_first]} { tplot_sweep clear }
@@ -197,7 +196,6 @@ proc func_meas_e {} {
     if {$y<-$L} {set y -$L}
   }
 
-
   # tracking mode:
   if {$pars(meas_mode) eq "track"} {
 
@@ -213,10 +211,16 @@ proc func_meas_e {} {
       set fitres(drive) $drive
     }
 
-    # subtract pre-measured baseline and fitted baseline
+    # values w/o pre-measured background and without fitted baseline
     set base [get_base $f $drive]
-    set x [expr {$x - [lindex $base 0] - $fitres(A) - $fitres(E)*($f-$fitres(f0))}]
-    set y [expr {$y - [lindex $base 1] - $fitres(B) - $fitres(F)*($f-$fitres(f0))}]
+    set x1 $x
+    set y1 $y
+    if {[llength $base] == 2} {
+      set x1 [expr {$x - [lindex $base 0]}]
+      set y1 [expr {$y - [lindex $base 1]}]
+    }
+    set x2 [expr {$x1 - $fitres(A) - $fitres(E)*($f-$fitres(f0))}]
+    set y2 [expr {$y1 - $fitres(B) - $fitres(F)*($f-$fitres(f0))}]
 
     # calculate new f0 and df
     # x + iy = (C + iD)/(f0^2 - f^2 + 1i*f*df)
@@ -225,10 +229,10 @@ proc func_meas_e {} {
     # df  = Im[(C + iD)/(x + iy)]/f      = 1/f * (D*x - C*y)/(x^2 + y^2)
 
     # Calculate new freq, width, amplitude
-    set f0 [expr {sqrt($f**2 + ($fitres(C)*$x + $fitres(D)*$y)/($x**2+$y**2))}]
-    set df [expr {($fitres(D)*$x - $fitres(C)*$y)/($x**2+$y**2)/$f}]
+    set f0  [expr {sqrt($f**2 + ($fitres(C)*$x2 + $fitres(D)*$y2)/($x2**2+$y2**2))}]
+    set df  [expr {($fitres(D)*$x2 - $fitres(C)*$y2)/($x2**2+$y2**2)/$f}]
     set amp [expr {abs(hypot($fitres(C),$fitres(D))/$f0/$df)}]
-    set ak [expr $amp/$fitres(amp)]
+    set ak  [expr $amp/$fitres(amp)]
 
     # adjust frequency-dependent baseline:
     # A + E*(f-f0) = An + E*(f-f0n)
@@ -268,7 +272,11 @@ proc func_meas_e {} {
 
       # put sweep data in the database
       if {$pars(db_dev) != {} && $pars(sweep_db) != {}} {
-        $pars(db_dev) cmd put $pars(sweep_db) $t $f $x $y
+        set xylist [list $x $y]
+        if {[llength $base] == 2} {
+          lappend xylist $x1 $y1
+        }
+        $pars(db_dev) cmd put $pars(sweep_db) $t $f {*}$xylist
       }
     }
 
@@ -311,8 +319,12 @@ proc func_meas_e {} {
 
   }\
   else {
-    if {[sweep_pan is_on]} { tplot_sweep add_data [list $t $f $x $y] }
-    if {[sweep_pan is_last] } { process_sweep_data }
+    if {[sweep_pan is_on]} {
+      tplot_sweep add_data [list $t $f $x $y]
+    }
+    if {[sweep_pan is_last] } {
+      process_sweep_data
+    }
   }
 }
 
@@ -329,36 +341,48 @@ proc load_pars {} {
   sweep_pan set_dtf   [lindex $last 6]
 }
 
-# add base to blt vector
+# check if background setting is correct: two 0-size arrays or
+# two 6-number arrays. Return 0 if there is no bag setting, 1 overwise.
+proc check_base {} {
+  global pars
+  if {[llength $pars(bg6x)] == 0 && [llength $pars(bg6y)] == 0} { return 0 };
+
+  if {[llength $pars(bg6x)] != 6 || [llength $pars(bg6y)] != 6} {
+    error {"wrong background setting, 6 values for x and y expected"} }
+  return 1
+}
+
+# Add base to blt vector.
+# Return 0 if there is no bag setting, 1 overwise.
 proc add_base {vec vecf drive xy} {
   global pars
-  if {[llength $pars(bg6$xy)] == 6} {
+  if {[check_base] == 0} {return 0}
+
+  set A [lindex $pars(bg6$xy) 0]
+  set B [lindex $pars(bg6$xy) 1]
+  set C [lindex $pars(bg6$xy) 2]
+  set D [lindex $pars(bg6$xy) 3]
+  set F [lindex $pars(bg6$xy) 4]
+  set G [lindex $pars(bg6$xy) 5]
+  puts stderr "$pars(bg6$xy) -- $A -- $B"
+  puts stderr "$vec -- $vecf"
+  $vec expr {$vec + $drive*1e-6*($A+$B*$vecf*1e-3+$C*$vecf^2*1e-6+$D*$vecf^3*1e-9)/(($vecf^2*1e-6-$F^2)^2 + ($G*$vecf*1e-3)^2)}
+  return 1
+}
+
+# get background (x, y) for frequency f
+proc get_base {f drive} {
+  global pars
+  if {[check_base] == 0} {return {}}
+  set ret {}
+  foreach xy {x y} {
     set A [lindex $pars(bg6$xy) 0]
     set B [lindex $pars(bg6$xy) 1]
     set C [lindex $pars(bg6$xy) 2]
     set D [lindex $pars(bg6$xy) 3]
     set F [lindex $pars(bg6$xy) 4]
     set G [lindex $pars(bg6$xy) 5]
-    $vec expr {$vec + $drive*1e-6*($A+$B*$vecf*1e-3+$C*$vecf^2*1e-6+$D*$vecf^3*1e-9)/(($vecf^2*1e-6-$F^2)^2 + ($G*$vecf*1e-3)^2)}
-  }
-}
-
-# same for f,x,y value
-proc get_base {f drive} {
-  global pars
-  set ret {}
-  foreach xy {x y} {
-    if {[llength $pars(bg6$xy)] == 6} {
-      set A [lindex $pars(bg6$xy) 0]
-      set B [lindex $pars(bg6$xy) 1]
-      set C [lindex $pars(bg6$xy) 2]
-      set D [lindex $pars(bg6$xy) 3]
-      set F [lindex $pars(bg6$xy) 4]
-      set G [lindex $pars(bg6$xy) 5]
-      lappend ret [expr {$drive*1e-6*($A+$B*$f*1e-3+$C*$f**2*1e-6+$D*$f**3*1e-9)/(($f**2*1e-6-$F**2)**2 + ($G*$f*1e-3)**2)}]
-    } else {
-      lappend ret 0
-    }
+    lappend ret [expr {$drive*1e-6*($A+$B*$f*1e-3+$C*$f**2*1e-6+$D*$f**3*1e-9)/(($f**2*1e-6-$F**2)**2 + ($G*$f*1e-3)**2)}]
   }
   return $ret
 }
@@ -378,10 +402,23 @@ proc process_sweep_data {} {
   set drive [$::gen get_volt]
   set phase [$::gen get_phase]
 
+  # baseline
+  basef expr $fv
+  basex expr basef*0
+  basey expr basef*0
+  add_base basex basef $drive x
+  add_base basey basef $drive y
+  set has_base [check_base]
+
   # put sweep data in the database
   if {$pars(db_dev) != {} && $pars(sweep_db) != {}} {
     for {set i 0} {$i < [$tv length]} {incr i} {
-      $pars(db_dev) cmd put $pars(sweep_db) [$tv index $i] [$fv index $i] [$xv index $i] [$yv index $i]
+      set xylist [list  [$xv index $i] [$yv index $i] ]
+      if {$has_base} {
+        lappend xylist [expr {[$xv index $i] - [basex index $i]}]
+        lappend xylist [expr {[$yv index $i] - [basey index $i]}]
+      }
+      $pars(db_dev) cmd put $pars(sweep_db) [$tv index $i] [$fv index $i] {*}$xylist
     }
   }
 
@@ -397,12 +434,6 @@ proc process_sweep_data {} {
 
   ##
 
-  # baseline
-  basef expr $fv
-  basex expr basef*0
-  basey expr basef*0
-  add_base basex basef $drive x
-  add_base basey basef $drive y
 
   # do fit
   set npars [expr {$pars(lin_offs)? "--pars 8":"--pars 6"}]
