@@ -198,125 +198,7 @@ proc func_meas_e {} {
 
   # tracking mode:
   if {$pars(meas_mode) eq "track"} {
-
-    # If drive has changed, rescale resonance parameters
-    if {$drive != $fitres(drive)} {
-      set k [expr {$drive/$fitres(drive)}]
-      set fitres(A) [expr {$k*$fitres(A)}]
-      set fitres(B) [expr {$k*$fitres(B)}]
-      set fitres(C) [expr {$k*$fitres(C)}]
-      set fitres(D) [expr {$k*$fitres(D)}]
-      set fitres(E) [expr {$k*$fitres(E)}]
-      set fitres(F) [expr {$k*$fitres(F)}]
-      set fitres(drive) $drive
-    }
-
-    # values w/o pre-measured background and without fitted baseline
-    set base [get_base $f $drive]
-    set x1 $x
-    set y1 $y
-    if {[llength $base] == 2} {
-      set x1 [expr {$x - [lindex $base 0]}]
-      set y1 [expr {$y - [lindex $base 1]}]
-    }
-    set x2 [expr {$x1 - $fitres(A) - $fitres(E)*($f-$fitres(f0))}]
-    set y2 [expr {$y1 - $fitres(B) - $fitres(F)*($f-$fitres(f0))}]
-
-    # calculate new f0 and df
-    # x + iy = (C + iD)/(f0^2 - f^2 + 1i*f*df)
-
-    # f0^2 = f^2 + Re[(C + iD)/(x + iy)] = f^2 + (C*x + D*y)/(x^2 + y^2)
-    # df  = Im[(C + iD)/(x + iy)]/f      = 1/f * (D*x - C*y)/(x^2 + y^2)
-
-    # Calculate new freq, width, amplitude
-    set f0  [expr {sqrt($f**2 + ($fitres(C)*$x2 + $fitres(D)*$y2)/($x2**2+$y2**2))}]
-    set df  [expr {($fitres(D)*$x2 - $fitres(C)*$y2)/($x2**2+$y2**2)/$f}]
-    set amp [expr {abs(hypot($fitres(C),$fitres(D))/$f0/$df)}]
-    set ak  [expr $amp/$fitres(amp)]
-
-    # adjust frequency-dependent baseline:
-    # A + E*(f-f0) = An + E*(f-f0n)
-    # B + F*(f-f0) = Bn + F*(f-f0n)
-    # An = A + E*(f0n-f0)
-    # Bn = B + F*(f0n-f0)
-    set fitres(A) [expr {$fitres(A) + $fitres(E)*($f0-$fitres(f0))}]
-    set fitres(B) [expr {$fitres(B) + $fitres(F)*($f0-$fitres(f0))}]
-    set fitres(f0) $f0
-    set fitres(df) $df
-    set fitres(f0e) 0
-    set fitres(dfe) 0
-    set fitres(amp) $amp
-
-    # skip point if needed
-    set point_skipped 1
-    if {$pars(track_skip)==0 || abs($f-$f0)/$df < $pars(track_skip)} {
-      set point_skipped 0
-
-      tplot_res add_data [list $t $df $f0 $amp]
-
-      # format values for interface
-      global fre_f wid_f amp_f ph_f
-      set fre_f [format $pars(fre_fmt) $fitres(f0)]
-      set wid_f [format $pars(wid_fmt) $fitres(df)]
-      set amp_f [format $pars(amp_fmt) $fitres(amp)]
-      set ph_f  [format $pars(ph_fmt)  $fitres(ph)]
-
-      # put values into database
-      if {$pars(db_dev) != {} && $pars(res_db) != {}} {
-        set res [list $t $drive]
-        foreach n {err A Ae B Be C Ce D De f0 f0e df dfe E Ee F Fe} {
-          lappend res $fitres($n)
-        }
-        $pars(db_dev) cmd put $pars(res_db) {*}$res
-      }
-
-      # put sweep data in the database
-      if {$pars(db_dev) != {} && $pars(sweep_db) != {}} {
-        set xylist [list $x $y]
-        if {[llength $base] == 2} {
-          lappend xylist $x1 $y1
-        }
-        $pars(db_dev) cmd put $pars(sweep_db) $t $f {*}$xylist
-      }
-    }
-
-    # adjust generator frequency
-    if {$pars(track_adjf)>0} {
-      set k  $pars(track_adjf)
-      if ($k<0) {set k 0}
-      if ($k>1) {set k 1}
-      set fa [expr $f0*$k + $f*(1-$k)]
-      $::gen set_freq $fa
-    }
-
-    # adjust drive
-    set new_drive 0
-    if {$pars(track_adja) && $pars(track_amp_d) == 0} {
-      set new_drive [expr $drive * $pars(amp_target)/$amp]
-    }
-
-    # is amp sweep is needed:
-    if {$pars(track_amp_d) > 0} {
-      set new_drive [expr $drive + $pars(track_amp_s)]
-      if {$new_drive > $pars(track_amp_mx)} {
-        set new_drive $pars(track_amp_mx)
-        set pars(track_amp_d) -1
-      }
-    }\
-    elseif {$pars(track_amp_d) < 0} {
-      set new_drive [expr $drive - $pars(track_amp_s)]
-      if {$new_drive < $pars(track_amp_mn) || $pars(track_amp_j)} {
-        set new_drive $pars(track_amp_mn)
-        set pars(track_amp_d) 0
-      }
-      if {$pars(track_amp_j)} {
-        $::gen set_freq $pars(track_amp_f0)
-      }
-    }
-    if {$new_drive > 0 && !$point_skipped} {
-      $::gen set_volt $new_drive
-    }
-
+    process_track_data $drive $t $f $x $y
   }\
   else {
     if {[sweep_pan is_on]} {
@@ -385,6 +267,133 @@ proc get_base {f drive} {
     lappend ret [expr {$drive*1e-6*($A+$B*$f*1e-3+$C*$f**2*1e-6+$D*$f**3*1e-9)/(($f**2*1e-6-$F**2)**2 + ($G*$f*1e-3)**2)}]
   }
   return $ret
+}
+
+##########################################################################
+# process point in the tracking mode
+proc process_track_data {drive t f x y} {
+  global pars
+  global fitres
+
+  # If drive has changed, rescale resonance parameters
+  if {$drive != $fitres(drive)} {
+    set k [expr {$drive/$fitres(drive)}]
+    set fitres(A) [expr {$k*$fitres(A)}]
+    set fitres(B) [expr {$k*$fitres(B)}]
+    set fitres(C) [expr {$k*$fitres(C)}]
+    set fitres(D) [expr {$k*$fitres(D)}]
+    set fitres(E) [expr {$k*$fitres(E)}]
+    set fitres(F) [expr {$k*$fitres(F)}]
+    set fitres(drive) $drive
+  }
+
+  # values w/o pre-measured background
+  set base [get_base $f $drive]
+  set x1 $x
+  set y1 $y
+  if {[llength $base] == 2} {
+    set x1 [expr {$x - [lindex $base 0]}]
+    set y1 [expr {$y - [lindex $base 1]}]
+  }
+
+  # values without fitted baseline
+  set x2 [expr {$x1 - $fitres(A) - $fitres(E)*($f-$fitres(f0))}]
+  set y2 [expr {$y1 - $fitres(B) - $fitres(F)*($f-$fitres(f0))}]
+
+  # calculate new f0 and df
+  # x + iy = (C + iD)/(f0^2 - f^2 + 1i*f*df)
+
+  # f0^2 = f^2 + Re[(C + iD)/(x + iy)] = f^2 + (C*x + D*y)/(x^2 + y^2)
+  # df  = Im[(C + iD)/(x + iy)]/f      = 1/f * (D*x - C*y)/(x^2 + y^2)
+
+  # Calculate new freq, width, amplitude
+  set f0  [expr {sqrt($f**2 + ($fitres(C)*$x2 + $fitres(D)*$y2)/($x2**2+$y2**2))}]
+  set df  [expr {($fitres(D)*$x2 - $fitres(C)*$y2)/($x2**2+$y2**2)/$f}]
+  set amp [expr {abs(hypot($fitres(C),$fitres(D))/$f0/$df)}]
+  set ak  [expr $amp/$fitres(amp)]
+
+  # adjust frequency-dependent baseline:
+  # A + E*(f-f0) = An + E*(f-f0n)
+  # B + F*(f-f0) = Bn + F*(f-f0n)
+  # An = A + E*(f0n-f0)
+  # Bn = B + F*(f0n-f0)
+  set fitres(A) [expr {$fitres(A) + $fitres(E)*($f0-$fitres(f0))}]
+  set fitres(B) [expr {$fitres(B) + $fitres(F)*($f0-$fitres(f0))}]
+  set fitres(f0) $f0
+  set fitres(df) $df
+  set fitres(f0e) 0
+  set fitres(dfe) 0
+  set fitres(amp) $amp
+
+  # skip point if needed
+  set point_skipped 1
+  if {$pars(track_skip)==0 || abs($f-$f0)/$df < $pars(track_skip)} {
+    set point_skipped 0
+
+    tplot_res add_data [list $t $df $f0 $amp]
+
+    # format values for interface
+    global fre_f wid_f amp_f ph_f
+    set fre_f [format $pars(fre_fmt) $fitres(f0)]
+    set wid_f [format $pars(wid_fmt) $fitres(df)]
+    set amp_f [format $pars(amp_fmt) $fitres(amp)]
+    set ph_f  [format $pars(ph_fmt)  $fitres(ph)]
+
+    # put values into database
+    if {$pars(db_dev) != {} && $pars(res_db) != {}} {
+      set res [list $t $drive]
+      foreach n {err A Ae B Be C Ce D De f0 f0e df dfe E Ee F Fe} {
+        lappend res $fitres($n)
+      }
+      $pars(db_dev) cmd put $pars(res_db) {*}$res
+    }
+
+    # put sweep data in the database
+    if {$pars(db_dev) != {} && $pars(sweep_db) != {}} {
+      set xylist [list $x $y]
+      if {[llength $base] == 2} {
+        lappend xylist $x1 $y1
+      }
+      $pars(db_dev) cmd put $pars(sweep_db) $t $f {*}$xylist
+    }
+  }
+
+  # adjust generator frequency
+  if {$pars(track_adjf)>0} {
+    set k  $pars(track_adjf)
+    if ($k<0) {set k 0}
+    if ($k>1) {set k 1}
+    set fa [expr $f0*$k + $f*(1-$k)]
+    $::gen set_freq $fa
+  }
+
+  # adjust drive
+  set new_drive 0
+  if {$pars(track_adja) && $pars(track_amp_d) == 0} {
+    set new_drive [expr $drive * $pars(amp_target)/$amp]
+  }
+
+  # is amp sweep is needed:
+  if {$pars(track_amp_d) > 0} {
+    set new_drive [expr $drive + $pars(track_amp_s)]
+    if {$new_drive > $pars(track_amp_mx)} {
+      set new_drive $pars(track_amp_mx)
+      set pars(track_amp_d) -1
+    }
+  }\
+  elseif {$pars(track_amp_d) < 0} {
+    set new_drive [expr $drive - $pars(track_amp_s)]
+    if {$new_drive < $pars(track_amp_mn) || $pars(track_amp_j)} {
+      set new_drive $pars(track_amp_mn)
+      set pars(track_amp_d) 0
+    }
+    if {$pars(track_amp_j)} {
+      $::gen set_freq $pars(track_amp_f0)
+    }
+  }
+  if {$new_drive > 0 && !$point_skipped} {
+    $::gen set_volt $new_drive
+  }
 }
 
 ##########################################################################
