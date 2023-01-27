@@ -67,7 +67,6 @@ set default_pars {
   track_amp_mn {0}        {min value for amp sweep, V}
   track_amp_f0 {0}        {frequency to return after sweep}
   track_amp_s  {0.02}     {step for amp sweep, V}
-  track_amp_j  {0}        {jump down instead of sweeping}
   bg6x         {}         {bg parameters for x}
   bg6y         {}         {bg parameters for y}
 }
@@ -394,12 +393,9 @@ proc process_track_data {drive t f x y} {
   }\
   elseif {$pars(track_amp_d) < 0} {
     set new_drive [expr $drive - $pars(track_amp_s)]
-    if {$new_drive < $pars(track_amp_mn) || $pars(track_amp_j)} {
+    if {$new_drive < $pars(track_amp_mn)} {
       set new_drive $pars(track_amp_mn)
       set pars(track_amp_d) 0
-    }
-    if {$pars(track_amp_j)} {
-      $::gen set_freq $pars(track_amp_f0)
     }
   }
   if {$new_drive > 0 && !$point_skipped} {
@@ -860,20 +856,18 @@ proc func_mkint {w} {
 
   frame $f_res.tr4
   label $f_res.tr4.asw_l -text "AmpSweep:"
-  button $f_res.tr4.aswb1  -command on_track_ampsw  -text "Go Up"
-  button $f_res.tr4.aswb2  -command "set pars(track_amp_d) -1"  -text "Go Down"
+  button $f_res.tr4.aswb1  -text "GoUp"   -command on_track_ampsw
+  button $f_res.tr4.aswb2  -text "GoDown" -command "set pars(track_amp_d) -1"
+  button $f_res.tr4.aswb3  -text "JumpDown" -command on_track_jump
 
   label $f_res.tr4.aswm_l -text "Max:"
   entry $f_res.tr4.aswm_v -textvariable pars(track_amp_mx) -width 5
   label $f_res.tr4.asws_l -text "Step:"
   entry $f_res.tr4.asws_v -textvariable pars(track_amp_s) -width 5
 
-  grid $f_res.tr4.asw_l $f_res.tr4.aswb1 $f_res.tr4.aswb2 -sticky ew
+  grid $f_res.tr4.asw_l $f_res.tr4.aswb1 $f_res.tr4.aswb2 $f_res.tr4.aswb3 -sticky ew
   grid $f_res.tr4.aswm_l $f_res.tr4.aswm_v $f_res.tr4.asws_l $f_res.tr4.asws_v -sticky ew
   grid $f_res.tr4 -sticky we
-
-  checkbutton $f_res.j -text "Jump down" -variable pars(track_amp_j)
-  grid $f_res.j -sticky we
 
   grid rowconfigure $f_res 0 -weight 1
   grid columnconfigure $f_res 0 -weight 1
@@ -910,6 +904,13 @@ proc on_track_ampsw {} {
   set pars(track_amp_d) 1
   set pars(track_amp_mn) $fitres(drive)
   set pars(track_amp_f0) $fitres(f0)
+}
+
+proc on_track_jump {} {
+  global pars
+  set pars(track_amp_d) 0
+  $::gen set_freq $pars(track_amp_f0)
+  $::gen set_volt $pars(track_amp_mn)
 }
 
 proc set_ac_shift {} {
