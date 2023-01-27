@@ -317,6 +317,11 @@ proc process_track_data {drive t f x y} {
   set df  [expr {($fitres(D)*$x2 - $fitres(C)*$y2)/($x2**2+$y2**2)/$f}]
   set amp [expr {abs(hypot($fitres(C),$fitres(D))/$f0/$df)}]
 
+  # voltage components parallel and perpendicular to the force C+iD
+  set x3 [expr {($fitres(C)*$x2 + $fitres(D)*$y2)/sqrt($fitres(C)**2 + $fitres(D)**2)}]
+  set y3 [expr {($fitres(C)*$y2 - $fitres(D)*$x2)/sqrt($fitres(C)**2 + $fitres(D)**2)}]
+  set fshift [expr {$f - $f0}]
+
   # adjust frequency-dependent baseline:
   # A + E*(f-f0) = An + E*(f-f0n)
   # B + F*(f-f0) = Bn + F*(f-f0n)
@@ -350,6 +355,7 @@ proc process_track_data {drive t f x y} {
       foreach n {err A Ae B Be C Ce D De f0 f0e df dfe E Ee F Fe} {
         lappend res $fitres($n)
       }
+      lappend res $x3 $y3 $fshift
       $pars(db_dev) cmd put $pars(res_db) {*}$res
     }
 
