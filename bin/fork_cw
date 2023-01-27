@@ -319,7 +319,7 @@ proc process_track_data {drive t f x y} {
   # voltage components parallel and perpendicular to the force C+iD
   set x3 [expr {($fitres(C)*$x2 + $fitres(D)*$y2)/sqrt($fitres(C)**2 + $fitres(D)**2)}]
   set y3 [expr {($fitres(C)*$y2 - $fitres(D)*$x2)/sqrt($fitres(C)**2 + $fitres(D)**2)}]
-  set fshift [expr {$f - $f0}]
+  set ff0 [expr {$f - $f0}]
 
   # adjust frequency-dependent baseline:
   # A + E*(f-f0) = An + E*(f-f0n)
@@ -342,11 +342,15 @@ proc process_track_data {drive t f x y} {
     tplot_res add_data [list $t $df $f0 $amp]
 
     # format values for interface
-    global fre_f wid_f amp_f ph_f
-    set fre_f [format $pars(fre_fmt) $fitres(f0)]
-    set wid_f [format $pars(wid_fmt) $fitres(df)]
-    set amp_f [format $pars(amp_fmt) $fitres(amp)]
-    set ph_f  [format $pars(ph_fmt)  $fitres(ph)]
+    set ::fre_f [format $pars(fre_fmt) $fitres(f0)]
+    set ::wid_f [format $pars(wid_fmt) $fitres(df)]
+    set ::amp_f [format $pars(amp_fmt) $fitres(amp)]
+    set ::ph_f  [format $pars(ph_fmt)  $fitres(ph)]
+
+    set ::track_x [format "%.3e" $x3]
+    set ::track_y [format "%.3e" $y3]
+    set ::track_ff0 [format "%.5f" $ff0]
+
 
     # put values into database
     if {$pars(db_dev) != {} && $pars(res_db) != {}} {
@@ -354,7 +358,7 @@ proc process_track_data {drive t f x y} {
       foreach n {err A Ae B Be C Ce D De f0 f0e df dfe E Ee F Fe} {
         lappend res $fitres($n)
       }
-      lappend res $x3 $y3 $fshift
+      lappend res $x3 $y3 $ff0
       $pars(db_dev) cmd put $pars(res_db) {*}$res
     }
 
@@ -868,6 +872,16 @@ proc func_mkint {w} {
   grid $f_res.tr4.asw_l $f_res.tr4.aswb1 $f_res.tr4.aswb2 $f_res.tr4.aswb3 -sticky ew
   grid $f_res.tr4.aswm_l $f_res.tr4.aswm_v $f_res.tr4.asws_l $f_res.tr4.asws_v -sticky ew
   grid $f_res.tr4 -sticky we
+
+  frame $f_res.tr5
+  label $f_res.tr5.xl -text "X:"
+  label $f_res.tr5.xv -textvariable ::track_x -width 10
+  label $f_res.tr5.yl -text "Y:"
+  label $f_res.tr5.yv -textvariable ::track_y -width 10
+  label $f_res.tr5.fl -text "F-F0:"
+  label $f_res.tr5.fv -textvariable ::track_ff0 -width 10
+  grid $f_res.tr5.xl $f_res.tr5.xv $f_res.tr5.yl $f_res.tr5.yv $f_res.tr5.fl $f_res.tr5.fv
+  grid $f_res.tr5 -sticky we
 
   grid rowconfigure $f_res 0 -weight 1
   grid columnconfigure $f_res 0 -weight 1
