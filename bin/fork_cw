@@ -86,8 +86,12 @@ else {
   foreach {name def title} $default_pars { set pars($name) $def }
 }
 
+# fit result
 array unset fitres
+# saved fit result for tracking mode
 array unset fitres_tr
+# values formatted for interface
+array unset iface
 
 tk appname "$pars(name)"
 
@@ -99,12 +103,6 @@ set fre {};
 set wid {};
 set amp {};
 set ph {};
-
-# formatted values
-set fre_f {};
-set wid_f {};
-set amp_f {};
-set ph_f {};
 
 # DeviceRole objects
 set lockin [DeviceRole $pars(lockin_dev) lock-in {*}$pars(lockin_pars)];
@@ -178,6 +176,7 @@ proc func_meas_e {} {
   }
 
 
+  # in the test mpde we generate some fake data
   if {$pars(lockin_dev) eq "TEST"} {
     set f0 1024
     set df 64
@@ -196,7 +195,7 @@ proc func_meas_e {} {
     if {$y<-$L} {set y -$L}
   }
 
-  # tracking mode:
+  # tracking/sweep mode:
   if {$pars(meas_mode) eq "track"} {
     process_track_data $drive $t $f $x $y
   }\
@@ -213,14 +212,29 @@ proc func_meas_e {} {
 ##########################################################################
 # load sweep settings from the database
 proc load_pars {} {
-  global pars
-  if {$pars(db_dev)=={} || $pars(pars_db)=={}} {error "No database"}
-  set last [lindex [$pars(db_dev) cmd get $pars(pars_db)] 0]
-  sweep_pan set_vmin [lindex $last 2]
-  sweep_pan set_vmax [lindex $last 3]
-  sweep_pan set_npts [lindex $last 4]
-  sweep_pan set_dt   [lindex $last 5]
-  sweep_pan set_dtf   [lindex $last 6]
+  global pars fitres
+  if {$pars(db_dev)=={}} {error "No database"}
+
+  # load last sweep parameters
+  if {$pars(pars_db)!={}} {
+    set last [lindex [$pars(db_dev) cmd get_prev $pars(pars_db)] 0]
+    sweep_pan set_vmin [lindex $last 2]
+    sweep_pan set_vmax [lindex $last 3]
+    sweep_pan set_npts [lindex $last 4]
+    sweep_pan set_dt   [lindex $last 5]
+    sweep_pan set_dtf  [lindex $last 6]
+  }
+
+  # load last fit result
+  if {$pars(res_db)!={}} {
+    set last [lindex [$pars(db_dev) cmd get_prev $pars(res_db)] 0]
+    set i 1
+    foreach n {drive err A Ae B Be C Ce D De f0 f0e df dfe E Ee F Fe} {
+      set fitres($n) [lindex $last $i]
+      incr i
+    }
+    update_interface_values
+  }
 }
 
 # check if background setting is correct: two 0-size arrays or
@@ -301,51 +315,44 @@ proc process_track_data {drive t f x y} {
     set y1 [expr {$y - [lindex $base 1]}]
   }
 
-  # values without fitted baseline (linear backgound is calculated from original fitres_tr(f0))
+  # Values without fitted baseline
+  # Linear background is calculated from original fitres_tr(f0))!
   set x2 [expr {$x1 - $fitres(A) - $fitres(E)*($f-$fitres_tr(f0))}]
   set y2 [expr {$y1 - $fitres(B) - $fitres(F)*($f-$fitres_tr(f0))}]
 
   # calculate new f0 and df
   # x + iy = (C + iD)/(f0^2 - f^2 + 1i*f*df)
-
   # f0^2 = f^2 + Re[(C + iD)/(x + iy)] = f^2 + (C*x + D*y)/(x^2 + y^2)
   # df  = Im[(C + iD)/(x + iy)]/f      = 1/f * (D*x - C*y)/(x^2 + y^2)
 
-  # Calculate new freq0, width, amplitude
-  set f0  [expr {sqrt($f**2 + ($fitres(C)*$x2 + $fitres(D)*$y2)/($x2**2+$y2**2))}]
-  set df  [expr {($fitres(D)*$x2 - $fitres(C)*$y2)/($x2**2+$y2**2)/$f}]
-  set amp [expr {abs(hypot($fitres(C),$fitres(D))/$f0/$df)}]
+  set fitres(f0) [expr {sqrt($f**2 + ($fitres(C)*$x2 + $fitres(D)*$y2)/($x2**2+$y2**2))}]
+  set fitres(df) [expr {($fitres(D)*$x2 - $fitres(C)*$y2)/($x2**2+$y2**2)/$f}]
+  set fitres(f0e) 0
+  set fitres(dfe) 0
+  set amp [get_amp]
 
   # voltage components parallel and perpendicular to the force C+iD
   set x3 [expr {($fitres(C)*$x2 + $fitres(D)*$y2)/sqrt($fitres(C)**2 + $fitres(D)**2)}]
   set y3 [expr {($fitres(C)*$y2 - $fitres(D)*$x2)/sqrt($fitres(C)**2 + $fitres(D)**2)}]
-  set ff0 [expr {$f - $f0}]
+  set ff0 [expr {$f - $fitres(f0)}]
 
   # adjust frequency-dependent baseline:
   # A + E*(f-f0) = An + E*(f-f0n)
   # B + F*(f-f0) = Bn + F*(f-f0n)
   # An = A + E*(f0n-f0)
   # Bn = B + F*(f0n-f0)
-  set fitres(A) [expr {$fitres(A) + $fitres(E)*($f0-$fitres_tr(f0))}]
-  set fitres(B) [expr {$fitres(B) + $fitres(F)*($f0-$fitres_tr(f0))}]
-  set fitres(f0) $f0
-  set fitres(df) $df
-  set fitres(f0e) 0
-  set fitres(dfe) 0
-  set fitres(amp) $amp
+  set fitres(A) [expr {$fitres(A) + $fitres(E)*($fitres(f0)-$fitres_tr(f0))}]
+  set fitres(B) [expr {$fitres(B) + $fitres(F)*($fitres(f0)-$fitres_tr(f0))}]
 
   # skip point if needed
   set point_skipped 1
-  if {$pars(track_skip)==0 || abs($f-$f0)/$df < $pars(track_skip)} {
+  if {$pars(track_skip)==0 || abs($ff0/$df) < $pars(track_skip)} {
     set point_skipped 0
 
-    tplot_res add_data [list $t $df $f0 $amp]
+    tplot_res add_data [list $t $fitres(df) $fitres(f0) $amp]
 
     # format values for interface
-    set ::fre_f [format $pars(fre_fmt) $fitres(f0)]
-    set ::wid_f [format $pars(wid_fmt) $fitres(df)]
-    set ::amp_f [format $pars(amp_fmt) $fitres(amp)]
-    set ::ph_f  [format $pars(ph_fmt)  $fitres(ph)]
+    update_interface_values
 
     set ::track_x [format "%.3e" $x3]
     set ::track_y [format "%.3e" $y3]
@@ -377,7 +384,7 @@ proc process_track_data {drive t f x y} {
     set k  $pars(track_adjf)
     if ($k<0) {set k 0}
     if ($k>1) {set k 1}
-    set fa [expr $f0*$k + $f*(1-$k)]
+    set fa [expr $fitres(f0)*$k + $f*(1-$k)]
     $::gen set_freq $fa
   }
 
@@ -475,16 +482,11 @@ proc process_sweep_data {} {
     if {$v == {}} {set v 0}
     set fitres($n) $v
   }
-  set fitres(amp) [expr {abs(hypot($fitres(C),$fitres(D))/$fitres(f0)/$fitres(df))}]
-  set fitres(ph)  [expr {180/3.1415926*atan2($fitres(C),$fitres(D))}]
   set fitres(drive) $drive
+  set amp [get_amp]
 
   # format values for interface
-  global fre_f wid_f amp_f ph_f
-  set fre_f [format $pars(fre_fmt) $fitres(f0)]
-  set wid_f [format $pars(wid_fmt) $fitres(df)]
-  set amp_f [format $pars(amp_fmt) $fitres(amp)]
-  set ph_f  [format $pars(ph_fmt)  $fitres(ph)]
+  update_interface_values
 
   # update plot
   set G [tplot_sweep get_graph]
@@ -532,10 +534,10 @@ proc process_sweep_data {} {
      -xdata oldf -ydata oldy -symbol circle
 
   # skip bad fits
-  if {$fitres(err)/$fitres(amp) > $pars(error_limit)} {error "Bad fit: [expr $fitres(err)/$fitres(amp)]"}
+  if {$fitres(err)/$amp > $pars(error_limit)} {error "Bad fit: [expr $fitres(err)/$amp]"}
 
   # values for result time plot
-  tplot_res add_data [list $fitres(T) $fitres(df) $fitres(f0) $fitres(amp)]
+  tplot_res add_data [list $fitres(T) $fitres(df) $fitres(f0) $amp]
 
   # put values into database
   if {$pars(db_dev) != {} && $pars(res_db) != {}} {
@@ -596,15 +598,17 @@ proc adjust_sweep_pars {} {
     sweep_pan set_vmax [format $pars(fre_fmt) $f2]
   }
 
+  set amp [get_amp]
+
   if {$pars(adj_drive)} {
     set v [$::gen get_volt]
-    set v [format $pars(drv_fmt) [expr $v*$pars(amp_target)/$fitres(amp)]]
+    set v [format $pars(drv_fmt) [expr $v*$pars(amp_target)/$amp]]
     if {$v > $pars(adj_dmax) } {set v $pars(adj_dmax)}
     if {$v < $pars(adj_dmin) } {set v $pars(adj_dmin)}
     $::gen set_volt $v
   }\
   else {
-    set pars(amp_target) [format %.4e $fitres(amp)]
+    set pars(amp_target) [format %.4e $amp]
   }
 
   if {$pars(adj_time)} {
@@ -620,12 +624,31 @@ proc adjust_sweep_pars {} {
 
   if {$pars(adj_phase)} {
     set p [$::gen get_phase]
-    set p [expr {$p + $fitres(ph)}]
+    set p [expr {$p + [get_ph]}]
     $::gen set_phase [format %.2f $p]
   }
 }
 
+proc get_amp {} {
+  global fitres
+  return [expr {abs(hypot($fitres(C),$fitres(D))/$fitres(f0)/$fitres(df))}]
+}
 
+proc get_ph {} {
+  global fitres
+  return [expr {180/3.1415926*atan2($fitres(C),$fitres(D))}]
+}
+
+
+# Values in the interface are not directly mapped
+# to measured parameters. Some formatting is used instead.
+proc update_interface_values {} {
+  global pars fitres iface
+  set iface(fre) [format $pars(fre_fmt) $fitres(f0)]
+  set iface(wid) [format $pars(wid_fmt) $fitres(df)]
+  set iface(amp) [format $pars(amp_fmt) [get_amp]]
+  set iface(ph)  [format $pars(ph_fmt)  [get_ph]]
+}
 
 ######################################################################
 ### GUI
@@ -634,19 +657,19 @@ proc mk_frame_top {w} {
   frame $w
 
   labelframe $w.fre -text {Frequency [Hz]}
-  label $w.fre.val -textvariable fre_f -font {-size 15} -text 0
+  label $w.fre.val -textvariable iface(fre) -font {-size 15} -text 0
   pack $w.fre.val
 
   labelframe $w.wid -text {Width [Hz]}
-  label $w.wid.val -textvariable wid_f  -font {-size 15} -text 0
+  label $w.wid.val -textvariable iface(wid)  -font {-size 15} -text 0
   pack $w.wid.val
 
   labelframe $w.amp -text {Amplitude [Vrms]}
-  label $w.amp.val -textvariable amp_f  -font {-size 15} -text 0
+  label $w.amp.val -textvariable iface(amp)  -font {-size 15} -text 0
   pack $w.amp.val
 
   labelframe $w.ph -text {Phase [deg]}
-  label $w.ph.val -textvariable ph_f  -font {-size 15} -text 0
+  label $w.ph.val -textvariable iface(ph)  -font {-size 15} -text 0
   pack $w.ph.val
 
   pack $w.fre $w.wid $w.amp $w.ph -side left -fill x -expand 1
