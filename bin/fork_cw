@@ -99,12 +99,6 @@ tk appname "$pars(name)"
 ##########################################################################
 ##########################################################################
 
-# last measurel values
-set fre {};
-set wid {};
-set amp {};
-set ph {};
-
 # DeviceRole objects
 set lockin [DeviceRole $pars(lockin_dev) lock-in {*}$pars(lockin_pars)];
 set gen [DeviceRole $pars(gen_dev) ac_source];
