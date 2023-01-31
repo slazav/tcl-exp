@@ -389,7 +389,7 @@ proc process_track_data {drive t f x y} {
   # adjust drive
   set new_drive 0
   if {$pars(track_adja) && $pars(track_amp_d) == 0} {
-    set new_drive [expr $drive * $pars(amp_target)/$fitres(amp)]
+    set new_drive [expr $drive * $fitres_tr(amp)/$fitres(amp)]
   }
 
   # is amp sweep is needed:
