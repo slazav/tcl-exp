@@ -675,7 +675,7 @@ proc mk_frame_top {w} {
   pack $w.fre $w.wid $w.amp $w.ph -side left -fill x -expand 1
 }
 
-# measurement type frame (sweeps/offsets/track tabset)
+# measurement type frame (sweeps/adjust_pars tabset)
 proc mk_frame_meas_tabs {w} {
   global pars
 
@@ -752,23 +752,6 @@ proc mk_frame_meas_tabs {w} {
   entry $f.tmax -width 10 -textvariable pars(adj_tmax)
   grid $f.tlim_l -sticky nw -columnspan 2
   grid $f.tmin $f.tmax -sticky nw
-
-  ###########
-  ## offsets measurements
-  set f $w.conf_offs
-  frame $f
-  $w insert end offs -window $f\
-     -anchor n -text "Offsets" -fill both -padx 3 -pady 3
-
-  labelframe $f.f1 -text "Generator AC offset"
-  pack $f.f1 -expand 0 -fill x -anchor ne
-
-  button $f.f1.meas  -command set_ac_shift -text "Measure and set"
-  button $f.f1.reset -command clear_ac_shift -text "Reset to zero"
-  pack $f.f1.meas -expand 0 -fill x -anchor ne
-  pack $f.f1.reset -expand 0 -fill x -anchor ne
-
-
 }
 
 
@@ -948,40 +931,6 @@ proc on_track_jump {} {
   set pars(track_amp_d) 0
   $::gen set_freq $pars(track_amp_f0)
   $::gen set_volt $pars(track_amp_mn)
-}
-
-proc set_ac_shift {} {
-  $::gen set_ac_shift 0
-  set ph [$::gen get_phase]
-  set v0 [$::gen get_volt]
-  set dt [expr round(5*[$::lockin get_tconst]*1000)]
-
-  after $dt
-  set XY1 [$::lockin get]
-  $::gen set_phase [expr $ph+180]
-
-  after $dt
-  set XY2 [$::lockin get]
-
-  set x1 [lindex $XY1 0]
-  set y1 [lindex $XY1 1]
-  set x2 [lindex $XY2 0]
-  set y2 [lindex $XY2 1]
-
-  # abs(V2-V1), abs(V2+V1)
-  set Am [expr {sqrt(($x2-$x1)**2 + ($y2-$y1)**2)}]
-  set Ap [expr {sqrt(($x2+$x1)**2 + ($y2+$y1)**2)}]
-
-  # arg(V2-V1), arg(V2+V1)
-  set Pm [expr {180/3.148926*atan2($y2-$y1, $x2-$x1)}]
-  set Pp [expr {180/3.148926*atan2($y2+$y1, $x2+$x1)}]
-
-  $::gen set_phase [expr $ph+$Pm-$Pp]
-  $::gen set_ac_shift [format %.4f [expr $v0*$Ap/$Am]]
-}
-
-proc clear_ac_shift {} {
-  $::gen set_ac_shift 0
 }
 
 ##########################################################################
