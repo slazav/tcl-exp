@@ -63,6 +63,8 @@ set default_pars {
   track_adja   {0}        {adjust amplitude in tracking mode 0|1}
   track_adjfv  {1}        {adjust frequency strength 0..1}
   track_skip   {0}        {skip bad points (|f-f0|/df > k)}
+
+  track_ampsw  {0}        {do we do an amp sweep?}
   track_amp_d  {0}        {direction of amp sweep, -1,0,+1}
   track_amp_mx {10}       {max value for amp sweep, V}
   track_amp_mn {0}        {min value for amp sweep, V}
@@ -388,23 +390,24 @@ proc process_track_data {drive t f x y} {
 
   # adjust drive
   set new_drive 0
-  if {$pars(track_adja) && $pars(track_amp_d) == 0} {
+  if {$pars(track_adja) && $pars(track_ampsw) == 0} {
     set new_drive [expr $drive * $fitres_tr(amp)/$fitres(amp)]
   }
 
   # is amp sweep is needed:
-  if {$pars(track_amp_d) > 0} {
+  if {$pars(track_ampsw) && $pars(track_amp_d) > 0} {
     set new_drive [expr $drive + $pars(track_amp_s)]
     if {$new_drive > $pars(track_amp_mx)} {
       set new_drive $pars(track_amp_mx)
       set pars(track_amp_d) -1
     }
   }\
-  elseif {$pars(track_amp_d) < 0} {
+  elseif {$pars(track_ampsw) && $pars(track_amp_d) < 0} {
     set new_drive [expr $drive - $pars(track_amp_s)]
     if {$new_drive < $pars(track_amp_mn)} {
       set new_drive $pars(track_amp_mn)
       set pars(track_amp_d) 0
+      set pars(track_ampsw) 0
     }
   }
   if {$new_drive > 0 && !$point_skipped} {
@@ -791,16 +794,17 @@ proc mk_frame_track {w} {
 
 
   labelframe $w.tr4 -text "AmpSweep:"
-  button $w.tr4.aswb1  -text "GoUp"   -command on_track_ampsw
-  button $w.tr4.aswb2  -text "GoDown" -command "set pars(track_amp_d) -1"
-  button $w.tr4.aswb3  -text "JumpDown" -command on_track_jump
+  button $w.tr4.aswb1  -text "Up"       -command on_track_amp_up
+  button $w.tr4.aswb2  -text "Down"     -command on_track_amp_down
+  button $w.tr4.aswb3  -text "JumpDown" -command on_track_amp_jump
+  button $w.tr4.aswb4  -text "Pause"    -command on_track_amp_pause
 
   label $w.tr4.aswm_l -text "Max:"
   entry $w.tr4.aswm_v -textvariable pars(track_amp_mx) -width 5
   label $w.tr4.asws_l -text "Step:"
   entry $w.tr4.asws_v -textvariable pars(track_amp_s) -width 5
 
-  grid $w.tr4.aswb1 $w.tr4.aswb2 $w.tr4.aswb3 -sticky ew
+  grid $w.tr4.aswb1 $w.tr4.aswb2 $w.tr4.aswb3 $w.tr4.aswb4 -sticky ew
   grid $w.tr4.aswm_l $w.tr4.aswm_v $w.tr4.asws_l $w.tr4.asws_v -sticky ew
   grid $w.tr4 -sticky we -columnspan 3
 
@@ -927,21 +931,41 @@ proc on_track_stop {} {
   set pars(meas_mode) "sweep"
 }
 
-proc on_track_ampsw {} {
+proc on_track_amp_up {} {
   global pars fitres
   if {$pars(meas_mode) eq "sweep"} return
-  if {$pars(track_amp_d)!=0} return
   if {$pars(track_amp_mx) < $fitres(drive)} return
+  if {$pars(track_ampsw)==0} {
+    set pars(track_amp_mn) $fitres(drive)
+    set pars(track_amp_f0) $fitres(f0)
+    set pars(track_ampsw) 1
+  }
   set pars(track_amp_d) 1
-  set pars(track_amp_mn) $fitres(drive)
-  set pars(track_amp_f0) $fitres(f0)
 }
 
-proc on_track_jump {} {
+proc on_track_amp_down {} {
   global pars
-  set pars(track_amp_d) 0
+  if {$pars(meas_mode) eq "sweep"} return
+  if {$pars(track_amp_mn) > $fitres(drive)} return
+  if {$pars(track_ampsw)==0} {return}
+  set pars(track_amp_d) -1
+}
+
+proc on_track_amp_jump {} {
+  global pars
+  if {$pars(meas_mode) eq "sweep"} return
+  if {$pars(track_ampsw) == 0} return
   $::gen set_freq $pars(track_amp_f0)
   $::gen set_volt $pars(track_amp_mn)
+  set pars(track_amp_d) 0
+  set pars(track_ampsw) 0
+}
+
+proc on_track_amp_pause {} {
+  global pars
+  if {$pars(meas_mode) eq "sweep"} return
+  if {$pars(track_ampsw) == 0} return
+  set pars(track_amp_d) 0
 }
 
 ##########################################################################
