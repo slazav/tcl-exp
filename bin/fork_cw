@@ -229,6 +229,7 @@ proc load_pars {} {
       set fitres($n) [lindex $last $i]
       incr i
     }
+    update_fitres
     update_interface_values
   }
 }
@@ -325,12 +326,6 @@ proc process_track_data {drive t f x y} {
   set fitres(df) [expr {($fitres(D)*$x2 - $fitres(C)*$y2)/($x2**2+$y2**2)/$f}]
   set fitres(f0e) 0
   set fitres(dfe) 0
-  set amp [get_amp]
-
-  # voltage components parallel and perpendicular to the force C+iD
-  set x3 [expr {($fitres(C)*$x2 + $fitres(D)*$y2)/sqrt($fitres(C)**2 + $fitres(D)**2)}]
-  set y3 [expr {($fitres(C)*$y2 - $fitres(D)*$x2)/sqrt($fitres(C)**2 + $fitres(D)**2)}]
-  set ff0 [expr {$f - $fitres(f0)}]
 
   # adjust frequency-dependent baseline:
   # A + E*(f-f0) = An + E*(f-f0n)
@@ -340,12 +335,19 @@ proc process_track_data {drive t f x y} {
   set fitres(A) [expr {$fitres(A) + $fitres(E)*($fitres(f0)-$fitres_tr(f0))}]
   set fitres(B) [expr {$fitres(B) + $fitres(F)*($fitres(f0)-$fitres_tr(f0))}]
 
+  update_fitres
+
+  # voltage components parallel and perpendicular to the force C+iD
+  set x3 [expr {($fitres(C)*$x2 + $fitres(D)*$y2)/sqrt($fitres(C)**2 + $fitres(D)**2)}]
+  set y3 [expr {($fitres(C)*$y2 - $fitres(D)*$x2)/sqrt($fitres(C)**2 + $fitres(D)**2)}]
+  set ff0 [expr {$f - $fitres(f0)}]
+
   # skip point if needed
   set point_skipped 1
   if {$pars(track_skip)==0 || abs($ff0/$df) < $pars(track_skip)} {
     set point_skipped 0
 
-    tplot_res add_data [list $t $fitres(df) $fitres(f0) $amp]
+    tplot_res add_data [list $t $fitres(df) $fitres(f0) $fitres(amp)]
 
     # format values for interface
     update_interface_values
@@ -387,7 +389,7 @@ proc process_track_data {drive t f x y} {
   # adjust drive
   set new_drive 0
   if {$pars(track_adja) && $pars(track_amp_d) == 0} {
-    set new_drive [expr $drive * $pars(amp_target)/$amp]
+    set new_drive [expr $drive * $pars(amp_target)/$fitres(amp)]
   }
 
   # is amp sweep is needed:
@@ -479,8 +481,7 @@ proc process_sweep_data {} {
     set fitres($n) $v
   }
   set fitres(drive) $drive
-  set amp [get_amp]
-
+  update_fitres
 
   # format values for interface
   update_interface_values
@@ -531,10 +532,11 @@ proc process_sweep_data {} {
      -xdata oldf -ydata oldy -symbol circle
 
   # skip bad fits
-  if {$fitres(err)/$amp > $pars(error_limit)} {error "Bad fit: [expr $fitres(err)/$amp]"}
+  if {$fitres(err)/$fitres(amp) > $pars(error_limit)} {
+    error "Bad fit: [expr $fitres(err)/$fitres(amp)]"}
 
   # values for result time plot
-  tplot_res add_data [list $fitres(T) $fitres(df) $fitres(f0) $amp]
+  tplot_res add_data [list $fitres(T) $fitres(df) $fitres(f0) $fitres(amp)]
 
   # put values into database
   if {$pars(db_dev) != {} && $pars(res_db) != {}} {
@@ -595,17 +597,15 @@ proc adjust_sweep_pars {} {
     sweep_pan set_vmax [format $pars(fre_fmt) $f2]
   }
 
-  set amp [get_amp]
-
   if {$pars(adj_drive)} {
     set v [$::gen get_volt]
-    set v [format $pars(drv_fmt) [expr $v*$pars(amp_target)/$amp]]
+    set v [format $pars(drv_fmt) [expr $v*$pars(amp_target)/$fitres(amp)]]
     if {$v > $pars(adj_dmax) } {set v $pars(adj_dmax)}
     if {$v < $pars(adj_dmin) } {set v $pars(adj_dmin)}
     $::gen set_volt $v
   }\
   else {
-    set pars(amp_target) [format %.4e $amp]
+    set pars(amp_target) [format %.4e $fitres(amp)]
   }
 
   if {$pars(adj_time)} {
@@ -621,22 +621,19 @@ proc adjust_sweep_pars {} {
 
   if {$pars(adj_phase)} {
     set p [$::gen get_phase]
-    set p [expr {$p + [get_ph]}]
+    set p [expr {$p + $fitres(ph)}]
     $::gen set_phase [format %.2f $p]
   }
 }
 
-proc get_amp {} {
+# Update amp and ph in fitres array
+proc update_fitres {} {
   global fitres
-  if {$fitres(f0) == 0 || $fitres(df) == 0} {return NaN}
-  return [expr {abs(hypot($fitres(C),$fitres(D))/$fitres(f0)/$fitres(df))}]
+  if {$fitres(f0) != 0 || $fitres(df) != 0} {
+    set fitres(amp) [expr {abs(hypot($fitres(C),$fitres(D))/$fitres(f0)/$fitres(df))}]
+  }
+  set fitres(ph) [expr {180/3.1415926*atan2($fitres(C),$fitres(D))}]
 }
-
-proc get_ph {} {
-  global fitres
-  return [expr {180/3.1415926*atan2($fitres(C),$fitres(D))}]
-}
-
 
 # Values in the interface are not directly mapped
 # to measured parameters. Some formatting is used instead.
@@ -644,8 +641,8 @@ proc update_interface_values {} {
   global pars fitres iface
   set iface(fre) [format $pars(fre_fmt) $fitres(f0)]
   set iface(wid) [format $pars(wid_fmt) $fitres(df)]
-  set iface(amp) [format $pars(amp_fmt) [get_amp]]
-  set iface(ph)  [format $pars(ph_fmt)  [get_ph]]
+  set iface(amp) [format $pars(amp_fmt) $fitres(amp)]
+  set iface(ph)  [format $pars(ph_fmt)  $fitres(ph)]
 }
 
 ######################################################################
