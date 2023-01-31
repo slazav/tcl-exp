@@ -381,37 +381,33 @@ proc process_track_data {drive t f x y} {
 
   # adjust generator frequency
   if {$pars(track_adjf)} {
-    set k  $pars(track_adjfv)
-    if ($k<0) {set k 0}
-    if ($k>1) {set k 1}
-    set fa [expr $fitres(f0)*$k + $f*(1-$k)]
-    $::gen set_freq $fa
+    track_adj_fre $pars(track_adjfv)
   }
 
   # adjust drive
-  set new_drive 0
   if {$pars(track_adja) && $pars(track_ampsw) == 0} {
-    set new_drive [expr $drive * $fitres_tr(amp)/$fitres(amp)]
+    track_adj_amp
   }
 
-  # is amp sweep is needed:
-  if {$pars(track_ampsw) && $pars(track_amp_d) > 0} {
-    set new_drive [expr $drive + $pars(track_amp_s)]
-    if {$new_drive > $pars(track_amp_mx)} {
-      set new_drive $pars(track_amp_mx)
-      set pars(track_amp_d) -1
+  # adjust drive in amp sweep mode:
+  if {$pars(track_ampsw) && !$point_skipped} {
+    set new_drive 0
+    if {$pars(track_amp_d) > 0} {
+      set new_drive [expr $drive + $pars(track_amp_s)]
+      if {$new_drive > $pars(track_amp_mx)} {
+        set new_drive $pars(track_amp_mx)
+        set pars(track_amp_d) -1
+      }
+    }\
+    elseif {$pars(track_ampsw) && $pars(track_amp_d) < 0} {
+      set new_drive [expr $drive - $pars(track_amp_s)]
+      if {$new_drive < $pars(track_amp_mn)} {
+        set new_drive $pars(track_amp_mn)
+        set pars(track_amp_d) 0
+        set pars(track_ampsw) 0
+      }
     }
-  }\
-  elseif {$pars(track_ampsw) && $pars(track_amp_d) < 0} {
-    set new_drive [expr $drive - $pars(track_amp_s)]
-    if {$new_drive < $pars(track_amp_mn)} {
-      set new_drive $pars(track_amp_mn)
-      set pars(track_amp_d) 0
-      set pars(track_ampsw) 0
-    }
-  }
-  if {$new_drive > 0 && !$point_skipped} {
-    $::gen set_volt $new_drive
+    if {$new_drive > 0} { $::gen set_volt $new_drive}
   }
 }
 
@@ -766,10 +762,6 @@ proc mk_frame_track {w} {
   label $w.v.fl -text "F-F0:"
   label $w.v.fv -textvariable ::track_ff0 -width 10
   grid $w.v.xl $w.v.xv $w.v.yl $w.v.yv $w.v.fl $w.v.fv
-  grid $w.v -sticky we -columnspan 3
-
-  button $w.start -command on_track_start -text "Start"
-  button $w.stop  -command on_track_stop  -text "Stop"
 
   label $w.dtl -text "period \[s\]:"
   label $w.dt0l -text "first point delay:"
@@ -785,11 +777,19 @@ proc mk_frame_track {w} {
   label $w.skl -text "Skip filter, (f-f0)/df units, or 0:"
   entry  $w.sk -textvariable pars(track_skip) -width 5
 
-  grid $w.start $w.stop -
+  frame $w.b
+  button $w.b.start -command on_track_start -text "Start"
+  button $w.b.stop  -command on_track_stop  -text "Stop"
+  button $w.b.aa    -command track_adj_amp  -text "AdjAmp"
+  button $w.b.af    -command "track_adj_fre 1" -text "AdjFre"
+  grid $w.b.start $w.b.stop $w.b.aa $w.b.af
+
+  grid $w.v -sticky we -columnspan 3
   grid $w.dtl $w.dtv $w.fa -sticky w
   grid  $w.dt0l $w.dt0v $w.ff -sticky w
   grid $w.fsl - $w.fs -sticky e
   grid $w.skl - $w.sk -sticky e
+  grid $w.b -sticky we -columnspan 3
   grid $w -sticky we
 
 
@@ -966,6 +966,18 @@ proc on_track_amp_pause {} {
   if {$pars(meas_mode) eq "sweep"} return
   if {$pars(track_ampsw) == 0} return
   set pars(track_amp_d) 0
+}
+
+proc track_adj_amp {{amp $::fitres_tr(amp)}} {
+  set drive [$::gen get_volt]
+  $::gen set_volt [expr $drive * $amp/$::fitres(amp)]
+}
+
+proc track_adj_fre {k} {
+  if ($k<0) {set k 0}
+  if ($k>1) {set k 1}
+  set f [$::gen get_freq]
+  $::gen set_freq [expr $::fitres(f0)*$k + $f*(1-$k)]
 }
 
 ##########################################################################
