@@ -196,11 +196,11 @@ proc func_meas_e {} {
 
   # tracking/sweep mode:
   if {$pars(meas_mode) eq "track"} {
-    process_track_data $drive $t $f $x $y
+    process_track_data $t $f $x $y $drive
   }\
   else {
     if {[sweep_pan is_on]} {
-      tplot_sweep add_data [list $t $f $x $y]
+      tplot_sweep add_data [list $t $f $x $y $drive]
     }
     if {[sweep_pan is_last] } {
       process_sweep_data
@@ -285,7 +285,7 @@ proc get_base {f drive} {
 
 ##########################################################################
 # process point in the tracking mode
-proc process_track_data {drive t f x y} {
+proc process_track_data {t f x y drive} {
   global pars
   global fitres
   global fitres_tr
@@ -372,11 +372,7 @@ proc process_track_data {drive t f x y} {
 
     # put sweep data in the database
     if {$pars(db_dev) != {} && $pars(sweep_db) != {}} {
-      set xylist [list $x $y]
-      if {[llength $base] == 2} {
-        lappend xylist $x1 $y1
-      }
-      $pars(db_dev) cmd put $pars(sweep_db) $t $f {*}$xylist
+      $pars(db_dev) cmd put $pars(sweep_db) $t $f $x $y $drive
     }
   }
 
@@ -424,26 +420,15 @@ proc process_sweep_data {} {
   set fv [tplot_sweep get_dvec 0]
   set xv [tplot_sweep get_dvec 1]
   set yv [tplot_sweep get_dvec 2]
-  set drive [$::gen get_volt]
+  set dv [tplot_sweep get_dvec 3]
+  set drive [dv index 0]
   set phase [$::gen get_phase]
-
-  # baseline
-  basef expr $fv
-  basex expr basef*0
-  basey expr basef*0
-  add_base basex basef $drive x
-  add_base basey basef $drive y
-  set has_base [check_base]
 
   # put sweep data in the database
   if {$pars(db_dev) != {} && $pars(sweep_db) != {}} {
     for {set i 0} {$i < [$tv length]} {incr i} {
-      set xylist [list  [$xv index $i] [$yv index $i] ]
-      if {$has_base} {
-        lappend xylist [expr {[$xv index $i] - [basex index $i]}]
-        lappend xylist [expr {[$yv index $i] - [basey index $i]}]
-      }
-      $pars(db_dev) cmd put $pars(sweep_db) [$tv index $i] [$fv index $i] {*}$xylist
+      $pars(db_dev) cmd put $pars(sweep_db)\
+        [$tv index $i] [$fv index $i] [$xv index $i] [$yv index $i] [$dv index $i]
     }
   }
 
@@ -457,8 +442,13 @@ proc process_sweep_data {} {
       $drive $phase
   }
 
-  ##
-
+  # baseline
+  basef expr $fv
+  basex expr basef*0
+  basey expr basef*0
+  add_base basex basef $drive x
+  add_base basey basef $drive y
+  set has_base [check_base]
 
   # do fit
   set pp1 [expr {$pars(lin_offs)? "--pars 8":"--pars 6"}]
@@ -809,8 +799,6 @@ proc mk_frame_track {w} {
   grid $w.tr4.aswb1 $w.tr4.aswb2 $w.tr4.aswb3 $w.tr4.aswb4 -sticky ew
   grid $w.tr4.aswm_l $w.tr4.aswm_v $w.tr4.asws_l $w.tr4.asws_v -sticky ew
   grid $w.tr4 -sticky we -columnspan 3
-
-
 }
 
 
@@ -857,13 +845,13 @@ proc func_mkint {w} {
 
 
   ####
-  # sweep timeplot (4 columns: f, x, y, a)
+  # sweep timeplot (4 columns: f, x, y, drive)
   TimePlot tplot_sweep $f_meas.tplot\
-   -ncols      3\
+   -ncols      4\
    -maxt       3600\
-   -colors     {black red blue}\
-   -names      {F X Y}\
-   -titles     {F X Y}\
+   -colors     {black red blue green}\
+   -names      {F X Y D}\
+   -titles     {F X Y D}\
    -symbols    {circle circle circle circle}\
    -ssizes     {}\
    -fmts       %.2f\
