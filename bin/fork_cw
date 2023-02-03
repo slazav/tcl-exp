@@ -43,6 +43,7 @@ set default_pars {
   geometry     {}         {set initial window geometry}
   plot_maxt    {600}      {timeplot span}
   lin_offs     {0}        {Fit with constant/linear offset, 0|1}
+  velocity     {0}        {Fit with velocity function}
   adj_freq     {0}        {adjust central frequency, 0|1}
   adj_fspan    {0}        {adjust frequency span, 0|1}
   adj_fmin     {0}        {min frequency limit for adjustment}
@@ -460,8 +461,9 @@ proc process_sweep_data {} {
 
 
   # do fit
-  set npars [expr {$pars(lin_offs)? "--pars 8":"--pars 6"}]
-  set conn [open "| fit_res $npars" RDWR]
+  set pp1 [expr {$pars(lin_offs)? "--pars 8":"--pars 6"}]
+  set pp2 [expr {$pars(velocity)? "--coord 0":"--coord 1"}]
+  set conn [open "| fit_res $pp1 $pp2" RDWR]
   fconfigure $conn -blocking true -buffering line
   for {set i 0} {$i < [$tv length]} {incr i} {
     set xx [expr {[$xv index $i] - [basex index $i]}]
