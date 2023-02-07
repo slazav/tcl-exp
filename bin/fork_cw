@@ -421,7 +421,7 @@ proc process_sweep_data {} {
   set xv [tplot_sweep get_dvec 1]
   set yv [tplot_sweep get_dvec 2]
   set dv [tplot_sweep get_dvec 3]
-  set drive [dv index 0]
+  set drive [$dv index 0]
   set phase [$::gen get_phase]
 
   # put sweep data in the database
