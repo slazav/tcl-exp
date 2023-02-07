@@ -325,8 +325,19 @@ proc process_track_data {t f x y drive} {
   # f0^2 = f^2 + Re[(C + iD)/(x + iy)] = f^2 + (C*x + D*y)/(x^2 + y^2)
   # df  = Im[(C + iD)/(x + iy)]/f      = 1/f * (D*x - C*y)/(x^2 + y^2)
 
-  set fitres(f0) [expr {sqrt($f**2 + ($fitres(C)*$x2 + $fitres(D)*$y2)/($x2**2+$y2**2))}]
-  set fitres(df) [expr {($fitres(D)*$x2 - $fitres(C)*$y2)/($x2**2+$y2**2)/$f}]
+  # in velocity mode:
+  # x + iy = 1i*f*(C + iD)/(f0^2 - f^2 + 1i*f*df)
+  # f0^2 = f^2 + Re[1i*f*(C + iD)/(x + iy)] = f^2 +  f*(C*y - D*x)/(x^2 + y^2)
+  # df  = Im[1i*f*(C + iD)/(x + iy)]/f      = (C*x + D*y)/(x^2 + y^2)
+
+  if {$pars(velocity)} {
+    set fitres(f0) [expr {sqrt($f**2 + $f*($fitres(C)*$y2 - $fitres(D)*$x2)/($x2**2+$y2**2))}]
+    set fitres(df) [expr {($fitres(C)*$x2 + $fitres(D)*$y2)/($x2**2+$y2**2)}]
+  }\
+  else {
+    set fitres(f0) [expr {sqrt($f**2 + ($fitres(C)*$x2 + $fitres(D)*$y2)/($x2**2+$y2**2))}]
+    set fitres(df) [expr {($fitres(D)*$x2 - $fitres(C)*$y2)/($x2**2+$y2**2)/$f}]
+  }
   set fitres(f0e) 0
   set fitres(dfe) 0
 
@@ -341,8 +352,15 @@ proc process_track_data {t f x y drive} {
   update_fitres
 
   # voltage components parallel and perpendicular to the force C+iD
-  set x3 [expr {($fitres(C)*$x2 + $fitres(D)*$y2)/sqrt($fitres(C)**2 + $fitres(D)**2)}]
-  set y3 [expr {($fitres(C)*$y2 - $fitres(D)*$x2)/sqrt($fitres(C)**2 + $fitres(D)**2)}]
+  # (iC - D in velocity mode)
+  if {$pars(velocity)} {
+    set x3 [expr {($fitres(C)*$y2 - $fitres(D)*$x2)/sqrt($fitres(C)**2 + $fitres(D)**2)}]
+    set y3 [expr {-($fitres(C)*$x2 + $fitres(D)*$y2)/sqrt($fitres(C)**2 + $fitres(D)**2)}]
+  }\
+  else {
+    set x3 [expr {($fitres(C)*$x2 + $fitres(D)*$y2)/sqrt($fitres(C)**2 + $fitres(D)**2)}]
+    set y3 [expr {($fitres(C)*$y2 - $fitres(D)*$x2)/sqrt($fitres(C)**2 + $fitres(D)**2)}]
+  }
   set ff0 [expr {$f - $fitres(f0)}]
 
   # skip point if needed
@@ -619,9 +637,13 @@ proc adjust_sweep_pars {} {
 
 # Update amp and ph in fitres array
 proc update_fitres {} {
-  global fitres
+  global fitres pars
   if {$fitres(f0) != 0 || $fitres(df) != 0} {
-    set fitres(amp) [expr {abs(hypot($fitres(C),$fitres(D))/$fitres(f0)/$fitres(df))}]
+    if {$pars(velocity)} {
+      set fitres(amp) [expr {abs(hypot($fitres(C),$fitres(D))/$fitres(df))}]
+    } else {
+      set fitres(amp) [expr {abs(hypot($fitres(C),$fitres(D))/$fitres(f0)/$fitres(df))}]
+    }
   }
   set fitres(ph) [expr {180/3.1415926*atan2($fitres(C),$fitres(D))}]
 }
