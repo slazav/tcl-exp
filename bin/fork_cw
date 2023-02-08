@@ -956,7 +956,7 @@ proc on_track_amp_up {} {
 }
 
 proc on_track_amp_down {} {
-  global pars
+  global pars fitres
   if {$pars(meas_mode) eq "sweep"} return
   if {$pars(track_amp_mn) > $fitres(drive)} return
   if {$pars(track_ampsw)==0} {return}
