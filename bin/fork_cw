@@ -131,7 +131,10 @@ proc func_meas {} {
 
   sweep_pan do_step
 
-  if {$pars(meas_mode) eq "track"} { return }
+  if {$pars(meas_mode) eq "track"} {
+    mon set_period $pars(track_period)
+    return
+  }
   if {$pars(meas_mode) ne "sweep"} {error "unknown meas_mode value: $pars(meas_mode)"}
 
   # set generator panel to readonly state when sweeper is active
@@ -931,7 +934,6 @@ proc on_track_start {} {
 
   sweep_pan stop
   sweep_pan do_step
-  mon set_period $pars(track_period)
   $::gen set_freq $fitres(f0)
   after [expr {int($pars(track_del)*1000)}]
   set pars(meas_mode) "track"
