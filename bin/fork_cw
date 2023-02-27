@@ -41,6 +41,7 @@ set default_pars {
   ph_fmt       {%.1f}     {phase format string for the interface}
   vertical     0          {vertical design of the intereface}
   geometry     {}         {set initial window geometry}
+  plot_width   {360}      {set initial width of plot widgets}
   plot_maxt    {600}      {timeplot span}
   lin_offs     {0}        {Fit with constant/linear offset, 0|1}
   velocity     {0}        {Fit with velocity function}
@@ -866,6 +867,7 @@ proc mk_frame_plots {w} {
 
   $w insert end tplot -window $f\
      -anchor n -text "TimePlot" -fill both -padx 3 -pady 3
+  $w configure -width $pars(plot_width)
 
 }
 
