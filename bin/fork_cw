@@ -32,7 +32,7 @@ set default_pars {
   dtf          {1}        {starting value for first point delay}
   mode         {Both}     {starting value for sweeping mode}
   swap_xy      {0}        {swap x and y values (do it if fit gives negative width)}
-  error_limit  {0.1}      {skip fit result if RMS point deviation divided by amplitude > error_limit}
+  error_limit  {0}        {skip fit result if RMS point deviation divided by amplitude > error_limit, 0 - no limit}
   tfmt         {%H:%M:%S} {time format string for the interface}
   amp_fmt      {%.3e}     {amp format string for the interface}
   fre_fmt      {%.3f}     {fre format string for the interface}
@@ -58,7 +58,7 @@ set default_pars {
   fspan_size   {6}        {frequency span / width}
   amp_target   {1}        {amplitude target}
   meas_mode    {sweep}    {sweeps/track}
-  track_period {0.5}      {track period, s} 
+  track_period {1}        {track period, s} 
   track_del    {10}       {initial delay for track mode, s}
   track_adjf   {0}        {adjust frequency in tracking mode 0|1}
   track_adja   {0}        {adjust amplitude in tracking mode 0|1}
@@ -544,7 +544,7 @@ proc process_sweep_data {} {
      -xdata oldf -ydata oldy -symbol circle
 
   # skip bad fits
-  if {$fitres(err)/$fitres(amp) > $pars(error_limit)} {
+  if {$pars(error_limit)>0 && $fitres(err)/$fitres(amp) > $pars(error_limit)} {
     error "Bad fit: [expr $fitres(err)/$fitres(amp)]"}
 
   # values for result time plot
