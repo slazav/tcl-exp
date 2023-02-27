@@ -908,7 +908,7 @@ proc func_mkint {w} {
     grid $w.dev -sticky wens  -column 0 -row 1
     grid $w.plots -sticky wens -column 1 -row 1 -rowspan 2
     grid $w.meas   -sticky wens -column 0 -row 2
-    grid rowconfigure $w 0 -weight 1
+    grid rowconfigure $w 2 -weight 1
     grid columnconfigure $w 1 -weight 1
   }
 }
