@@ -668,27 +668,27 @@ proc update_interface_values {} {
 proc mk_frame_top {w} {
   frame $w
 
-  labelframe $w.fre -text {Frequency [Hz]}
-  label $w.fre.val -textvariable iface(fre) -font {-size 15} -text 0
+  labelframe $w.fre -text {Freq [Hz]}
+  label $w.fre.val -textvariable iface(fre) -font {-weight bold} -text 0
   pack $w.fre.val
 
   labelframe $w.wid -text {Width [Hz]}
-  label $w.wid.val -textvariable iface(wid)  -font {-size 15} -text 0
+  label $w.wid.val -textvariable iface(wid)  -font {-weight bold} -text 0
   pack $w.wid.val
 
-  labelframe $w.amp -text {Amplitude [Vrms]}
-  label $w.amp.val -textvariable iface(amp)  -font {-size 15} -text 0
+  labelframe $w.amp -text {Ampl [Vrms]}
+  label $w.amp.val -textvariable iface(amp)  -font {-weight bold} -text 0
   pack $w.amp.val
 
   labelframe $w.ph -text {Phase [deg]}
-  label $w.ph.val -textvariable iface(ph)  -font {-size 15} -text 0
+  label $w.ph.val -textvariable iface(ph)  -font {-weight bold} -text 0
   pack $w.ph.val
 
   pack $w.fre $w.wid $w.amp $w.ph -side left -fill x -expand 1
 }
 
-# measurement type frame (sweeps/adjust_pars tabset)
-proc mk_frame_meas_tabs {w} {
+# measurement type frame (sweeps/adjust_pars/tracking tabset)
+proc mk_frame_meas {w} {
   global pars
 
   blt::tabset $w
@@ -764,114 +764,80 @@ proc mk_frame_meas_tabs {w} {
   entry $f.tmax -width 10 -textvariable pars(adj_tmax)
   grid $f.tlim_l -sticky nw -columnspan 2
   grid $f.tmin $f.tmax -sticky nw
+
+  ###########
+  ## tracking mode
+
+  set f $w.track
+  frame $f
+  $w insert end track -window $f\
+     -anchor n -text "Tracking" -fill both -padx 3 -pady 3
+
+  frame $f.v
+  label $f.v.xl -text "X:"
+  label $f.v.xv -textvariable ::track_x -width 10
+  label $f.v.yl -text "Y:"
+  label $f.v.yv -textvariable ::track_y -width 10
+  label $f.v.fl -text "F-F0:"
+  label $f.v.fv -textvariable ::track_ff0 -width 10
+  grid $f.v.xl $f.v.xv $f.v.yl $f.v.yv $f.v.fl $f.v.fv
+
+  label $f.dtl -text "period \[s\]:"
+  label $f.dt0l -text "first point delay:"
+  entry $f.dtv  -textvariable ::pars(track_period) -width 5
+  entry $f.dt0v -textvariable ::pars(track_del)    -width 5
+
+  checkbutton $f.fa -text "adjust ampl" -variable pars(track_adja)
+  checkbutton $f.ff -text "adjust freq" -variable pars(track_adjf)
+
+  label $f.fsl -text "adjust freq strength 0..1:"
+  entry  $f.fs -textvariable pars(track_adjfv) -width 5
+
+  label $f.skl -text "Skip filter, (f-f0)/df units, or 0:"
+  entry  $f.sk -textvariable pars(track_skip) -width 5
+
+  frame $f.b
+  button $f.b.start -command on_track_start -text "Start"
+  button $f.b.stop  -command on_track_stop  -text "Stop"
+  button $f.b.aa    -command track_adj_amp  -text "AdjAmp"
+  button $f.b.af    -command "track_adj_fre 1" -text "AdjFre"
+  grid $f.b.start $f.b.stop $f.b.aa $f.b.af
+
+  grid $f.v -sticky we -columnspan 3
+  grid $f.dtl $f.dtv $f.fa -sticky w
+  grid  $f.dt0l $f.dt0v $f.ff -sticky w
+  grid $f.fsl - $f.fs -sticky e
+  grid $f.skl - $f.sk -sticky e
+  grid $f.b -sticky we -columnspan 3
+
+  labelframe $f.tr4 -text "AmpSweep:"
+  button $f.tr4.aswb1  -text "Up"       -command on_track_amp_up
+  button $f.tr4.aswb2  -text "Down"     -command on_track_amp_down
+  button $f.tr4.aswb3  -text "JumpDown" -command on_track_amp_jump
+  button $f.tr4.aswb4  -text "Pause"    -command on_track_amp_pause
+
+  label $f.tr4.aswm_l -text "Max:"
+  entry $f.tr4.aswm_v -textvariable pars(track_amp_mx) -width 5
+  label $f.tr4.asws_l -text "Step:"
+  entry $f.tr4.asws_v -textvariable pars(track_amp_s) -width 5
+
+  grid $f.tr4.aswb1 $f.tr4.aswb2 $f.tr4.aswb3 $f.tr4.aswb4 -sticky ew
+  grid $f.tr4.aswm_l $f.tr4.aswm_v $f.tr4.asws_l $f.tr4.asws_v -sticky ew
+  grid $f.tr4 -sticky we -columnspan 3
+
 }
 
-# tracking mode frame
-proc mk_frame_track {w} {
 
-  labelframe $w -text "Tracking mode:" -font {-weight bold -size 10}
+# plot frame (sweeps/time)
+proc mk_frame_plots {w} {
+  global pars
 
-  frame $w.v
-  label $w.v.xl -text "X:"
-  label $w.v.xv -textvariable ::track_x -width 10
-  label $w.v.yl -text "Y:"
-  label $w.v.yv -textvariable ::track_y -width 10
-  label $w.v.fl -text "F-F0:"
-  label $w.v.fv -textvariable ::track_ff0 -width 10
-  grid $w.v.xl $w.v.xv $w.v.yl $w.v.yv $w.v.fl $w.v.fv
-
-  label $w.dtl -text "period \[s\]:"
-  label $w.dt0l -text "first point delay:"
-  entry $w.dtv  -textvariable ::pars(track_period) -width 5
-  entry $w.dt0v -textvariable ::pars(track_del)    -width 5
-
-  checkbutton $w.fa -text "adjust ampl" -variable pars(track_adja)
-  checkbutton $w.ff -text "adjust freq" -variable pars(track_adjf)
-
-  label $w.fsl -text "adjust freq strength 0..1:"
-  entry  $w.fs -textvariable pars(track_adjfv) -width 5
-
-  label $w.skl -text "Skip filter, (f-f0)/df units, or 0:"
-  entry  $w.sk -textvariable pars(track_skip) -width 5
-
-  frame $w.b
-  button $w.b.start -command on_track_start -text "Start"
-  button $w.b.stop  -command on_track_stop  -text "Stop"
-  button $w.b.aa    -command track_adj_amp  -text "AdjAmp"
-  button $w.b.af    -command "track_adj_fre 1" -text "AdjFre"
-  grid $w.b.start $w.b.stop $w.b.aa $w.b.af
-
-  grid $w.v -sticky we -columnspan 3
-  grid $w.dtl $w.dtv $w.fa -sticky w
-  grid  $w.dt0l $w.dt0v $w.ff -sticky w
-  grid $w.fsl - $w.fs -sticky e
-  grid $w.skl - $w.sk -sticky e
-  grid $w.b -sticky we -columnspan 3
-  grid $w -sticky we
-
-
-  labelframe $w.tr4 -text "AmpSweep:"
-  button $w.tr4.aswb1  -text "Up"       -command on_track_amp_up
-  button $w.tr4.aswb2  -text "Down"     -command on_track_amp_down
-  button $w.tr4.aswb3  -text "JumpDown" -command on_track_amp_jump
-  button $w.tr4.aswb4  -text "Pause"    -command on_track_amp_pause
-
-  label $w.tr4.aswm_l -text "Max:"
-  entry $w.tr4.aswm_v -textvariable pars(track_amp_mx) -width 5
-  label $w.tr4.asws_l -text "Step:"
-  entry $w.tr4.asws_v -textvariable pars(track_amp_s) -width 5
-
-  grid $w.tr4.aswb1 $w.tr4.aswb2 $w.tr4.aswb3 $w.tr4.aswb4 -sticky ew
-  grid $w.tr4.aswm_l $w.tr4.aswm_v $w.tr4.asws_l $w.tr4.asws_v -sticky ew
-  grid $w.tr4 -sticky we -columnspan 3
-}
-
-
-# Build GUI frame in <root>
-proc func_mkint {w} {
-  global fitres pars
-
-  ############################
-  # top frame with measurement results
-  mk_frame_top $w.res
-  pack $w.res -fill x -expand 0
-
-  ############################
-  # tabs
-  blt::tabset $w.tabs
-  pack $w.tabs -fill both -expand 1
-
-  ############################
-  ### measurement frame
-  set f_meas $w.tabs.meas
-  frame $f_meas
-  $w.tabs insert end meas -window $f_meas\
-     -anchor n -text "Measurement" -fill both -padx 3 -pady 3
-
-  ####
-  # configuration frame
-  set f_conf $f_meas.conf
-  frame $f_conf
-
-  mk_frame_meas_tabs $f_conf.meas_tabs
-  pack $f_conf.meas_tabs -expand 0 -fill x -anchor ne
-
-  # lock-in panel
-  $::lockin make_widget $f_conf.lockin\
-    -title "Lock-in" -bar_w 256
-  pack $f_conf.lockin -expand 0 -fill x -anchor ne
-  widget_bg $f_conf.lockin #F0E0F0
-
-  # generator panel
-  $::gen make_widget $f_conf.gen\
-    -title "Generator" -show_ac_shift 0
-  pack $f_conf.gen -expand 0 -fill x -anchor ne
-  widget_bg $f_conf.gen #F0F0E0
-
+  blt::tabset $w
+  set f $w.sweeps
 
   ####
   # sweep timeplot (4 columns: f, x, y, drive)
-  TimePlot tplot_sweep $f_meas.tplot\
+  TimePlot tplot_sweep $f\
    -ncols      4\
    -maxt       3600\
    -colors     {black red blue green}\
@@ -884,26 +850,14 @@ proc func_mkint {w} {
    -plots_y     {{X Y}}\
    -zstyles    xy
 
-  if {$pars(vertical)} {
-    grid $f_meas.tplot  -sticky wens
-    grid $f_conf -sticky ew
-    grid rowconfigure $f_meas 1 -weight 1
-    grid columnconfigure $f_meas 0 -weight 1
-  }\
-  else {
-    grid $f_conf $f_meas.tplot  -sticky wens
-    grid rowconfigure $f_meas 0 -weight 1
-    grid columnconfigure $f_meas 1 -weight 1
-  }
+  $w insert end sweeps -window $f\
+     -anchor n -text "Sweeps" -fill both -padx 3 -pady 3
 
   ############################
   ### Timeplot/Track
-  set f_res $w.tabs.res
-  frame $f_res
-  $w.tabs insert end res -window $f_res\
-     -anchor n -text "Res/Track" -fill both -padx 3 -pady 3
+  set f $w.tplot
 
-  TimePlot tplot_res $f_res.tplot\
+  TimePlot tplot_res $f\
    -ncols      3\
    -maxt       $pars(plot_maxt)\
    -colors     {}\
@@ -913,15 +867,53 @@ proc func_mkint {w} {
    -ssizes     {}\
    -fmts       {$pars(wid_fmt) $pars(fre_fmt) $pars(amp_fmt)}\
 
-  grid $f_res.tplot -sticky wens
-#  pack $f_res.tplot -expand 1 -fill both -anchor ne
+  $w insert end tplot -window $f\
+     -anchor n -text "TimePlot" -fill both -padx 3 -pady 3
 
-  mk_frame_track $f_res.track
-  grid $f_res.track -sticky we
+}
 
-  grid rowconfigure $f_res 0 -weight 1
-  grid columnconfigure $f_res 0 -weight 1
+proc mk_frame_dev {w} {
+  frame $w
+  # lock-in panel
+  $::lockin make_widget $w.lockin\
+    -title "Lock-in" -bar_w 256
+  pack $w.lockin -expand 0 -fill x -anchor ne
+  widget_bg $w.lockin #F0E0F0
 
+  # generator panel
+  $::gen make_widget $w.gen\
+    -title "Generator" -show_ac_shift 0
+  pack $w.gen -expand 0 -fill x -anchor ne
+  widget_bg $w.gen #F0F0E0
+}
+
+
+# Build GUI frame in <root>
+# Top panel, plot panel, measurement panel, device panel
+proc func_mkint {w} {
+  global pars
+
+  mk_frame_top $w.res
+  mk_frame_plots $w.plots
+  mk_frame_meas $w.meas
+  mk_frame_dev $w.dev
+
+  if {$pars(vertical)} {
+    grid $w.res   -sticky wens
+    grid $w.plots -sticky wens
+    grid $w.meas  -sticky wens
+    grid $w.dev   -sticky wens
+    grid rowconfigure $w 1 -weight 1
+    grid columnconfigure $w 0 -weight 1
+  }\
+  else {
+    grid $w.res   -sticky wens -columnspan 2
+    grid $w.dev -sticky wens  -column 0 -row 1
+    grid $w.plots -sticky wens -column 1 -row 1 -rowspan 2
+    grid $w.meas   -sticky wens -column 0 -row 2
+    grid rowconfigure $w 0 -weight 1
+    grid columnconfigure $w 1 -weight 1
+  }
 }
 
 ############################
