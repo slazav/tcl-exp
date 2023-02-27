@@ -615,9 +615,6 @@ proc adjust_sweep_pars {} {
     if {$v > $pars(adj_dmax) } {set v $pars(adj_dmax)}
     if {$v < $pars(adj_dmin) } {set v $pars(adj_dmin)}
     $::gen set_volt $v
-  }\
-  else {
-    set pars(amp_target) [format %.4e $fitres(amp)]
   }
 
   if {$pars(adj_time)} {
