@@ -19,6 +19,8 @@ proc usage {} {
       set_ampsweep_jump [0|1] -- set jump option for amp sweep
       get_ampsweep_jump  -- get value
       ampsweep_go  -- start amp sweep
+      set_par <name> <value>  -- change configuration parameter
+      get_par <name>  -- get configuration parameter
   }
   exit 1
 }
@@ -30,7 +32,6 @@ if {$name == {}} usage
 if {$cmd  == {}} usage
 
 ######################################################################
-# Connect to a program and ask for its state
 
 set app $name
 
@@ -45,6 +46,26 @@ if {$cmd == "get_volt"} {
   exit 0
 }
 
+if {$cmd == "set_freq"} {
+  set v [lindex $argv 2]
+  send $app {$gen} set_freq $v
+  exit 0
+}
+
+if {$cmd == "get_freq"} {
+  puts [send $app {$gen} get_freq]
+  exit 0
+}
+
+######################################################################
+
+if {$cmd == "get_amp"} {
+  puts [send $app set fitres(amp)]
+  exit 0
+}
+
+######################################################################
+
 # sweep_pair [volt]
 if {$cmd == "sweep_pair"} {
   set v [lindex $argv 2]
@@ -55,6 +76,22 @@ if {$cmd == "sweep_pair"} {
   while {[send $app sweep_pan is_on]} {
     after 200
   }
+  exit 0
+}
+
+# sweep_pair_start [volt]
+if {$cmd == "sweep_pair_start"} {
+  set v [lindex $argv 2]
+  if {$v != {}} {send $app {$gen} set_volt $v}
+  send $app sweep_pan set_mode "Pair"
+  send $app sweep_pan restart
+  send $app sweep_pan do_step
+  exit 0
+}
+
+# sweep_pair_wait
+if {$cmd == "sweep_pair_wait"} {
+  while {[send $app sweep_pan is_on]} { after 200 }
   exit 0
 }
 
@@ -93,10 +130,97 @@ if {$cmd == "get_ampsweep_jump"} {
   exit 0
 }
 
+if {$cmd == "set_par"} {
+  set n [lindex $argv 2]
+  set v [lindex $argv 3]
+  send $app set pars($n) $v
+  exit 0
+}
+
+if {$cmd == "set_sweep_par"} {
+  set n [lindex $argv 2]
+  set v [lindex $argv 3]
+  send $app sweep_pan set_$n $v
+  exit 0
+}
+
+if {$cmd == "get_par"} {
+  set n [lindex $argv 2]
+  puts [send $app set pars($n)]
+  exit 0
+}
+
+if {$cmd == "set_period"} {
+  set v [lindex $argv 2]
+  send W2BH mon set_period $v
+  exit 0
+}
+
+####
+
+if {$cmd == "track_start"} {
+  send $app on_track_start
+  exit 0
+}
+
+if {$cmd == "track_stop"} {
+  send $app on_track_stop
+  exit 0
+}
+
+
 if {$cmd == "ampsweep_go"} {
   send $app on_track_ampsw
   exit 0
 }
+
+if {$cmd == "track_adj"} {
+  set v [lindex $argv 2]
+  send $app track_adj_amp $v
+  send $app track_adj_fre 1
+  exit 0
+}
+
+if {$cmd == "track_adj_fre"} {
+  send $app track_adj_fre 1
+  exit 0
+}
+
+if {$cmd == "track_adj_amp"} {
+  set v [lindex $argv 2]
+  send $app track_adj_amp $v
+  exit 0
+}
+
+if {$cmd == "track_adj_amp1"} {
+  set v0 [lindex $argv 2]
+
+  set dt [send $app set pars(track_period)]
+
+  set der {}
+  set vp 0
+  set dp 0
+  while {1} {
+    # measure current values
+    set v [send $app set fitres(amp)]
+    set d [send $app {$gen} get_volt]
+    set der [expr {($v-$vp)/($d-$dp)}]
+
+    # new drive:
+    set dd [expr {($v-$v0)/$der}]
+    puts "track_adj_amp: $d -- $v -- $dd"
+    set vp $v
+    set dp $d
+    set d [expr $d-$dd]
+
+    send $app {$gen} set_volt [expr $d]
+    if {abs($dd/$d) < 0.01} {break}
+
+    after [expr {round(10*$dt*1000)}]
+  }
+  exit 0
+}
+
 
 
 puts "Unknown command: $cmd"
