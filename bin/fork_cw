@@ -265,8 +265,6 @@ proc add_base {vec vecf drive xy} {
   set D [lindex $pars(bg6$xy) 3]
   set F [lindex $pars(bg6$xy) 4]
   set G [lindex $pars(bg6$xy) 5]
-  puts stderr "$pars(bg6$xy) -- $A -- $B"
-  puts stderr "$vec -- $vecf"
   $vec expr {$vec + $drive*1e-6*($A+$B*$vecf*1e-3+$C*$vecf^2*1e-6+$D*$vecf^3*1e-9)/(($vecf^2*1e-6-$F^2)^2 + ($G*$vecf*1e-3)^2)}
   return 1
 }
@@ -641,12 +639,15 @@ proc adjust_sweep_pars {} {
 # Update amp and ph in fitres array
 proc update_fitres {} {
   global fitres pars
-  if {$fitres(f0) != 0 || $fitres(df) != 0} {
+  if {$fitres(f0) != 0 && $fitres(df) != 0} {
     if {$pars(velocity)} {
       set fitres(amp) [expr {abs(hypot($fitres(C),$fitres(D))/$fitres(df))}]
     } else {
       set fitres(amp) [expr {abs(hypot($fitres(C),$fitres(D))/$fitres(f0)/$fitres(df))}]
     }
+  }\
+  else {
+    set fitres(amp) 0
   }
   set fitres(ph) [expr {180/3.1415926*atan2($fitres(C),$fitres(D))}]
 }
