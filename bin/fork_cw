@@ -50,6 +50,7 @@ set default_pars {
   adj_fmin     {0}        {min frequency limit for adjustment}
   adj_fmax     {10000}    {max frequency limit for adjustment}
   adj_drive    {0}        {adjust drive, 0|1}
+  adj_drive_s  {1}        {adjust drive strength, 0..1}
   adj_dmin     {0.02}     {min limit for drive adjustment}
   adj_dmax     {20.0}     {max limit for drive adjustment}
   adj_time     {0}        {adjust timings, 0|1}
@@ -612,7 +613,8 @@ proc adjust_sweep_pars {} {
 
   if {$pars(adj_drive)} {
     set v [$::gen get_volt]
-    set v [format $pars(drv_fmt) [expr $v*$pars(amp_target)/$fitres(amp)]]
+    set v [expr {$v*($pars(adj_drive_s)*$pars(amp_target) + (1-$pars(adj_drive_s))*$fitres(amp))/$fitres(amp)}]
+#    set v [format $pars(drv_fmt) [expr $v*$pars(amp_target)/$fitres(amp)]]
     if {$v > $pars(adj_dmax) } {set v $pars(adj_dmax)}
     if {$v < $pars(adj_dmin) } {set v $pars(adj_dmin)}
     $::gen set_volt $v
