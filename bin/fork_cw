@@ -754,17 +754,23 @@ proc mk_frame_meas {w} {
   grid $f.flim_l -sticky nw -columnspan 2
   grid $f.fmin $f.fmax -sticky nw
 
+  label $f.tlim_l -text "Time step limits:"
+  entry $f.tmin -width 10 -textvariable pars(adj_tmin)
+  entry $f.tmax -width 10 -textvariable pars(adj_tmax)
+  grid $f.tlim_l -sticky nw -columnspan 2
+  grid $f.tmin $f.tmax -sticky nw
+
   label $f.dlim_l -text "Drive limits:"
   entry $f.dmin -width 10 -textvariable pars(adj_dmin)
   entry $f.dmax -width 10 -textvariable pars(adj_dmax)
   grid $f.dlim_l -sticky nw -columnspan 2
   grid $f.dmin $f.dmax -sticky nw
 
-  label $f.tlim_l -text "Time step limits:"
-  entry $f.tmin -width 10 -textvariable pars(adj_tmin)
-  entry $f.tmax -width 10 -textvariable pars(adj_tmax)
-  grid $f.tlim_l -sticky nw -columnspan 2
-  grid $f.tmin $f.tmax -sticky nw
+  label $f.ds_l -text "Drive adjustment strength (0..1):"
+  entry $f.ds -width 10 -textvariable pars(adj_drive_s)
+  grid $f.ds_l -sticky nw -columnspan 2
+  grid $f.ds $f.dmax -sticky nw
+
 
   ###########
   ## tracking mode
