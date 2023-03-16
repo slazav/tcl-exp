@@ -69,8 +69,8 @@ set default_pars {
 
   track_ampsw  {0}        {do we do an amp sweep?}
   track_amp_d  {0}        {direction of amp sweep, -1,0,+1}
-  track_amp_mx {10}       {max value for amp sweep, V}
-  track_amp_mn {0}        {min value for amp sweep, V}
+  track_amp_mx {20}       {max value for amp sweep, V}
+  track_amp_mn {0.02}     {min value for amp sweep, V}
   track_amp_f0 {0}        {frequency to return after sweep}
   track_amp_s  {0.02}     {step for amp sweep, V}
   bg6x         {}         {bg parameters for x}
@@ -780,57 +780,68 @@ proc mk_frame_meas {w} {
   $w insert end track -window $f\
      -anchor n -text "Tracking" -fill both -padx 3 -pady 3
 
-  frame $f.v
-  label $f.v.xl -text "X:"
-  label $f.v.xv -textvariable ::track_x -width 10
-  label $f.v.yl -text "Y:"
-  label $f.v.yv -textvariable ::track_y -width 10
-  label $f.v.fl -text "F-F0:"
-  label $f.v.fv -textvariable ::track_ff0 -width 10
-  grid $f.v.xl $f.v.xv $f.v.yl $f.v.yv $f.v.fl $f.v.fv
+  labelframe $f.tr1 -text "Tracking mode:"
 
-  label $f.dtl -text "period \[s\]:"
-  label $f.dt0l -text "first point delay:"
-  entry $f.dtv  -textvariable ::pars(track_period) -width 5
-  entry $f.dt0v -textvariable ::pars(track_del)    -width 5
+  frame $f.tr1.v
+  label $f.tr1.v.xl -text "X:"
+  label $f.tr1.v.xv -textvariable ::track_x -width 10
+  label $f.tr1.v.yl -text "Y:"
+  label $f.tr1.v.yv -textvariable ::track_y -width 10
+  label $f.tr1.v.fl -text "F-F0:"
+  label $f.tr1.v.fv -textvariable ::track_ff0 -width 10
+  grid $f.tr1.v.xl $f.tr1.v.xv $f.tr1.v.yl $f.tr1.v.yv $f.tr1.v.fl $f.tr1.v.fv
+  grid $f.tr1.v -sticky we -columnspan 3
 
-  checkbutton $f.fa -text "adjust ampl" -variable pars(track_adja)
-  checkbutton $f.ff -text "adjust freq" -variable pars(track_adjf)
+  label $f.tr1.dtl -text "period \[s\]:"
+  label $f.tr1.dt0l -text "first point delay:"
+  entry $f.tr1.dtv  -textvariable ::pars(track_period) -width 5
+  entry $f.tr1.dt0v -textvariable ::pars(track_del)    -width 5
 
-  label $f.fsl -text "adjust freq strength 0..1:"
-  entry  $f.fs -textvariable pars(track_adjfv) -width 5
+  checkbutton $f.tr1.fa -text "adjust ampl" -variable pars(track_adja)
+  checkbutton $f.tr1.ff -text "adjust freq" -variable pars(track_adjf)
 
-  label $f.skl -text "Skip filter, (f-f0)/df units, or 0:"
-  entry  $f.sk -textvariable pars(track_skip) -width 5
+  label $f.tr1.fsl -text "adjust freq strength 0..1:"
+  entry $f.tr1.fs -textvariable pars(track_adjfv) -width 5
 
-  frame $f.b
-  button $f.b.start -command on_track_start -text "Start"
-  button $f.b.stop  -command on_track_stop  -text "Stop"
-  button $f.b.aa    -command track_adj_amp  -text "AdjAmp"
-  button $f.b.af    -command "track_adj_fre 1" -text "AdjFre"
-  grid $f.b.start $f.b.stop $f.b.aa $f.b.af
+  label $f.tr1.skl -text "Skip filter, (f-f0)/df units, or 0:"
+  entry $f.tr1.sk -textvariable pars(track_skip) -width 5
 
-  grid $f.v -sticky we -columnspan 3
-  grid $f.dtl $f.dtv $f.fa -sticky w
-  grid  $f.dt0l $f.dt0v $f.ff -sticky w
-  grid $f.fsl - $f.fs -sticky e
-  grid $f.skl - $f.sk -sticky e
-  grid $f.b -sticky we -columnspan 3
+  grid $f.tr1.dtl $f.tr1.dtv $f.tr1.fa -sticky w
+  grid $f.tr1.dt0l $f.tr1.dt0v $f.tr1.ff -sticky w
+  grid $f.tr1.fsl - $f.tr1.fs -sticky e
+  grid $f.tr1.skl - $f.tr1.sk -sticky e
 
-  labelframe $f.tr4 -text "AmpSweep:"
-  button $f.tr4.aswb1  -text "Up"       -command on_track_amp_up
-  button $f.tr4.aswb2  -text "Down"     -command on_track_amp_down
-  button $f.tr4.aswb3  -text "JumpDown" -command on_track_amp_jump
-  button $f.tr4.aswb4  -text "Pause"    -command on_track_amp_pause
+  frame $f.tr1.b
+  button $f.tr1.b.start -command on_track_start -text "Start"
+  button $f.tr1.b.stop  -command on_track_stop  -text "Stop"
+  button $f.tr1.b.aa    -command track_adj_amp  -text "AdjAmp"
+  button $f.tr1.b.af    -command "track_adj_fre 1" -text "AdjFre"
+  grid $f.tr1.b.start $f.tr1.b.stop $f.tr1.b.aa $f.tr1.b.af
+  grid $f.tr1.b -sticky wens -columnspan 3
 
-  label $f.tr4.aswm_l -text "Max:"
-  entry $f.tr4.aswm_v -textvariable pars(track_amp_mx) -width 5
-  label $f.tr4.asws_l -text "Step:"
-  entry $f.tr4.asws_v -textvariable pars(track_amp_s) -width 5
+  grid $f.tr1 -sticky wens
 
-  grid $f.tr4.aswb1 $f.tr4.aswb2 $f.tr4.aswb3 $f.tr4.aswb4 -sticky ew
-  grid $f.tr4.aswm_l $f.tr4.aswm_v $f.tr4.asws_l $f.tr4.asws_v -sticky ew
-  grid $f.tr4 -sticky we -columnspan 3
+
+  labelframe $f.tr2 -text "AmpSweep:"
+
+  label $f.tr2.amin_l -text "Min:"
+  entry $f.tr2.amin_v -textvariable pars(track_amp_mn) -width 5
+  label $f.tr2.amax_l -text "Max:"
+  entry $f.tr2.amax_v -textvariable pars(track_amp_mx) -width 5
+  label $f.tr2.astp_l -text "Step:"
+  entry $f.tr2.astp_v -textvariable pars(track_amp_s) -width 5
+
+  grid $f.tr2.amin_l $f.tr2.amin_v $f.tr2.amax_l $f.tr2.amax_v -sticky w
+  grid $f.tr2.astp_l $f.tr2.astp_v -sticky w
+
+  frame $f.tr2.b
+  button $f.tr2.b.b1  -text "Up"       -command on_track_amp_up
+  button $f.tr2.b.b2  -text "Down"     -command on_track_amp_down
+  button $f.tr2.b.b3  -text "JumpDown" -command on_track_amp_jump
+  button $f.tr2.b.b4  -text "Pause"    -command on_track_amp_pause
+  grid $f.tr2.b.b1 $f.tr2.b.b2 $f.tr2.b.b3 $f.tr2.b.b4
+  grid $f.tr2.b -sticky wens -columnspan 4
+  grid $f.tr2 -sticky wens
 
 }
 
@@ -961,7 +972,9 @@ proc on_track_amp_down {} {
   global pars fitres
   if {$pars(meas_mode) eq "sweep"} return
   if {$pars(track_amp_mn) > $fitres(drive)} return
-  if {$pars(track_ampsw)==0} {return}
+  if {$pars(track_ampsw)==0} {
+    set pars(track_ampsw) 1
+  }
   set pars(track_amp_d) -1
 }
 
