@@ -371,7 +371,7 @@ proc process_track_data {t f x y drive} {
   if {$pars(track_skip)==0 || abs($ff0/$df) < $pars(track_skip)} {
     set point_skipped 0
 
-    tplot_res add_data [list $t $fitres(df) $fitres(f0) $fitres(amp)]
+    tplot_res add_data [list $t $fitres(df) $fitres(f0) $fitres(amp) $fitres(drive)]
 
     # format values for interface
     update_interface_values
@@ -480,6 +480,7 @@ proc process_sweep_data {} {
     set xx [expr {[$xv index $i] - [basex index $i]}]
     set yy [expr {[$yv index $i] - [basey index $i]}]
     puts $conn "[$tv index $i] [$fv index $i] $xx $yy"
+#    puts stdout "[$tv index $i] [$fv index $i] $xx $yy"
   }
   close $conn write
   set res [gets $conn]
@@ -548,7 +549,7 @@ proc process_sweep_data {} {
     error "Bad fit: [expr $fitres(err)/$fitres(amp)]"}
 
   # values for result time plot
-  tplot_res add_data [list $fitres(T) $fitres(df) $fitres(f0) $fitres(amp)]
+  tplot_res add_data [list $fitres(T) $fitres(df) $fitres(f0) $fitres(amp) $fitres(drive)]
 
   # put values into database
   if {$pars(db_dev) != {} && $pars(res_db) != {}} {
@@ -612,10 +613,9 @@ proc adjust_sweep_pars {} {
   if {$pars(adj_drive)} {
     set v [$::gen get_volt]
     set v [expr {$v*($pars(adj_drive_s)*$pars(amp_target) + (1-$pars(adj_drive_s))*$fitres(amp))/$fitres(amp)}]
-#    set v [format $pars(drv_fmt) [expr $v*$pars(amp_target)/$fitres(amp)]]
     if {$v > $pars(adj_dmax) } {set v $pars(adj_dmax)}
     if {$v < $pars(adj_dmin) } {set v $pars(adj_dmin)}
-    $::gen set_volt $v
+    $::gen set_volt [format $pars(drv_fmt) $v]
   }
 
   if {$pars(adj_time)} {
@@ -876,14 +876,14 @@ proc mk_frame_plots {w} {
   set f $w.tplot
 
   TimePlot tplot_res $f\
-   -ncols      3\
+   -ncols      4\
    -maxt       $pars(plot_maxt)\
    -colors     {}\
-   -names      {W F A}\
-   -titles     {W F A}\
-   -symbols    {circle circle circle}\
+   -names      {W F A D}\
+   -titles     {W F A D}\
+   -symbols    {circle circle circle circle}\
    -ssizes     {}\
-   -fmts       {$pars(wid_fmt) $pars(fre_fmt) $pars(amp_fmt)}\
+   -fmts       {$pars(wid_fmt) $pars(fre_fmt) $pars(amp_fmt) $pars(drv_fmt)}\
 
   $w insert end tplot -window $f\
      -anchor n -text "TimePlot" -fill both -padx 3 -pady 3
