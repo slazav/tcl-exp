@@ -95,7 +95,17 @@ if {$cmd == "sweep_pair_wait"} {
   exit 0
 }
 
-####
+# sweep_both_start [volt]
+if {$cmd == "sweep_both_start"} {
+  set v [lindex $argv 2]
+  if {$v != {}} {send $app {$gen} set_volt $v}
+  send $app sweep_pan set_mode "Both"
+  send $app sweep_pan restart
+  send $app sweep_pan do_step
+  exit 0
+}
+
+######################################################################
 
 if {$cmd == "set_ampsweep_max"} {
   set v [lindex $argv 2]
@@ -169,8 +179,13 @@ if {$cmd == "track_stop"} {
 }
 
 
-if {$cmd == "ampsweep_go"} {
-  send $app on_track_ampsw
+if {$cmd == "track_amp_up"} {
+  send $app on_track_amp_up
+  exit 0
+}
+
+if {$cmd == "track_amp_down"} {
+  send $app on_track_amp_down
   exit 0
 }
 
