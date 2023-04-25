@@ -1,0 +1,31 @@
+#!/usr/bin/tclsh
+
+package require DeviceRole 1.2
+package require Exp
+package require xBlt
+
+## script for setting a DC source form the command line
+
+## set all parameters from cmdline
+
+set options [list \
+{-d -dev}   dev     {}\
+{-v -volt}  volt    {0.02}\
+{-f -freq}  freq    {1000.0}\
+{-n -ncyc}  ncyc     {10}\
+{-o -offs}  offs    {0.0}\
+{-p -ph}    ph      {0.0}\
+{-S -do_set}   do_set      {1}\
+{-B -do_burst} do_burst    {1}\
+]
+
+xblt::parse_options "set_dc" $argv $options
+
+set gen [DeviceRole $dev burst_source]
+
+if {$do_set} {
+  $gen set_burst $freq $volt $ncyc $offs $ph
+}
+if {$do_burst} {
+  $gen do_burst
+}
