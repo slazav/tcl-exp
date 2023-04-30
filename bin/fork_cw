@@ -948,6 +948,7 @@ proc on_track_start {} {
   $::gen set_freq $fitres(f0)
   after [expr {int($pars(track_del)*1000)}]
   set pars(meas_mode) "track"
+  set pars(track_ampsw) 0
 }
 
 proc on_track_stop {} {
@@ -993,6 +994,7 @@ proc on_track_amp_pause {} {
   if {$pars(meas_mode) eq "sweep"} return
   if {$pars(track_ampsw) == 0} return
   set pars(track_amp_d) 0
+  set pars(track_ampsw) 0
 }
 
 proc track_adj_amp {{amp $::fitres_tr(amp)}} {
