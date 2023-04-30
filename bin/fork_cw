@@ -68,7 +68,7 @@ set default_pars {
   track_skip   {0}        {skip bad points (|f-f0|/df > k)}
 
   track_ampsw  {0}        {do we do an amp sweep?}
-  track_amp_d  {0}        {direction of amp sweep, -1,0,+1}
+  track_amp_d  {1}        {direction of amp sweep, -1,+1}
   track_amp_mx {20}       {max value for amp sweep, V}
   track_amp_mn {0.02}     {min value for amp sweep, V}
   track_amp_f0 {0}        {frequency to return after sweep}
@@ -417,7 +417,7 @@ proc process_track_data {t f x y drive} {
         set pars(track_amp_d) -1
       }
     }\
-    elseif {$pars(track_ampsw) && $pars(track_amp_d) < 0} {
+    else {
       set new_drive [expr $drive - $pars(track_amp_s)]
       if {$new_drive < $pars(track_amp_mn)} {
         set new_drive $pars(track_amp_mn)
@@ -985,7 +985,6 @@ proc on_track_amp_jump {} {
   if {$pars(track_ampsw) == 0} return
   $::gen set_freq $pars(track_amp_f0)
   $::gen set_volt $pars(track_amp_mn)
-  set pars(track_amp_d) 0
   set pars(track_ampsw) 0
 }
 
@@ -993,7 +992,6 @@ proc on_track_amp_pause {} {
   global pars
   if {$pars(meas_mode) eq "sweep"} return
   if {$pars(track_ampsw) == 0} return
-  set pars(track_amp_d) 0
   set pars(track_ampsw) 0
 }
 
