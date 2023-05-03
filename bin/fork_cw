@@ -995,9 +995,10 @@ proc on_track_amp_pause {} {
   set pars(track_ampsw) 0
 }
 
-proc track_adj_amp {{amp $::fitres_tr(amp)}} {
+proc track_adj_amp {{amp {}}} {
   global pars
   set v [$::gen get_volt]
+  if {$amp == {}} {set amp $::fitres_tr(amp)}
   set v [expr {$v*($pars(adj_drive_s)*$pars(amp_target) + (1-$pars(adj_drive_s))*$amp)/$amp}]
   if {$v > $pars(adj_dmax) } {set v $pars(adj_dmax)}
   if {$v < $pars(adj_dmin) } {set v $pars(adj_dmin)}
