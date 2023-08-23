@@ -64,6 +64,17 @@ if {$cmd == "get_amp"} {
   exit 0
 }
 
+if {$cmd == "get_res_df"} {
+  puts [send $app set fitres(df)]
+  exit 0
+}
+
+if {$cmd == "get_res_f0"} {
+  puts [send $app set fitres(f0)]
+  exit 0
+}
+
+
 ######################################################################
 
 # sweep_pair [volt]

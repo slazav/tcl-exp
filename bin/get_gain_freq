@@ -97,8 +97,8 @@ if {$meas_lockin} {
   set gauge [DeviceRole $meas_dev lock-in {*}$meas_pars]
 } else {
   set gauge [DeviceRole $meas_dev gauge]
+  $gauge set_tconst $tconst
 }
-$gauge set_tconst $tconst
 
 if {$ps_dev != {}} {
   set ps [DeviceRole $ps_dev dc_source]
@@ -121,14 +121,21 @@ for {set i 0} {$i < $npts} {incr i} {
     set f_set [format "%.0f" $f]
     $gen set_ac $f_set $volt $offs
     after [expr {int($dt*1000)}]
-    if {(($arange>1) || ($arange==1 && $i==0)) $$ !$meas_lockin} {
+    if {(($arange>1) || ($arange==1 && $i==0)) && !$meas_lockin} {
       set out [$gauge get_auto]
     } else {
       set out [$gauge get]
     }
-
     set x [lindex $out 0]
     set y [lindex $out 1]
+
+    if {$meas_lockin} {
+      set st [$gauge get_status]
+      if {$st ne {OK}} {
+        puts stderr "status: $st"
+      }
+    }
+
     if {$x eq NaN || $y eq NaN} { set g NaN }\
     else {set g [expr {sqrt($x**2+$y**2)/$gfact/$volt}]}
     if {$ps_dev != {}} {

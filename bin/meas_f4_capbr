@@ -1,0 +1,164 @@
+#!/usr/bin/wish
+
+# Cryostat-specific interface for cold pressure gauge.
+
+package require DeviceRole
+package require Exp;  # timeplot, monitor
+
+##########################################################################
+## read parameters from configuration file
+
+set default_pars {
+  name         {Fridge4 cell pressure}  {program name}
+  capbr_dev    {lcr_meter:C-D}        {capacitance bridge}
+  cap_factor   {1e12}                 {cap multiplyer}
+  db_dev       {}                     {database device}
+  avrg         {20}                   {number of averages}
+  avrg_delay   {0.5}                  {delay between averages}
+  tfmt         {%H:%M:%S} {time format string for the interface}
+  period       {1}       {measurement period}
+  plot_maxt    {600}      {timeplot span}
+}
+
+if {[llength $argv]>0 } {
+  read_conf [lindex $argv 0] pars $default_pars
+}\
+else {
+  foreach {name def title} $default_pars { set pars($name) $def }
+}
+
+tk appname "$pars(name)"
+
+##########################################################################
+##########################################################################
+set T0  {};      # last measured time (seconds)
+set D0  {};      # last measured data (list)
+
+array unset Df;  # formatted data (see -dfmt option)
+set Tf  {};  # current formatted time (-tfmt option)
+set capbr_d {}
+
+
+##########################################################################
+##########################################################################
+## functions for the monitor class
+
+# Open devices
+proc func_start {} {
+  global pars capbr_d
+
+  if {$pars(db_dev)!={}} {
+    Device $pars(db_dev)
+  }
+
+  if {$pars(capbr_dev) ne {}} {
+    set capbr_d [DeviceRole $pars(capbr_dev) gauge]
+  }
+}
+
+# Close devices
+proc func_stop {} {
+  global pars
+  if {$pars(db_dev)!={}}    { DeviceDelete $pars(db_dev) }
+}
+
+
+# Do a single measurement, return data
+proc func_meas {} {
+  global pars capbr_d T0 D0 Tf Df
+
+  set T0 [expr [clock microseconds]/1e6]
+
+  #################
+  # Do multiple measurements, calculate mean value and
+  # its standard deviation.
+  set vals {}
+  for {set n 0} {$n<$pars(avrg)} {incr n} {
+    if {$pars(avrg_delay)!={}} {after [expr int($pars(avrg_delay)*1000)]}
+    set D0 [$capbr_d get]
+    if {$D0 eq {exec err}} continue
+    for {set i 0} {$i<[llength $D0]} {incr i} {
+      lset vals $i end+1 [lindex $D0 $i]
+    }
+  }
+  set D0 {}
+  set S0 {}
+  for {set i 0} {$i<[llength $vals]} {incr i} {
+    set v [lindex $vals $i]
+    # mean value, std.deviation of the mean value
+    # see https://wiki.tcl-lang.org/page/Additional+math+functions
+    set m [expr ([join $v +])/[llength $v]]
+    set s [expr sqrt((pow([join $v -$m,2)+pow(]-$m,2))/([llength $v]-1)/([llength $v]))]
+    lset D0 $i $m
+    lset S0 $i $s
+  }
+  #################
+
+  set D(press_cell_c) [expr [lindex $D0 0]*$pars(cap_factor)]
+  set D(press_cell_l) [lindex $D0 1]
+
+  set D(press_cell_c_err) [expr [lindex $S0 0]*$pars(cap_factor)]
+  set D(press_cell_l_err) [lindex $S0 1]
+
+  # format data and time for the interface
+  set Tf [clock format [expr int($T0)] -format $pars(tfmt)]
+
+
+  set Df(press_cell_c) [format "%f" $D(press_cell_c)]
+  set Df(press_cell_l) [format "%f" $D(press_cell_l)]
+
+  # append data to timeplot
+  tplot_pcell    add_data [list $T0 $D(press_cell_c) $D(press_cell_l)]
+
+  # put data to database
+  if {$pars(db_dev)!={}} {
+    $pars(db_dev) cmd put_flt press_cell_cap $T0 $D(press_cell_c) $D(press_cell_l) $D(press_cell_c_err) $D(press_cell_l_err)
+    $pars(db_dev) cmd sync
+  }
+}
+
+# Build GUI frame in <root> (user-supplied function)
+proc func_mkint {w} {
+  global pars Tf Df
+
+# frame $w
+  labelframe $w.tab -borderwidth 1
+  grid $w.tab -sticky we
+
+  label $w.tab.tl -text "time:"
+  label $w.tab.t -fg darkgreen -font {-size 12} -textvariable Tf -width 8
+  label $w.tab.l1 -text "C:"
+  label $w.tab.v1 -fg darkgreen -font {-size 12} -textvariable Df(press_cell_c) -width 8
+  label $w.tab.l2 -text "L:"
+  label $w.tab.v2 -fg darkgreen -font {-size 12} -textvariable Df(press_cell_l) -width 8
+  pack $w.tab.tl $w.tab.t\
+       $w.tab.l1 $w.tab.v1\
+       $w.tab.l2 $w.tab.v2\
+       -side left
+
+  TimePlot tplot_pcell $w.tplot\
+   -ncols      2\
+   -maxt       $pars(plot_maxt)\
+   -colors     {}\
+   -names      {{C} {L}}\
+   -titles     {{C,pF} {L,nS}}\
+   -symbols    {}\
+   -ssizes     {}\
+   -fmts       %.6f\
+
+  grid $w.tplot -sticky wens
+  grid rowconfigure $w 1 -weight 1
+  grid columnconfigure $w 0 -weight 1
+
+}
+
+
+##########################################################################
+##########################################################################
+## create the monitor class
+Monitor m .m -name $pars(name) -period $pars(period) -onoff 1\
+  -func_start func_start -func_stop func_stop\
+  -func_meas func_meas -func_mkint func_mkint\
+  -show_ctl 1 -show_title 1 -verb 0
+pack .m -expand 1 -fill both
+wm protocol . WM_DELETE_WINDOW { m do_exit }
