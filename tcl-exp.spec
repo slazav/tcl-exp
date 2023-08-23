@@ -1,9 +1,9 @@
-Name:         tcl-exp-gui
+Name:         tcl-exp
 Version:      1.0
 Release:      alt1
 BuildArch:    noarch
 
-Summary:      TCL/TK based GUI for experimental work
+Summary:      TCL/TK programs for experimental work
 Group:        System
 License:      GPL
 
@@ -12,7 +12,7 @@ Packager:     Vladislav Zavjalov <slazav@altlinux.org>
 Source:       %name-%version.tar
 
 %description
-TCL/TK based GUI for experimental work
+TCL/TK programs for experimental work
 
 %prep
 %setup -q

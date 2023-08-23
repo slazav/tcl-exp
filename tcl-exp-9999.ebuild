@@ -5,7 +5,7 @@ EAPI=7
 
 inherit git-r3
 
-DESCRIPTION="TCL/TK based GUI for experimental work"
+DESCRIPTION="TCL/TK programs for experimental work"
 HOMEPAGE="https://github.com/slazav/${PN}"
 EGIT_REPO_URI="https://github.com/suntar/${PN}.git"
 LICENSE="GPL"
