@@ -5,7 +5,7 @@ EAPI=7
 
 inherit git-r3
 
-DESCRIPTION="Useful scripts for experimental setup and data processing."
+DESCRIPTION="TCL/TK based GUI for experimental work"
 HOMEPAGE="https://github.com/slazav/${PN}"
 EGIT_REPO_URI="https://github.com/suntar/${PN}.git"
 LICENSE="GPL"
@@ -18,10 +18,7 @@ RDEPEND="${DEPEND}"
 BDEPEND=""
 
 src_install() {
-  dobin bin/*
-  dobin $(find exp -maxdepth 1 -type f -perm 755)
-  insinto /usr/$(get_libdir)/octave/site/m
-  doins octave/*
+  dobin $(find bin -maxdepth 1 -type f -perm 755)
   insinto /usr/$(get_libdir)/Exp
-  doins exp_tcl/*.tcl
+  doins lib*.tcl
 }
