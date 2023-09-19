@@ -125,7 +125,11 @@ proc set_volt {v} {
 
   if {$pars(max_volt) != {} && $real_v > $pars(max_volt)} {set real_v $pars(max_volt)}
   if {$pars(min_volt) != {} && $real_v < $pars(min_volt)} {set real_v $pars(min_volt)}
+
   set dest [expr {$real_v/$v_k*$pars(gain)}]
+  $dev set_volt $real_v
+
+  measure
 
   if {$pars(db_dev)!={} && $pars(db_comm)!={}} {
     Device $pars(db_dev)
@@ -133,7 +137,6 @@ proc set_volt {v} {
     itcl::delete object $pars(db_dev)
   }
 
-  $dev set_volt [expr {$dest*$v_k/$pars(gain)}]
   after 100 measure
 }
 
