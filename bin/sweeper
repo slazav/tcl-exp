@@ -98,9 +98,6 @@ SweepController sweeper\
   -on_new_val on_new_val\
   -on_new_com on_new_com
 
-# Open database if needed
-if {$pars(db) != {} && [itcl::find objects $pars(db)]=={}} { Device $pars(db) }
-
 ##########################################################
 ## interface for external use
 
@@ -260,11 +257,11 @@ proc on_new_com {t com} {
   if {$::pars(db)!={}} {
     # put annotation
     if {$::pars(db_ann) != {} } {
-      $::pars(db) cmd "put $::pars(db_ann) $t $com"
+      Device2::ask $::pars(db) put $::pars(db_ann) $t $com
     }
     # put a high-level comment after finishing sweep:
     if {[regexp {finished} $com] && $::pars(db_comm)!={}} {
-      $::pars(db) cmd put $::pars(db_comm) now "$::pars(name) -> $::current $::pars(c_units)"
+      Device2::ask $::pars(db) put $::pars(db_comm) now "$::pars(name) -> $::current $::pars(c_units)"
     }
   }
   return
@@ -282,7 +279,7 @@ proc on_new_val {t cm cs vm {m 0} {st {}}} {
   time_plot add_data [list $t [expr $cm/$c_k] [expr $cs/$c_k] $vm $::resistance {*}$m]
 
   if { $::pars(db)!={} && $::pars(db_val) != {}} {
-    $::pars(db) cmd "put_flt $::pars(db_val) $t $cm $cs $vm $m"
+    Device2::ask $::pars(db) put_flt $::pars(db_val) $t $cm $cs $vm $m
   }
 
   gint_update_val $m
