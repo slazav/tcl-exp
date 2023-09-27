@@ -1,0 +1,194 @@
+#!/usr/bin/wish
+
+## A specific interface for demag magnet persistent switch heater:
+## fixed voltage, ON/OFF button, current check
+
+package require DeviceRole
+package require Exp
+
+######################################################
+### Read parameters from configuration file
+
+set default_pars {
+  name       {DemagHTR} {program title}
+
+  volt_on    {4.5}  {ON voltage}
+  volt_off   {0}    {OFF voltage}
+  volt_res   {0.2}  {resolution for ON/OFF measurement)}
+  volt_u     {V}    {units for interface}
+  volt_fmt   {%.1f} {format for interface}
+
+  curr_res   {0.02}  {resolution for current comparison)}
+  curr_u     {A}    {units for interface}
+  curr_fmt   {%.3f} {format for interface}
+
+  mon_int     5 {monitoring time step, s}
+  volt_dev   {TEST} {dc_source device}
+
+  db_dev     {db} {database device (can be empty)}
+
+  db_curr_ps  {demag_vi:f1} {database name for getting power supply current}
+  db_curr_mg {demag_pc:f1} {database name for getting magnet current}
+
+  db_val     {} {database name for numerical values}
+  db_comm    {} {database name for text comments}
+}
+
+if {[llength $argv]>0 } {
+  read_conf [lindex $argv 0] pars $default_pars
+}\
+else {
+  foreach {name def title} $default_pars { set pars($name) $def }
+}
+
+# global parameters
+set volt 0
+set curr_ps  0
+set curr_mg 0
+set dev {}
+set volt_state -1; #  -1,0,1: unknown, OFF,ON
+set curr_state -1; #  -1,0,1: unknown, different, match
+
+wm title . "$pars(name)"
+tk appname "$pars(name)"
+
+##########################################################
+
+
+set rh {}
+
+
+proc measure {{first 0}} {
+  global dev pars volt curr_ps curr_mg rh
+  global volt_state curr_state
+  after cancel $rh
+
+  # measure heater voltage, compare with voltage limit
+  if {$dev!={}} {
+    set volt [$dev get_volt]
+    if     {abs($volt - $pars(volt_on))  < $pars(volt_res)} {set volt_state 1}\
+    elseif {abs($volt - $pars(volt_off)) < $pars(volt_res)} {set volt_state 0}\
+  }
+
+  # get currents from database
+  if {$pars(db_dev)!={} && $pars(db_curr_ps)!={} && $pars(db_curr_mg)!={}} {
+    set curr_ps [format $pars(curr_fmt) [lindex [\
+      Device2::ask $pars(db_dev) get_prev $pars(db_curr_ps) now] 1]]
+    set curr_mg [format $pars(curr_fmt) [lindex [\
+      Device2::ask $pars(db_dev) get_prev $pars(db_curr_mg) now] 1]]
+    if {abs($curr_ps - $curr_mg) < $pars(curr_res)} {set curr_state 1}\
+    else {set curr_state 0}
+  }
+
+  update_state
+
+  # put values into db
+  if {$pars(db_dev)!={} && $pars(db_val)!={}} {
+    Device2::ask $pars(db_dev) put $pars(db_val) now_s $volt
+  }
+  if {$pars(db_dev)!={} && $pars(db_comm)!={} && $first} {
+    Device2::ask $pars(db_dev) put $pars(db_comm) now_s "$pars(name): $volt"
+  }
+
+  # restart measurements
+  if {$pars(mon_int)>0} {
+    set dt [expr {int($pars(mon_int)*1000.0)}]
+    set rh [after $dt measure 0]
+  }
+}
+
+proc onoff {} {
+  global pars dev
+  global volt_state curr_state
+
+  if {$dev=={}} return
+
+  if {$curr_state != 1 && $volt_state == 0} {
+    set reply [tk_dialog .ask "Current warning" "Wrong current in the power supply. Proceed?" \
+        questhead 0 No Yes]
+    if {$reply != 1} return
+  }
+
+  if {$volt_state == 0} {$dev set_volt $pars(volt_on)}\
+  else {$dev set_volt $pars(volt_off)}
+  set rh [after idle measure 1]
+}
+
+##########################################################
+## make interface
+
+proc make_control {root} {
+  global pars
+  labelframe $root -padx 5 -pady 5
+
+  frame $root.m;  # measure frame
+  label $root.m.dev_l -text "HtrDev: $pars(volt_dev)"
+  label $root.m.htr_l -text "Heater: "
+  label $root.m.htr_v
+  label $root.m.htr_u -text " $pars(volt_u)"
+  label $root.m.curr_ps_l -text "PowerSuppl: "
+  label $root.m.curr_ps_v
+  label $root.m.curr_ps_u -text " $pars(curr_u)"
+  label $root.m.curr_mg_l -text "Magnet: "
+  label $root.m.curr_mg_v
+  label $root.m.curr_mg_u -text " $pars(curr_u)"
+
+  grid $root.m.dev_l -columnspan 3 -sticky w
+  grid $root.m.htr_l $root.m.htr_v $root.m.htr_u -sticky w
+  grid $root.m.curr_ps_l $root.m.curr_ps_v $root.m.curr_ps_u -sticky w
+  grid $root.m.curr_mg_l $root.m.curr_mg_v $root.m.curr_mg_u -sticky w
+  pack $root.m -fill x
+
+  label $root.match -font {-weight bold}
+  pack $root.match -fill x
+
+  button $root.btn -command onoff  -font {-weight bold}
+  pack $root.btn -fill x
+}
+
+##########################################################
+## update interface according with measurements
+
+proc update_state {} {
+  global pars
+  global volt curr_ps curr_mg
+  global volt_state curr_state
+
+  .f.m.htr_v configure -text [format $pars(volt_fmt) $volt]
+  .f.m.curr_ps_v configure -text [format $pars(curr_fmt) $curr_ps]
+  .f.m.curr_mg_v configure -text [format $pars(curr_fmt) $curr_mg]
+
+  if {$curr_state == 0} {
+    .f.match configure -text "Different currents" -fg red}\
+  elseif {$curr_state == 1} {
+    .f.match configure -text "Matching currents" -fg green}\
+  else {
+    .f.match configure -text "Unknown currents" -fg orange}
+
+  if {$volt_state == 0} {
+    .f.btn configure -text "Disconnected" -fg green -activeforeground green }\
+  elseif {$volt_state == 1} {
+    .f.btn configure -text "Connected" -fg red -activeforeground red }\
+  else {
+    .f.btn configure -text "Unknown" -fg orange -activeforeground orange }
+}
+
+##########################################################
+# program title
+label .name   -text "$pars(name)" -font {-size 20}
+pack .name -anchor w
+
+# controls
+make_control .f
+pack .f -anchor w -fill x -expand 0
+
+if {$::pars(volt_dev)!={}} { set dev [DeviceRole $::pars(volt_dev) dc_source]}
+
+# start measurements
+measure 1
+
+##########################################################
+
+
+
+
