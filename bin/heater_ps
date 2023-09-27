@@ -1,6 +1,6 @@
 #!/usr/bin/wish
 
-## A specific interface for demag magnet persistent switch heater:
+## A specific interface for a persistent switch heater:
 ## fixed voltage, ON/OFF button, current check
 
 package require DeviceRole
@@ -27,7 +27,7 @@ set default_pars {
 
   db_dev     {db} {database device (can be empty)}
 
-  db_curr_ps  {demag_vi:f1} {database name for getting power supply current}
+  db_curr_ps {demag_vi:f1} {database name for getting power supply current}
   db_curr_mg {demag_pc:f1} {database name for getting magnet current}
 
   db_val     {} {database name for numerical values}
@@ -49,8 +49,8 @@ set dev {}
 set heat_state -1; #  -1,0,1: unknown, OFF,ON
 set curr_state -1; #  -1,0,1: unknown, different, match
 
-wm title . "demag_heater:$pars(name)"
-tk appname "demag_heater:$pars(name)"
+wm title . "heater_ps:$pars(name)"
+tk appname "heater_ps:$pars(name)"
 
 ##########################################################
 

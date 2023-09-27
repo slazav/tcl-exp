@@ -1,17 +1,16 @@
 #!/usr/bin/wish
 
 ######################################################################
-# Parse and check command line parameters
 
 proc usage {} {
   puts {
-    demag_heater_cli -- command line interface for demag_heater
+    heater_ps_cli -- command line interface for heater_ps
 
-    Usage: demag_heater_cli <name> <command>
+    Usage: heater_ps_cli <name> <command>
 
     <name> name of the heater which is set in its configuration file
     <command>:
-      status: status of the heater programs (-1: not running, 1:on)
+      status: status of the program (-1: not running, 1:on)
               All other commands will fail if status != 1
       get_heat_state: -1,0,1 - unknown, off, on
       get_curr_state: -1,0,1 - unknown, not match, match
@@ -33,7 +32,7 @@ if {$cmd  == {}} usage
 ######################################################################
 # Connect to a program and ask for its state
 
-set app "demag_heater:$name"
+set app "heater_ps:$name"
 
 if {[catch {send $app set volt}]} { set stat -1 }\
 else { set stat 1 }
