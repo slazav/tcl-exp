@@ -1,0 +1,93 @@
+#!/usr/bin/wish
+
+######################################################################
+# Parse and check command line parameters
+
+proc usage {} {
+  puts {
+    demag_heater_cli -- command line interface for demag_heater
+
+    Usage: demag_heater_cli <name> <command>
+
+    <name> name of the heater which is set in its configuration file
+    <command>:
+      status: status of the heater programs (-1: not running, 1:on)
+              All other commands will fail if status != 1
+      get_heat_state: -1,0,1 - unknown, off, on
+      get_curr_state: -1,0,1 - unknown, not match, match
+      get_volt  -- get heater value
+      get_curr_mg  -- get magnet current
+      get_curr_ps  -- get power supply current
+      connect -- connect persistent switch (produce error if currents do not match)
+      disconnect -- disconnect persistent switch
+  }
+  exit 1
+}
+
+set name [lindex $argv 0]
+set cmd  [lindex $argv 1]
+
+if {$name == {}} usage
+if {$cmd  == {}} usage
+
+######################################################################
+# Connect to a program and ask for its state
+
+set app "demag_heater:$name"
+
+if {[catch {send $app set volt}]} { set stat -1 }\
+else { set stat 1 }
+
+if {$cmd == "status"} {
+  puts "$stat"
+  exit 0
+}
+if {$stat != 1} {
+  puts stderr "$app not found"
+  exit 1
+}
+
+######################################################################
+
+if {$cmd == "get_volt"} {
+  puts [send $app set volt]
+  exit 0
+}
+
+if {$cmd == "get_curr_mg"} {
+  puts [send $app set curr_mg]
+  exit 0
+}
+
+if {$cmd == "get_curr_ps"} {
+  puts [send $app set curr_ps]
+  exit 0
+}
+
+if {$cmd == "get_curr_state"} {
+  puts [send $app set curr_state]
+  exit 0
+}
+
+if {$cmd == "get_heat_state"} {
+  puts [send $app set heat_state]
+  exit 0
+}
+
+if {$cmd == "connect"} {
+  send $app connect
+  exit 0
+}
+
+if {$cmd == "disconnect"} {
+  send $app disconnect
+  exit 0
+}
+
+
+puts "Unknown commend: $cmd"
+
+
+######################################################################
+wm withdraw .
+after idle exit 0

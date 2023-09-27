@@ -46,11 +46,11 @@ set volt 0
 set curr_ps  0
 set curr_mg 0
 set dev {}
-set volt_state -1; #  -1,0,1: unknown, OFF,ON
+set heat_state -1; #  -1,0,1: unknown, OFF,ON
 set curr_state -1; #  -1,0,1: unknown, different, match
 
-wm title . "$pars(name)"
-tk appname "$pars(name)"
+wm title . "demag_heater:$pars(name)"
+tk appname "demag_heater:$pars(name)"
 
 ##########################################################
 
@@ -60,14 +60,14 @@ set rh {}
 
 proc measure {{first 0}} {
   global dev pars volt curr_ps curr_mg rh
-  global volt_state curr_state
+  global heat_state curr_state
   after cancel $rh
 
   # measure heater voltage, compare with voltage limit
   if {$dev!={}} {
     set volt [$dev get_volt]
-    if     {abs($volt - $pars(volt_on))  < $pars(volt_res)} {set volt_state 1}\
-    elseif {abs($volt - $pars(volt_off)) < $pars(volt_res)} {set volt_state 0}\
+    if     {abs($volt - $pars(volt_on))  < $pars(volt_res)} {set heat_state 1}\
+    elseif {abs($volt - $pars(volt_off)) < $pars(volt_res)} {set heat_state 0}\
   }
 
   # get currents from database
@@ -99,18 +99,37 @@ proc measure {{first 0}} {
 
 proc onoff {} {
   global pars dev
-  global volt_state curr_state
+  global heat_state curr_state
 
   if {$dev=={}} return
 
-  if {$curr_state != 1 && $volt_state == 0} {
+  if {$curr_state != 1 && $heat_state == 0} {
     set reply [tk_dialog .ask "Current warning" "Wrong current in the power supply. Proceed?" \
         questhead 0 No Yes]
     if {$reply != 1} return
   }
 
-  if {$volt_state == 0} {$dev set_volt $pars(volt_on)}\
+  if {$heat_state == 0} {$dev set_volt $pars(volt_on)}\
   else {$dev set_volt $pars(volt_off)}
+  set rh [after idle measure 1]
+}
+
+# to be used from CLI
+proc connect {} {
+  global pars dev
+  global heat_state curr_state
+  if {$dev=={}} return
+  if {$heat_state == 1} return; # already connected
+  if {$curr_state != 1} {error "Currents not matching"}
+  $dev set_volt $pars(volt_on)
+  set rh [after idle measure 1]
+}
+proc disconnect {} {
+  global pars dev
+  global heat_state curr_state
+  if {$dev=={}} return
+  if {$heat_state == 0} return; # already disconnected
+  $dev set_volt $pars(volt_off)
   set rh [after idle measure 1]
 }
 
@@ -152,7 +171,7 @@ proc make_control {root} {
 proc update_state {} {
   global pars
   global volt curr_ps curr_mg
-  global volt_state curr_state
+  global heat_state curr_state
 
   .f.m.htr_v configure -text [format $pars(volt_fmt) $volt]
   .f.m.curr_ps_v configure -text [format $pars(curr_fmt) $curr_ps]
@@ -165,9 +184,9 @@ proc update_state {} {
   else {
     .f.match configure -text "Unknown currents" -fg orange}
 
-  if {$volt_state == 0} {
+  if {$heat_state == 0} {
     .f.btn configure -text "Disconnected" -fg green -activeforeground green }\
-  elseif {$volt_state == 1} {
+  elseif {$heat_state == 1} {
     .f.btn configure -text "Connected" -fg red -activeforeground red }\
   else {
     .f.btn configure -text "Unknown" -fg orange -activeforeground orange }
