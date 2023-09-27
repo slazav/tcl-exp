@@ -105,9 +105,7 @@ proc measure {{first 0}} {
 
   # put values into db
   if {$pars(db_dev)!={} && $pars(db_val)!={}} {
-    Device $pars(db_dev)
-      $pars(db_dev) cmd put $pars(db_val) now_s $v $p
-    itcl::delete object $pars(db_dev)
+    Device2::ask $pars(db_dev) put $pars(db_val) now_s $v $p
   }
 
   if {$pars(mon_int)>0} {
@@ -132,9 +130,7 @@ proc set_volt {v} {
   measure
 
   if {$pars(db_dev)!={} && $pars(db_comm)!={}} {
-    Device $pars(db_dev)
-    $pars(db_dev) cmd put $pars(db_comm) now_s "$pars(name): $voltage $pars(v_units), $power $pars(p_units) "
-    itcl::delete object $pars(db_dev)
+    Device2::ask $pars(db_dev) put $pars(db_comm) now_s "$pars(name): $voltage $pars(v_units), $power $pars(p_units) "
   }
 
   after 100 measure
