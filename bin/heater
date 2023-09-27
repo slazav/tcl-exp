@@ -71,7 +71,7 @@ proc do_onoff {state} {
   global dev
   if {$state == 0} {
     if {$dev!={}} {
-      itcl::delete object $dev
+      DeviceRoleDelete $dev
       set dev {}
     }
   }\
