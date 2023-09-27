@@ -33,7 +33,7 @@ else {
 }
 
 # global parameters
-set monval 0
+set mon_val 0
 set textstatus ""
 set heater ""; # should not be 1 or 0 initially!
 set rh {}
@@ -90,7 +90,9 @@ proc run {} {
   }
 
   set mon_time [lindex $l 0]
-  set mon_val  [format $pars(mon_fmt) [lindex $l 1]]
+  set mon_val  [lindex $l 1]
+  if {[string is double -strict $mon_val] && $mon_val == $mon_val} {
+    set mon_val  [format $pars(mon_fmt) $mon_val]}
   if {$mon_time < [clock seconds] - $pars(mon_lim)} {
     heater_off "Too old value"
     set rh [after [expr {int($pars(mon_int)*1000)}] run]
