@@ -294,6 +294,21 @@ proc on_new_val {t cm cs vm {m 0} {st {}}} {
 proc make_control {root} {
   labelframe $root -padx 5 -pady 5
 
+  frame $root.d;  # measure frame
+  if {$::pars(ps_dev) != {}} {
+    label $root.d.dev  -text "Device: $::pars(ps_dev)"
+    pack $root.d.dev -side left -padx 5
+  }
+  if {$::pars(ps_dev2) != {}} {
+    label $root.d.dev2  -text "Device2: $::pars(ps_dev2)"
+    pack $root.d.dev2 -side left -padx 5
+  }
+  if {$::pars(gauge_dev) != {}} {
+    label $root.d.dev2  -text "Gauge: $::pars(gauge_dev)"
+    pack $root.d.dev2 -side left -padx 5
+  }
+  pack $root.d -fill x
+
   frame $root.m;  # measure frame
   label $root.m.vI -font {-size 14 -weight bold} -textvariable ::current
   label $root.m.uI -text " $::pars(c_units), " -font {-size 12}
