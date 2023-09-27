@@ -260,7 +260,8 @@ proc on_new_com {t com} {
       Device2::ask $::pars(db) put $::pars(db_ann) $t $com
     }
     # put a high-level comment after finishing sweep:
-    if {[regexp {finished} $com] && $::pars(db_comm)!={}} {
+    # "sweep up/down", "sweep finished"
+    if {[regexp {sweep} $com] && $::pars(db_comm)!={}} {
       Device2::ask $::pars(db) put $::pars(db_comm) now "$::pars(name) -> $::current $::pars(c_units)"
     }
   }
