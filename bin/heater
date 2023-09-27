@@ -19,7 +19,7 @@ set default_pars {
   p_units    {W} {W, mW, uW, nW, pW}
 
   mon_int     0 {monitoring time step, s}
-  volt_dev   {} {dc_source device}
+  volt_dev   {TEST} {dc_source device}
   db_dev     {} {database device (can be empty)}
   db_val     {} {database name for numerical values}
   db_comm    {} {database name for text comments}
@@ -180,18 +180,21 @@ proc make_control {root} {
 frame .n
 label .n.name   -text "$pars(name)" -font {-size 20}
 pack .n.name -side left -padx 10
-
-if {$pars(resistance)!={} && $pars(resistance)!=0} {
-  label .n.res  -text "R: $pars(resistance) Ohm"
-  pack .n.res -side left -padx 10
-}
-
-if {$pars(gain)!=1} {
-  label .n.gain   -text "gain: $pars(gain)"
-  pack .n.gain -side left -padx 10
-}
-
 pack .n -anchor w
+
+frame .p
+label .p.dev  -text "Device: $pars(volt_dev)"
+pack .p.dev -side left -padx 5
+if {$pars(resistance)!={} && $pars(resistance)!=0} {
+  label .p.res  -text "R: $pars(resistance) Ohm"
+  pack .p.res -side left -padx 5
+}
+if {$pars(gain)!=1} {
+  label .p.gain   -text "gain: $pars(gain)"
+  pack .p.gain -side left -padx 5
+}
+pack .p -anchor w
+
 
 # controls
 make_control .f
