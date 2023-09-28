@@ -122,7 +122,7 @@ itcl::class LockinInt {
 
   # release opened devices
   method off {} {
-    if {$dev != {}} { itcl::delete object $dev }
+    if {$dev != {}} { DeviceRoleDelete $dev }
     set dev {}
     widget_state_ $widget 0
   }
@@ -334,7 +334,7 @@ itcl::class GenInt {
   }
 
   method off {} {
-    if {[info command $dev] != {}} { itcl::delete object $dev }
+    if {[info command $dev] != {}} { DeviceRoleDelete $dev }
     widget_state $widget disabled
   }
 
