@@ -27,7 +27,8 @@ else {
   foreach {name def title} $default_pars { set pars($name) $def }
 }
 
-tk appname "$pars(name)"
+wm title . "$pars(name)"
+tk appname "meas_f4_capbr: $pars(name)"
 
 ##########################################################################
 ##########################################################################

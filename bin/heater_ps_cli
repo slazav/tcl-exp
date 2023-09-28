@@ -32,7 +32,7 @@ if {$cmd  == {}} usage
 ######################################################################
 # Connect to a program and ask for its state
 
-set app "heater_ps:$name"
+set app "heater_ps: $name"
 
 if {[catch {send $app set volt}]} { set stat -1 }\
 else { set stat 1 }

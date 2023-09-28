@@ -33,7 +33,7 @@ if {$cmd  == {}} usage
 
 ######################################################################
 
-set app $name
+set app "fork_cw: $name"
 
 if {$cmd == "set_volt"} {
   set v [lindex $argv 2]

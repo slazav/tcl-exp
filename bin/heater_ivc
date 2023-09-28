@@ -38,8 +38,8 @@ set textstatus ""
 set heater ""; # should not be 1 or 0 initially!
 set rh {}
 
-wm title . "heater: $pars(name)"
-tk appname "heater: $pars(name)"
+wm title . "$pars(name)"
+tk appname "heater_ivc: $pars(name)"
 
 ##########################################################
 

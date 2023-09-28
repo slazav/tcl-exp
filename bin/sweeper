@@ -77,7 +77,7 @@ if {$pars(r_units)=={uA/h}} { set r_k [expr 1e-6/3600]}
 if {$r_k == {}} {error "unknown rate units: $pars(r_units)"}
 
 
-wm title . "sweeper: $pars(name)"
+wm title . "$pars(name)"
 tk appname "sweeper: $pars(name)"
 set root .f
 

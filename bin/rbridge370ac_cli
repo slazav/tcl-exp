@@ -24,7 +24,7 @@ if {$cmd  == {}} usage
 ######################################################################
 # Connect to a program and ask for its state
 
-set app $name
+set app "rbridge370ac: $name"
 
 #if {[catch {set stat [send $app set state]}]} { set stat -1 }
 

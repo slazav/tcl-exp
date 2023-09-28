@@ -99,7 +99,8 @@ array unset fitres_tr
 # values formatted for interface
 array unset iface
 
-tk appname "$pars(name)"
+wm title . "$pars(name)"
+tk appname "fork_cw: $pars(name)"
 
 ##########################################################################
 ##########################################################################

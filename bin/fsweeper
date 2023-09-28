@@ -50,6 +50,7 @@ else {
   foreach {name def title} $default_pars { set pars($name) $def }
 }
 
+wm title . "$pars(name)"
 tk appname "fsweeper: $pars(name)"
 
 

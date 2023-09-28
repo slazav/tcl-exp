@@ -54,7 +54,7 @@ if {$pars(p_units)=={nW}} { set p_k 1e-9 }
 if {$pars(p_units)=={pW}} { set p_k 1e-12 }
 if {$p_k == {}} {error "unknown power units: $pars(p_units)"}
 
-wm title . "heater: $pars(name)"
+wm title . "$pars(name)"
 tk appname "heater: $pars(name)"
 
 ##########################################################
