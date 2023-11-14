@@ -20,7 +20,7 @@ TCL/TK programs for experimental work
 %install
 mkdir -p %buildroot%_bindir
 mkdir -p %buildroot/%_tcldatadir/Exp
-%__install $(find bin -maxdepth 1 -type f -perm 755) %buildroot%_bindir
+%__install -m 755 $(find bin -maxdepth 1 -type f -executable) %buildroot%_bindir
 %__install lib/*.tcl %buildroot/%_tcldatadir/Exp
 
 %files
