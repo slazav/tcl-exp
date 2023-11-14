@@ -1,0 +1,9 @@
+Source: tcl-exp
+Section: System
+Priority: optional
+Maintainer: Vladislav Zavjalov <vl.zavjalov@gmail.com>
+Standards-Version: ${ver}
+
+Package: tcl-exp
+Architecture: all
+Description: TCL/TK programs for experimental work
