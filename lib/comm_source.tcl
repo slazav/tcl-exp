@@ -99,8 +99,8 @@ itcl::class CommSource {
   ## get data range
   method range {} {
     if {$conn ne {}} { ## graphene db
-       set tmin0 [lindex [$conn cmd get_next $name] 0 0]
-       set tmax0 [lindex [$conn cmd get_prev $name] 0 0]
+       set tmin0 [lindex [Device2::ask $conn get_next $name] 0 0]
+       set tmax0 [lindex [Device2::ask $conn get_prev $name] 0 0]
     } else { ## file
       set fp [open $name r ]
       set tmin0 [lindex [get_next_line $fp] 0]
@@ -136,7 +136,7 @@ itcl::class CommSource {
     ## for a graphene db
     if {$conn ne {}} { ## graphene db
 
-      foreach line [$conn cmd get_range $name $t1 $t2 $dt] {
+      foreach line [split [Device2::ask $conn get_range $name $t1 $t2 $dt] "\n"] {
         # append data to vectors
         set t [lindex $line 0]
         set text {}
@@ -181,24 +181,24 @@ itcl::class CommSource {
 
   method on_add {t text} {
     if {$conn ne {}} { ## graphene db
-      $conn cmd put $name $t $text
-      $conn cmd sync
+      Device2::ask $conn put $name $t $text
+      Device2::ask $conn sync
     } else {
     }
   }
 
   method on_del {t text} {
     if {$conn ne {}} { ## graphene db
-      $conn cmd del $name $t
-      $conn cmd sync
+      Device2::ask $conn del $name $t
+      Device2::ask $conn sync
     } else {
     }
   }
 
   method delete_range {t1 t2} {
     if {$conn ne {}} { ## graphene db
-      $conn cmd del_range $name $t1 $t2
-      $conn cmd sync
+      Device2::ask $conn del_range $name $t1 $t2
+      Device2::ask $conn sync
       # reread data
       set N [expr {int(($tmax-$tmin)/$maxdt)}]
       reset_data_info

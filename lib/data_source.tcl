@@ -169,8 +169,8 @@ itcl::class DataSource {
   ## get data range
   method range {} {
     if {$conn ne {}} { ## graphene db
-       set tmin0 [lindex [$conn cmd get_next $name] 0 0]
-       set tmax0 [lindex [$conn cmd get_prev $name] 0 0]
+       set tmin0 [lindex [Device2::ask $conn get_next $name] 0 0]
+       set tmax0 [lindex [Device2::ask $conn get_prev $name] 0 0]
     } else { ## file
       set fp [open $name r ]
       set tmin0 [lindex [get_next_line $fp] 0]
@@ -206,7 +206,7 @@ itcl::class DataSource {
     ## for a graphene db
     if {$conn ne {}} { ## graphene db
 
-      foreach line [$conn cmd get_range $name $t1 $t2 $dt] {
+      foreach line [split [Device2::ask $conn get_range $name $t1 $t2 $dt] "\n"] {
         # append data to vectors
         "$this:T" append [lindex $line 0]
         for {set i 0} {$i < $ncols} {incr i} {
@@ -245,8 +245,8 @@ itcl::class DataSource {
   ######################################################################
   method delete_range {t1 t2} {
     if {$conn ne {}} { ## graphene db
-      $conn cmd del_range $name $t1 $t2
-      $conn cmd sync
+      Device2::ask $conn del_range $name $t1 $t2
+      Device2::ask $conn sync
       # reread data
       set N [expr {int(($tmax-$tmin)/$maxdt)}]
       reset_data_info
@@ -278,7 +278,7 @@ itcl::class DataSource {
     set max [blt::vector expr max($this:T)]
 
     if {$conn ne {}} { ## graphene db
-      foreach line [$conn cmd get_range $name $max $t2 $maxdt] {
+      foreach line [split [Device2::ask $conn get_range $name $max $t2 $maxdt] "\n"] {
         set t [lindex $line 0]
         if {t==$max} continue; # no need to insert existing value
         # append data to vectors
@@ -307,7 +307,7 @@ itcl::class DataSource {
     puts $fp "# time, [join $cnames {, }]"
 
     if {$conn ne {}} { ## graphene db
-      foreach line [$conn cmd get_range $name $t1 $t2] {
+      foreach line [split [Device2::ask $conn get_range $name $t1 $t2] "\n"] {
         puts $fp $line
       }
     }
@@ -322,7 +322,7 @@ itcl::class DataSource {
 
     set t0 {};   # "zero time"
     if {$conn ne {}} { ## graphene db
-      foreach line [$conn cmd get_range $name $t1 $t2] {
+      foreach line [split [Device2::ask $conn get_range $name $t1 $t2] "\n"] {
         # get time point
         if {[llength $line]<1} continue
         set t [lindex $line 0]
