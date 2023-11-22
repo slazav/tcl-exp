@@ -1,0 +1,24 @@
+#!/usr/bin/wish
+
+package require Exp
+
+# View wire databases.
+# Database device is fixed (see set db_dev below)
+
+set db_dev db
+graphene::viewer viewer
+
+if {[llength $argv]<1 } {
+  puts "usage: grview <wire name>"
+  exit
+}
+
+set n [lindex $argv 0]
+
+viewer add_data $db_dev ${n} {10 12} -cnames {freq width} -ccolors {red blue}
+
+viewer add_data $db_dev ${n}_sweeps {0 1 2 3} -cnames {F X Y D} -ccolors {green cyan yellow magenta}
+
+viewer add_data $db_dev ${n}_pars:7  {0} -cnames {fsweeps} -ccolors {black}
+
+

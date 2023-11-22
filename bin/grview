@@ -1,0 +1,23 @@
+#!/usr/bin/wish
+
+package require Exp
+
+set db_dev db
+graphene::viewer viewer
+
+if {[llength $argv]<1 } {
+  puts "usage: grview <db_name> ..."
+  exit
+}
+
+set defcolors {red green blue cyan magenta yellow}
+
+set i 0
+foreach n $argv {
+  set c [lindex $defcolors [expr {$i%[llength $defcolors]} ]]
+  viewer add_data $db_dev $n {0} -ccolors $c
+  incr i
+}
+
+viewer full_scale
+
