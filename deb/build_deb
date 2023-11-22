@@ -1,0 +1,27 @@
+#!/bin/sh -efu
+
+# Script for building debian package
+
+name=tcl-exp
+ver=1.0
+tag=
+DIR="${name}_$ver"
+
+rm -rf -- "$DIR"
+mkdir "$DIR"
+cd "$DIR"
+
+git clone ../../ .
+[ "$tag" = "" ]  || git checkout --detach $tag
+
+rm -rf .git .gear
+
+mkdir debian
+for f in changelog control copyright rules; do
+  sed 's/${ver}/'$ver'/g' ../$f > debian/$f
+done
+
+dpkg-buildpackage --build=all
+
+cd ..
+rm -rf -- "$DIR"

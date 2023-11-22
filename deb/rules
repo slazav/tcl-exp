@@ -1,0 +1,21 @@
+#!/usr/bin/make -f
+
+DESTDIR=debian/package
+bindir=$(DESTDIR)/usr/bin
+datadir=$(DESTDIR)/usr/share/tcltk/tcl8.6/Exp
+
+binary-indep:
+	$(checkdir)
+	$(checkroot)
+
+	mkdir -p $(datadir) $(bindir)
+	install -m 755 $$(find bin -maxdepth 1 -type f -executable) -t $(bindir)
+	install lib/*.tcl -t $(datadir)
+
+	# Install Program Resources
+	mkdir $(DESTDIR)/DEBIAN
+	dpkg-gencontrol -P$(DESTDIR)
+	cd $(DESTDIR) && find . -type f ! -regex '.*DEBIAN/.*' -printf '%P\0' | xargs -r0 md5sum > DEBIAN/md5sums
+	dpkg-deb -b $(DESTDIR) ../
+
+.PHONY: binary binary-arch binary-indep clean build

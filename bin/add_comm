@@ -27,6 +27,7 @@ tk appname "add_comm: $pars(name)"
 manual_db #auto\
  -dbdev  $pars(db_dev)\
  -dbname $pars(db_name)\
+ -name   $pars(name)\
  -num $pars(num)\
  -list_w 80\
  -list_h 15

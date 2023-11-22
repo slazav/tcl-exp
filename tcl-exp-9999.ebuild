@@ -18,7 +18,7 @@ RDEPEND="${DEPEND}"
 BDEPEND=""
 
 src_install() {
-  dobin $(find bin -maxdepth 1 -type f -perm 755)
+  dobin $(find bin -maxdepth 1 -type f -executable)
   insinto /usr/$(get_libdir)/Exp
   doins lib*.tcl
 }

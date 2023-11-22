@@ -81,6 +81,7 @@ itcl::class manual_db {
     set options [list\
       {-dbdev}      dbdev      {}\
       {-dbname}     dbname     {}\
+      {-name}       name       {}\
       {-func_mkint} func_mkint func_mkint_text\
       {-func_get}   func_get   func_get_text\
       {-func_set}   func_set   func_set_text\
@@ -93,8 +94,12 @@ itcl::class manual_db {
 
     # make interface
     ## title
-    label .name  -text "Add comments to $dbname" -font {-size 12} -anchor w
-    grid .name -columnspan 3 -sticky w
+    frame .title
+    label .title.name  -text "$name" -font {-size 12} -anchor w
+    label .title.dbname  -text "db: $dbname" -anchor w
+    pack .title.name  -side left -fill x
+    pack .title.dbname -side right -fill x
+    grid .title -columnspan 3 -sticky ew
 
     ## timestamp entry
     label  .tstamp_l  -text "Timestamp:" -width 12 -anchor w
