@@ -192,6 +192,7 @@ itcl::class DataSource {
 
     # expand the range:
     set t1 [expr {$t1 - ($t2-$t1)}]
+    if {$t1<0} {set t1 0}
     set t2 [expr {$t2 + ($t2-$t1)}]
     set tmin $t1
     set tmax $t2
@@ -210,7 +211,9 @@ itcl::class DataSource {
         # append data to vectors
         "$this:T" append [lindex $line 0]
         for {set i 0} {$i < $ncols} {incr i} {
-          "$this:$i" append [lindex $line [expr $i+1]]
+          set v [lindex $line [expr $i+1]]
+          if {![string is double $v] || $v != $v} {set v 0}
+          "$this:$i" append $v
         }
       }
 
