@@ -114,8 +114,77 @@ itcl::class viewer {
   ######################################################################
 
   # add data source
-  method add_data {args} {
-    set ds [DataSource #auto $graph {*}$args]
+  method add_data {conn name cols args} {
+
+    set ds [DataSource #auto $conn $name $cols]
+    # parse options
+
+    set opts {
+      -cnames  cnames  {}
+      -ctitles ctitles {}
+      -ccolors ccolors {}
+      -cfmts   cfmts   {}
+      -chides  chides  {}
+      -clogs   clogs   {}
+      -verbose verbose  1
+    }
+    if {[catch {xblt::parse_options "graphene::data_source" \
+      $args $opts} err]} { error $err }
+
+    set ncols [llength $cols]
+
+    if {$verbose} {
+      puts "Add data source \"$name\" with $ncols columns" }
+
+    # create automatic column names
+    for {set i [llength $cnames]} {$i < $ncols} {incr i} {
+      lappend cnames "$name:[lindex $cols $i]" }
+
+    # create automatic column titles
+    for {set i [llength $ctitles]} {$i < $ncols} {incr i} {
+      lappend ctitles "$name:[lindex $cols $i]" }
+
+    # create automatic column colors
+    set defcolors {red green blue cyan magenta yellow}
+    for {set i [llength $ccolors]} {$i < $ncols} {incr i} {
+      set c [lindex $defcolors [expr {$i%[llength $defcolors]} ] ]
+      lappend ccolors $c }
+
+    # create automatic format settings
+    for {set i [llength $cfmts]} {$i < $ncols} {incr i} {
+      lappend cfmts "%g" }
+
+    # show all columns by default
+    for {set i [llength $chides]} {$i < $ncols} {incr i} {
+      lappend chides 0 }
+
+    # non-log scale for all columns by default
+    for {set i [llength $clogs]} {$i < $ncols} {incr i} {
+      lappend clogs 0 }
+
+    ## configure plot
+    set vT [$ds get_tvector]
+    for {set i 0} {$i < $ncols} {incr i} {
+      set vD [$ds get_dvector $i]
+      set n [lindex $cnames $i]
+      set t [lindex $ctitles $i]
+      set c [lindex $ccolors $i]
+      set f [lindex $cfmts $i]
+      set h [lindex $chides $i]
+      set l [lindex $clogs $i]
+      # create vertical axis and the element, bind them
+      $graph axis create $n -title $t -titlecolor black -logscale $l
+      $graph element create $n -mapy $n -symbol circle -pixels 1.5 -color $c
+      $graph element bind $n <Enter> [list $graph yaxis use [list $n]]
+      # hide element if needed
+      if {$h} {xblt::hielems::toggle_hide $graph $n}
+      # set data vectors for the element
+      $graph element configure $n -xdata $vT -ydata $vD
+      #
+    }
+
+#   $ds reset_data_info
+
     expand_range {*}[$ds range]
     lappend data_sources $ds
   }
@@ -168,7 +237,7 @@ itcl::class viewer {
     $graph axis configure x -min $min -max $max
 
     # update data
-    foreach d $data_sources { $d scroll $min $max }
+    foreach d $data_sources { $d scroll_right $min $max }
     if {$comm_source!={}} { $comm_source scroll $min $max }
 
   }

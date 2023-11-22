@@ -1,121 +1,45 @@
 package require Itcl
 package require xBlt
 package require BLT
+package require Device2
 
-# set graphene or text data source,
-# update BLT vectors if needed.
+# Datasource: loading data from a text file of graphene database to
+# blt vectors.
 #
-# Options:
-#   -name    - file/db name
-#   -conn    - graphene connection for a database source
-#   -ncols   - number of data columns (time column is not included)
-#   -cnames  - list of unique names for all data columns (time is not included)
-#   -ctitles - list of titles for all data columns
-#   -ccolors - list of colors for all data columns
-#   -cfmts   - list of format settings for all data columns
-#   -chides  - list of hide settings for all data columns
-#   -clogs   - list of logscale settings for all data columns
-#   -verbose - be verbose
-#
-# File source:
-#  comments: #, %, ;
+# File source: comments: #, %, ;
 
 itcl::class DataSource {
   # these variables are set from options (see above)
   variable name
   variable conn
+  variable cols
   variable ncols
-  variable cnames
-  variable ctitles
-  variable ccolors
-  variable cfmts
-  variable chides
-  variable clogs
-  variable verbose
 
   # currently loaded min/max/step
   variable tmin
   variable tmax
   variable maxdt
 
-  variable graph
-
   ######################################################################
 
-  constructor {graph_ args} {
-    # parse options
-    set opts {
-      -name    name    {}
-      -conn    conn    {}
-      -ncols   ncols    1
-      -cnames  cnames  {}
-      -ctitles ctitles {}
-      -ccolors ccolors {}
-      -cfmts   cfmts   {}
-      -chides  chides  {}
-      -clogs   clogs   {}
-      -verbose verbose  1
-    }
-    set graph $graph_
-    if {[catch {xblt::parse_options "graphene::data_source" \
-      $args $opts} err]} { error $err }
+  constructor {conn_ name_ cols_} {
+    set conn $conn_
+    set name $name_
+    set cols $cols_
+    set ncols [llength $cols]
 
-    if {$verbose} {
-      puts "Add data source \"$name\" with $ncols columns" }
-
-    # create automatic column names
-    for {set i [llength $cnames]} {$i < $ncols} {incr i} {
-      lappend cnames "$name:$i" }
-
-    # create automatic column titles
-    for {set i [llength $ctitles]} {$i < $ncols} {incr i} {
-      lappend ctitles "$name:$i" }
-
-    # create automatic column colors
-    set defcolors {red green blue cyan magenta yellow}
-    for {set i [llength $ccolors]} {$i < $ncols} {incr i} {
-      set c [lindex $defcolors [expr {$i%[llength $defcolors]} ] ]
-      lappend ccolors $c }
-
-    # create automatic format settings
-    for {set i [llength $cfmts]} {$i < $ncols} {incr i} {
-      lappend cfmts "%g" }
-
-    # show all columns by default
-    for {set i [llength $chides]} {$i < $ncols} {incr i} {
-      lappend chides 0 }
-
-    # non-log scale for all columns by default
-    for {set i [llength $clogs]} {$i < $ncols} {incr i} {
-      lappend clogs 0 }
-
-    # create BLT vectors for data
-    blt::vector create "$this:T"
+    # create BLT vectors for data (main/load)
+    blt::vector create "$this:MT"
+    blt::vector create "$this:LT"
     for {set i 0} {$i < $ncols} {incr i} {
-      set n [lindex $cnames $i]
-      blt::vector create "$this:$i"
-    }
-
-    ## configure plot
-    for {set i 0} {$i < $ncols} {incr i} {
-      set n [lindex $cnames $i]
-      set t [lindex $ctitles $i]
-      set c [lindex $ccolors $i]
-      set f [lindex $cfmts $i]
-      set h [lindex $chides $i]
-      set l [lindex $clogs $i]
-      # create vertical axis and the element, bind them
-      $graph axis create $n -title $t -titlecolor black -logscale $l
-      $graph element create $n -mapy $n -symbol circle -pixels 1.5 -color $c
-      $graph element bind $n <Enter> [list $graph yaxis use [list $n]]
-      # hide element if needed
-      if {$h} {xblt::hielems::toggle_hide $graph $n}
-      # set data vectors for the element
-      $graph element configure $n -xdata "$this:T" -ydata "$this:$i"
-      #
+      blt::vector create "$this:M$i"
+      blt::vector create "$this:L$i"
     }
     reset_data_info
   }
+
+  method get_tvector {}  {return $this:MT}
+  method get_dvector {i} {return $this:M$i}
 
   ######################################################################
   # functions for reading files:
@@ -166,7 +90,7 @@ itcl::class DataSource {
   }
 
   ######################################################################
-  ## get data range
+  ## get data range (without loading data)
   method range {} {
     if {$conn ne {}} { ## graphene db
        set tmin0 [lindex [Device2::ask $conn get_next $name] 0 0]
@@ -183,37 +107,25 @@ itcl::class DataSource {
   }
 
   ######################################################################
-  # update data
-  method update_data {t1 t2 N} {
-    set dt [expr {1.0*($t2-$t1)/$N}]
-    if {$tmin!=$tmax && $t1 >= $tmin && $t2 <= $tmax && $dt >= $maxdt} {return}
-    if {$verbose} {
-      puts "update_data $t1 $t2 $N $dt $name" }
+  # load data to L vectors
+  method _vec_load {t1 t2 dt} {
 
-    # expand the range:
-    set t1 [expr {$t1 - ($t2-$t1)}]
-    if {$t1<0} {set t1 0}
-    set t2 [expr {$t2 + ($t2-$t1)}]
-    set tmin $t1
-    set tmax $t2
-    set maxdt   $dt
-
-    # reset data vectors
-    if {["$this:T" length] > 0} {"$this:T" delete 0:end}
+    # cleanup vectors
+    if {["$this:LT" length] > 0} {"$this:LT" delete 0:end}
     for {set i 0} {$i < $ncols} {incr i} {
-      if {["$this:$i" length] > 0} {"$this:$i" delete 0:end}
+      if {["$this:L$i" length] > 0} {"$this:L$i" delete 0:end}
     }
 
     ## for a graphene db
+    #puts "load data $t1 $t2 $dt"
     if {$conn ne {}} { ## graphene db
-
       foreach line [split [Device2::ask $conn get_range $name $t1 $t2 $dt] "\n"] {
         # append data to vectors
-        "$this:T" append [lindex $line 0]
+        "$this:LT" append [lindex $line 0]
         for {set i 0} {$i < $ncols} {incr i} {
-          set v [lindex $line [expr $i+1]]
+          set v [lindex $line [expr [lindex $cols $i]+1]]
           if {![string is double $v] || $v != $v} {set v 0}
-          "$this:$i" append $v
+          "$this:L$i" append $v
         }
       }
 
@@ -236,32 +148,22 @@ itcl::class DataSource {
         set to $t
 
         # append data to vectors
-        "$this:T" append $t
+        "$this:LT" append $t
         for {set i 0} {$i < $ncols} {incr i} {
-          "$this:$i" append [lindex $line [expr $i+1]]
+          set v [lindex $line [expr [lindex $cols $i]+1]]
+          if {![string is double $v] || $v != $v} {set v 0}
+          "$this:L$i" append $v
         }
       }
       close $fp
     }
   }
 
-  ######################################################################
-  method delete_range {t1 t2} {
-    if {$conn ne {}} { ## graphene db
-      Device2::ask $conn del_range $name $t1 $t2
-      Device2::ask $conn sync
-      # reread data
-      set N [expr {int(($tmax-$tmin)/$maxdt)}]
-      reset_data_info
-      update_data $tmin $tmax $N
-    }
-  }
-
   # In a sorted vector find index of the first value larger or equal then v
-  method svec_search_l {vec v} {
+  method _vec_search_l {vec v} {
     if {[$vec length] < 1} {return -1}
-    if {[blt::vector expr max($this:T)] < $v} {return -1}
-    if {[blt::vector expr min($this:T)] > $v} {return 0}
+    if {[blt::vector expr max($vec)] < $v} {return -1}
+    if {[blt::vector expr min($vec)] > $v} {return 0}
     set i1 0
     set i2 [expr [$vec length]-1]
     while {$i2-$i1 > 1} {
@@ -273,34 +175,94 @@ itcl::class DataSource {
     return $i2
   }
 
-  ######################################################################
-  method scroll {t1 t2} {
-
-    #get first and last timestamps in our vectors
-    set min [blt::vector expr min($this:T)]
-    set max [blt::vector expr max($this:T)]
-
-    if {$conn ne {}} { ## graphene db
-      foreach line [split [Device2::ask $conn get_range $name $max $t2 $maxdt] "\n"] {
-        set t [lindex $line 0]
-        if {t==$max} continue; # no need to insert existing value
-        # append data to vectors
-        "$this:T" append [lindex $line 0]
-        for {set i 0} {$i < $ncols} {incr i} {
-          "$this:$i" append [lindex $line [expr $i+1]]
-        }
-      }
-    }
-
-    # remove old values if it is more then tice longer then needed
-    if {$t1-$min > $t2-$t1} {
-      set ii [svec_search_l $this:T $t1]
+  # remove old values from M vectors if they are too far from view range
+  method _vec_cleanup {t1 t2} {
+    set min [blt::vector expr min($this:MT)]
+    set max [blt::vector expr max($this:MT)]
+    set lim [expr {$t1 - ($t2-$t1)}]
+    if {$min < $lim} {
+      set ii [_vec_search_l $this:MT $lim]
       if {$ii>0} {
-        $this:T delete 0:$ii-1
-        for {set i 0} {$i < $ncols} {incr i} { $this:$i delete 0:$ii-1}
+        #puts "cleanup left: $min,$lim"
+        $this:MT delete 0:$ii-1
+        for {set i 0} {$i < $ncols} {incr i} { $this:M$i delete 0:$ii-1}
       }
     }
+    set lim [expr {$t2 + ($t2-$t1)}]
+    if {$max > $lim} {
+      set ii [_vec_search_l $this:MT $lim]
+      if {$ii>0} {
+        #puts "cleanup right: $lim,$max"
+        $this:MT delete $ii:end
+        for {set i 0} {$i < $ncols} {incr i} { $this:M$i delete $ii:end}
+      }
+    }
+  }
 
+  ######################################################################
+  # update data:
+  #   if loaded data covers time range, then do nothing
+  #   otherwise load data for 3x expanded time range
+  method update_data {t1 t2 N} {
+    set dt [expr {1.0*($t2-$t1)/$N}]
+    if {$tmin!=$tmax && $t1 >= $tmin && $t2 <= $tmax && $dt >= $maxdt} {return}
+
+    # expand the range:
+    if {$t1<$tmin} {set t1 [expr {$t1 - ($t2-$t1)}]}
+    if {$t1<0} {set t1 0}
+    if {$t2>$tmax} {set t2 [expr {$t2 + ($t2-$t1)}]}
+
+    # scroll right
+    if {$t1>=$tmin && $t2>$tmax && $dt == $maxdt} {
+      _vec_load [$this:MT index end] $t2 $maxdt
+      if {[$this:LT length]==0} {return}
+      $this:MT append $this:LT
+      for {set i 0} {$i < $ncols} {incr i} { $this:M$i append $this:L$i }
+      _vec_cleanup $t1 $t2
+      set tmin  $t1
+      set tmax  $t2
+      return
+    }
+
+    # scroll left
+    if {$t1<$tmin && $t2<=$tmax && $dt == $maxdt} {
+      _vec_load $t1 [$this:MT index 0] $maxdt
+      if {[$this:LT length]==0} {return}
+      $this:MT insert 0 [$this:LT range 0 end]
+      for {set i 0} {$i < $ncols} {incr i} { $this:M$i insert 0 [$this:L$i range 0 end]}
+      _vec_cleanup $t1 $t2
+      set tmin  $t1
+      set tmax  $t2
+      return
+    }
+
+    _vec_load $t1 $t2 $dt
+    $this:MT set $this:LT
+    for {set i 0} {$i < $ncols} {incr i} { $this:M$i set $this:L$i }
+    set tmin  $t1
+    set tmax  $t2
+    set maxdt $dt
+  }
+
+  ######################################################################
+  method scroll_right {t1 t2} {
+    _vec_load $tmax $t2 $maxdt
+    _vec_cleanup $t1 $t2
+  }
+
+  ######################################################################
+  # delete data in the database (only graphene!)
+  method delete_range {t1 t2} {
+    if {$conn ne {}} { ## graphene db
+      Device2::ask $conn del_range $name $t1 $t2
+      Device2::ask $conn sync
+      # reread data
+      set N [expr {int(($tmax-$tmin)/$maxdt)}]
+      set tmin_ $tmin
+      set tmax_ $tmax
+      reset_data_info
+      update_data $tmin_ $tmax_ $N
+    }
   }
 
   ######################################################################
@@ -336,8 +298,8 @@ itcl::class DataSource {
 
         for {set i 0} {$i<$ncols} {incr i} {
           # get data point
-          if {[llength $line]<=[expr $i+1]} continue
-          set val [lindex $line [expr $i+1]]
+          if {[llength $line]<=[expr [lindex $cols $i]+1]} continue
+          set val [lindex $line [expr [lindex $cols $i]+1]]
 
           # save initial value if needed, subtract it from all data points
           if {![info exists val0($i)]} { set val0($i) $val }
