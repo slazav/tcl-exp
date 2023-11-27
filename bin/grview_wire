@@ -19,6 +19,6 @@ viewer add_data $db_dev ${n} {10 12} -cnames {freq width} -ccolors {red blue}
 
 viewer add_data $db_dev ${n}_sweeps {0 1 2 3} -cnames {F X Y D} -ccolors {green cyan yellow magenta}
 
-viewer add_data $db_dev ${n}_pars:7  {0} -cnames {fsweeps} -ccolors {black}
+viewer add_data $db_dev ${n}_pars:3  {0} -cnames {sweep N} -ccolors {black}
 
 
