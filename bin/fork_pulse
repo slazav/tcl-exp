@@ -45,7 +45,6 @@ set default_pars {
   db_val     {} {database name for numerical values}
   db_par     {} {database name for measurement parameters}
 
-  gauge_dev    {TEST}     {gauge device}
   db_dev       {}         {database device}
   db_name      {}         {database name}
   tpos         0.5        {timestamp position: 0-beginning of measurement, 1-end of measuremen}
