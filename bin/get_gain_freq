@@ -130,7 +130,7 @@ for {set i 0} {$i < $npts} {incr i} {
     set y [lindex $out 1]
 
     if {$meas_lockin} {
-      set st [$gauge get_status]
+      set st [lindex $out 2]
       if {$st ne {OK}} {
         puts stderr "status: $st"
       }
