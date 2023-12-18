@@ -127,7 +127,6 @@ itcl::class SweepController {
     # open first PS device get its parameters
     if {$ps_dev1  == {} } { error "ps_dev1 is empty" }
     set dev1 [DeviceRole $ps_dev1 power_supply]
-#    $dev1 lock
     set min_i_step [expr [$dev1 cget -min_i_step]*abs($gain)]
     set max_i [expr [$dev1 cget -max_i]*$gain]
     set min_i [expr [$dev1 cget -min_i]*$gain]
@@ -141,7 +140,6 @@ itcl::class SweepController {
     if {$ps_dev2 != {}} {
       if {$ps_dev1 == $ps_dev2} {error "same device for both channels"}
       set dev2 [DeviceRole $ps_dev2 power_supply]
-#      $dev2 lock
       set min_i_step2 [expr [$dev2 cget -min_i_step]*abs($gain)]
       set max_i2 [expr [$dev2 cget -max_i]*$gain]
       set min_i2 [expr [$dev2 cget -min_i]*$gain]
@@ -219,8 +217,6 @@ itcl::class SweepController {
 
     # remove device and stop the loop
     if {$state == 0} {
-      if {[is_obj $dev1]} { $dev1 unlock }
-      if {[is_obj $dev2]} { $dev2 unlock }
 
       if {[is_obj $dev1]} {
         itcl::delete object $dev1
