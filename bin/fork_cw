@@ -17,7 +17,7 @@ package require Exp;  # timeplot, monitor
 set default_pars {
   name         {fork_cw}  {program name}
   lockin_dev   {TEST}     {lock-in device}
-  lockin_pars  {TEST}     {lock-in device parameters}
+  lockin_pars  {}         {lock-in device parameters}
   gen_dev      {TEST}     {generator device}
   db_dev       {}         {database device}
   res_db       {}         {fit result database}
