@@ -1,0 +1,20 @@
+#!/usr/bin/heater
+
+# Configuration file for heater program.
+# Still heater.
+
+# Voltage is applied by LakeShore heater output.
+# Output range 8 -> 100mA
+# Heater resistance 100 Ohm.
+
+name       {20mK plate heater}
+volt_dev   rbridge:ANALOG1u
+resistance 100
+gain       1
+v_units    V
+p_units    mW
+max_volt   20
+db_dev     db
+#db_val     heat_still
+db_comm    comments
+mon_int    600

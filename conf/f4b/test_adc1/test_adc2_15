@@ -1,0 +1,21 @@
+#!/usr/bin/datameas
+
+name           {test adc}             # program title
+period         {0}              # measurement period
+onoff           1                 # inital state of main switch
+save            1                 # inital state of save switch
+#tpos           0.5              # timestamp position: 0-beginning of measurement, 1-end of measuremen}
+db_dev          {}                # database device
+db_name         {} # database names
+gauge_dev       {adc2:15s}    # gauge device
+dfmt            {%.3e}       # data format in the interface
+data_convs      {{}}
+
+# timeplot parameters
+plot_ncols          1
+plot_maxt           10000
+plot_names          {V}         # data names
+plots_x             {time}
+plots_y             {{}}
+plot_symbols        {circle}
+plots_zst           {x}

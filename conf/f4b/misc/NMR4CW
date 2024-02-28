@@ -1,0 +1,35 @@
+#!/usr/bin/fork_cw
+
+name           {NMR4CW}   {program name}
+
+lockin_dev   {lockin1}     {lock-in device}
+lockin_pars  {}  {lock-in device parameters}
+
+gen_dev      {gen9}        {generator device}
+db_dev       {db}          {database device}
+res_db       {nmr4cw}      {result database}
+sweep_db     {nmr4cw_sweeps} {sweep database}
+pars_db      {nmr4cw_pars}   {parameter database}
+
+limit_fmin   {0}        {sweep low limit}
+limit_fmax   {inf}      {sweep high limit}
+fmin         {10000}   {starting value for sweep low end}
+fmax         {100000}   {starting value for sweep high end}
+npts         {101}       {starting value for sweep number of points}
+dt           {1}        {starting value for measurement period}
+dtf          {10}        {starting value for first point delay}
+swap_xy      {0}        {starting value for first point delay}
+tfmt         {%H:%M:%S} {time format string for the interface}
+amp_fmt      {%.3e}     {amp format string for the interface}
+fre_fmt      {%.3f}     {fre format string for the interface}
+wid_fmt      {%.5f}     {wid format string for the interface}
+vertical     1          {vertical design}
+plot_maxt    {86000}    {timeplot span}
+adj_freq     {1}        {adjust central frequency, 0|1}
+adj_fspan    {1}        {adjust frequency span, 0|1}
+adj_drive    {0}        {adjust drive, 0|1}
+adj_time     {1}        {adjust timings, 0|1}
+adj_phase    {0}        {adjust phase, 0|1}
+fspan_size   {6}        {frequency span / width}
+amp_target   {2e-6}     {amplitude target}
+set_from_res_db {0}     {set initial sweep parameters using last value from res_db}

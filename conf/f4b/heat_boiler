@@ -1,0 +1,18 @@
+#!/usr/bin/heater
+
+# Configuration file for heater program.
+# Still heater.
+
+# Voltage is applied by LakeShore heater output.
+# Output range 8 -> 100mA
+# Heater resistance 100 Ohm.
+
+name       {He boiler}
+volt_dev   pst2
+resistance 50
+v_units    V
+p_units    W
+max_volt   30
+db_dev     db
+db_comm    comments
+mon_int    3600

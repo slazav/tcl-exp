@@ -1,0 +1,41 @@
+#!/usr/bin/fork_cw
+
+name           {MCTF}   {program name}
+
+lockin_dev   {adc2}     {lock-in device}
+lockin_pars  {-chan_x 3 -chan_y 4 -single 1 -divider 5\
+              -range 2500 -tconv 60 -show_adc 0\
+              -use_femto 1 -femto_editable 0 -femto_s1 0\
+              -femto_range 3 -femto_tconst 7}  {lock-in device parameters}
+
+gen_dev      {gen10}     {generator device}
+db_dev       {db}          {database device}
+res_db       {mctf}        {result database}
+sweep_db     {mctf_sweeps} {sweep database}
+pars_db      {mctf_pars}   {parameter database}
+
+limit_fmin   {0}        {sweep low limit}
+limit_fmax   {inf}      {sweep high limit}
+fmin         {32675}   {starting value for sweep low end}
+fmax         {32685}   {starting value for sweep high end}
+npts         {51}       {starting value for sweep number of points}
+dt           {1}        {starting value for measurement period}
+dtf          {10}       {starting value for first point delay}
+swap_xy      {0}        {starting value for first point delay}
+tfmt         {%H:%M:%S} {time format string for the interface}
+amp_fmt      {%.3e}     {amp format string for the interface}
+fre_fmt      {%.5f}     {fre format string for the interface}
+wid_fmt      {%.5f}     {wid format string for the interface}
+vertical     1          {vertical design}
+plot_maxt    {86000}    {timeplot span}
+adj_freq     {1}        {adjust central frequency, 0|1}
+adj_fspan    {1}        {adjust frequency span, 0|1}
+adj_fmin     {20000}    {}
+adj_fmax     {40000}    {}
+adj_drive    {0}        {adjust drive, 0|1}
+adj_time     {1}        {adjust timings, 0|1}
+adj_phase    {0}        {adjust phase, 0|1}
+fspan_size   {6}        {frequency span / width}
+amp_target   {2e-6}     {amplitude target}
+bg6x {} {}
+bg6y {} {}

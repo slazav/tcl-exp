@@ -1,0 +1,62 @@
+#!/usr/bin/fork_cw
+
+name           {W2A}   {program name}
+
+lockin_dev   {adc2}     {lock-in device}
+
+#lockin_pars  {-chan_x 3 -chan_y 4 -single 1 -divider 5\
+#              -range 2500 -tconv 60 -show_adc 0\
+#              -use_femto 1 -femto_editable 0 -femto_s1 0\
+#              -femto_range 7 -femto_tconst 7}  {lock-in device parameters}
+#gen_dev      {gen10}     {generator device}
+
+lockin_pars  {-chan_x 9 -chan_y 10 -single 1 -divider 5\
+              -range 2500 -tconv 60 -show_adc 0\
+              -use_femto 1 -femto_editable 0 -femto_s1 0\
+              -femto_range 5 -femto_tconst 7}  {lock-in device parameters}
+gen_dev      {gen13}     {generator device}
+
+db_dev       {db}          {database device}
+res_db       {w2a}        {result database}
+sweep_db     {w2a_sweeps} {sweep database}
+pars_db      {w2a_pars}   {parameter database}
+
+limit_fmin   {0}        {sweep low limit}
+limit_fmax   {inf}      {sweep high limit}
+fmin         {3160}     {starting value for sweep low end}
+fmax         {3260}     {starting value for sweep high end}
+npts         {51}       {starting value for sweep number of points}
+dt           {1}        {starting value for measurement period}
+dtf          {10}       {starting value for first point delay}
+swap_xy      {0}        {starting value for first point delay}
+tfmt         {%H:%M:%S} {time format string for the interface}
+amp_fmt      {%.3e}     {amp format string for the interface}
+fre_fmt      {%.3f}     {fre format string for the interface}
+wid_fmt      {%.5f}     {wid format string for the interface}
+vertical     1          {vertical design}
+#geometry     {380x1155} {window geometry}
+plot_maxt    {86000}    {timeplot span}
+adj_freq     {1}        {adjust central frequency, 0|1}
+adj_fmin     {1000}     {adjust freq min limit}
+adj_fmax     {5000}     {adjust freq max limit}
+adj_fspan    {1}        {adjust frequency span, 0|1}
+adj_drive    {0}        {adjust drive, 0|1}
+adj_dmin     {0.002}     {min limit for drive adjustment}
+adj_dmax     {20.0}     {max limit for drive adjustment}
+adj_time     {0}        {adjust timings, 0|1}
+adj_phase    {0}        {adjust phase, 0|1}
+fspan_size   {6}        {frequency span / width}
+amp_target   {2e-6}     {amplitude target}
+error_limit  {0}      {skip fit result if RMS point deviation divided by amplitude > error_limit}
+
+# measured and added 22.09.2023
+bg6x {847.788724 -1388.067015 1084.997331 -87.628216 10.678119 1.733595}
+bg6y {-382.140066 -243.395206 -115.185625 6.064714 10.829157 -1.188067}
+
+# meas: 2023-03-20 added: 2023-04-06
+#bg6x {962.428966 -1419.272256 1091.496825 -88.171316 10.666564 1.714040}
+#bg6y {384.111042 -1132.922592 102.913282 -12.864889 11.251389 -0.000005}
+
+# added 25.01.2023
+#bg6x {968.490972 -1561.560439 1126.825453 -88.300412 10.689024 -1.878646}
+#bg6y {-47.687947 -864.303267 34.474428 -2.848697 10.802118 1.186415}

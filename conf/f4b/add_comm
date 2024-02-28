@@ -1,0 +1,6 @@
+#!/usr/bin/add_comm
+
+name         {F4 comments}   # program name
+db_dev       db              # database device
+db_name      comments        # database name
+num          50              # number of records to edit

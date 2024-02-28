@@ -1,0 +1,53 @@
+#!/usr/bin/fork_cw
+
+name           {W1BT}   {program name}
+
+lockin_dev   {adc1}     {lock-in device}
+lockin_pars  {-chan_x 13 -chan_y 14 -single 1 -divider 5\
+              -range 2500 -tconv 60 -show_adc 0\
+              -use_femto 1 -femto_editable 0 -femto_s1 0\
+              -femto_range 5 -femto_tconst 7}  {lock-in device parameters}
+
+gen_dev      {gen7}     {generator device}
+db_dev       {db}          {database device}
+res_db       {w1bt}        {result database}
+sweep_db     {w1bt_sweeps} {sweep database}
+pars_db      {w1bt_pars}   {parameter database}
+
+limit_fmin   {0}        {sweep low limit}
+limit_fmax   {inf}      {sweep high limit}
+fmin         {3789}     {starting value for sweep low end}
+fmax         {3889}     {starting value for sweep high end}
+npts         {51}       {starting value for sweep number of points}
+dt           {1}        {starting value for measurement period}
+dtf          {10}       {starting value for first point delay}
+swap_xy      {0}        {starting value for first point delay}
+tfmt         {%H:%M:%S} {time format string for the interface}
+amp_fmt      {%.3e}     {amp format string for the interface}
+fre_fmt      {%.3f}     {fre format string for the interface}
+wid_fmt      {%.5f}     {wid format string for the interface}
+vertical     1          {vertical design}
+#geometry     {380x1155} {window geometry}
+plot_maxt    {86000}    {timeplot span}
+adj_freq     {1}        {adjust central frequency, 0|1}
+adj_fmin     {1000}     {adjust freq min limit}
+adj_fmax     {5000}     {adjust freq max limit}
+adj_fspan    {1}        {adjust frequency span, 0|1}
+adj_drive    {0}        {adjust drive, 0|1}
+adj_time     {0}        {adjust timings, 0|1}
+adj_phase    {0}        {adjust phase, 0|1}
+fspan_size   {6}        {frequency span / width}
+amp_target   {2e-6}     {amplitude target}
+error_limit  {0}      {skip fit result if RMS point deviation divided by amplitude > error_limit}
+
+# measured and added 22.09.2023
+bg6x {428.436661 -1052.648123 871.362564 -56.522719 11.663391 2.700883}
+bg6y {-60.091339 -881.597757 52.936635 -5.024841 11.522158 0.608318}
+
+# meas: 2023-03-20 added: 2023-04-06
+#bg6x {435.474295 -1030.834272 879.649798 -56.400256 11.711290 -2.723295}
+#bg6y {-29.473448 -903.407512 54.292697 -5.393585 11.572413 0.000163}
+
+# added 25.01.2023
+#bg6x {412.263420 -1169.942778 926.481042 -57.348634 11.831540 2.719972}
+#bg6y {-102.190649 -919.085224 70.726330 -6.620107 11.577957 -0.000172}

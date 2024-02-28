@@ -1,0 +1,21 @@
+#!/usr/bin/datameas
+
+name           {Leak}             # program title
+period         {10}              # measurement period
+onoff           1                 # inital state of main switch
+save            1                 # inital state of save switch
+#tpos           0.5              # timestamp position: 0-beginning of measurement, 1-end of measuremen}
+db_dev          {db}                # database device
+db_name         {leak} # database names
+gauge_dev       {leak_l300}  # gauge device
+dfmt            {%.3e}        # data format in the interface
+data_convs      {{}}
+
+# timeplot parameters
+plot_ncols          2
+plot_maxt           10000
+plot_names          {V P}         # data names
+plots_x             {time}
+plots_y             {{}}
+plot_symbols        {circle circle}
+plots_zst           {x}

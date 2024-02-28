@@ -1,0 +1,21 @@
+#!/usr/bin/datameas
+
+name           {Wire Magnet}           # program title
+period         {5.0}              # measurement period
+onoff           0                 # inital state of main switch
+save            0                 # inital state of save switch
+#tpos           0.5              # timestamp position: 0-beginning of measurement, 1-end of measuremen}
+db_dev          db                # database device
+db_name         {wire_magnet_r} # database names
+gauge_dev       {mult1:R2}    # gauge device
+dfmt            {%.3f}       # data format in the interface
+data_convs      {{}}
+
+# timeplot parameters
+plot_ncols          1
+plot_maxt           10000
+plot_names          {P_VC}         # data names
+plots_x             {time}
+plots_y             {{}}
+plot_symbols        {circle}
+plots_zst           {x}

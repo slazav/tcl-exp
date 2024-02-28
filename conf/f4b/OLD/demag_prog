@@ -1,0 +1,38 @@
+#!/usr/bin/vsweeper
+
+name     {DemagProg}            # program title
+ps_dev      pst2                # 1st power supply device
+ocp           1                 # overvoltage protection, V
+ramp_tstep    1                 # ramping time step
+idle_tstep    600               # idle time step
+
+v_units     V                   # current units
+r_units     V/s                 # rate units
+maxV          14                # max voltage, mV
+minV           0                # min voltage, mV
+max_rate     0.1                # max rate, V/s
+def_rate     0.1                # default rate, V/s
+
+skip          1                 # do not write points if current was not set
+#db       db                     # db device
+#db_val   magnet_hs              # database for sweeper values
+#db_ann   magnet_hs_a            # database for sweeper annotations
+#db_comm  comments               # database for high-level comments
+
+interface_type  grad    # interface control type: nmr, grad, hs
+plot_ncols    4        # number of columns in the plot
+plot_maxt     3600     # max time span in the plot
+plot_maxn     0        # max number of points in the plot
+plot_names    {Vmeas Vset I R}  # column names
+plot_titles   {}         # column titles
+plot_colors   {red magenta darkcyan brown}  # column colors
+plot_hides    {0 1 1 0}  # column hides
+plot_logs     {}       # column log scales
+plot_symbols  {circle circle circle circle}  # plot symbols
+plot_ssizes   {1.5}       # plot symbols
+plot_fmts     {}       # column format settings
+plot_comm     1        # use comment in the plot
+plots_x    {time}      # x data for plots
+plots_y    {{}}        # y data for plots
+plots_zst  {x}         # zoom styles for plots
+

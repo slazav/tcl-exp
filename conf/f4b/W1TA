@@ -1,0 +1,72 @@
+#!/usr/bin/fork_cw
+
+name           {W1TA}   {program name}
+
+lockin_dev   {adc1}     {lock-in device}
+lockin_pars  {-chan_x 5 -chan_y 6 -single 1 -divider 5\
+              -range 2500 -tconv 60 -show_adc 0\
+              -use_femto 1 -femto_editable 0 -femto_s1 0\
+              -femto_range 7 -femto_tconst 7}  {lock-in device parameters}
+
+gen_dev      {gen3}     {generator device}
+db_dev       {db}          {database device}
+res_db       {w1ta2}        {result database}
+sweep_db     {w1ta2_sweeps} {sweep database}
+pars_db      {w1ta2_pars}   {parameter database}
+
+limit_fmin   {0}        {sweep low limit}
+limit_fmax   {inf}      {sweep high limit}
+fmin         {3990}     {starting value for sweep low end}
+fmax         {4000}     {starting value for sweep high end}
+npts         {51}       {starting value for sweep number of points}
+dt           {1}        {starting value for measurement period}
+dtf          {10}       {starting value for first point delay}
+swap_xy      {0}        {starting value for first point delay}
+tfmt         {%H:%M:%S} {time format string for the interface}
+amp_fmt      {%.3e}     {amp format string for the interface}
+fre_fmt      {%.3f}     {fre format string for the interface}
+wid_fmt      {%.5f}     {wid format string for the interface}
+vertical     1          {vertical design}
+#geometry     {380x1155} {window geometry}
+plot_maxt    {86000}    {timeplot span}
+adj_freq     {1}        {adjust central frequency, 0|1}
+adj_fmin     {3000}     {adjust freq min limit}
+adj_fmax     {5000}     {adjust freq max limit}
+adj_fspan    {1}        {adjust frequency span, 0|1}
+adj_drive    {0}        {adjust drive, 0|1}
+adj_dmin     {0.002}    {min limit for drive adjustment}
+adj_dmax     {20.0}     {max limit for drive adjustment}
+adj_time     {0}        {adjust timings, 0|1}
+adj_phase    {0}        {adjust phase, 0|1}
+fspan_size   {6}        {frequency span / width}
+amp_target   {2e-6}     {amplitude target}
+error_limit  {0}      {skip fit result if RMS point deviation divided by amplitude > error_limit}
+
+# measured and added 22.09.2023
+bg6x {-76608.722322 -20772.791990 -9045.560456 1742.447361 17.991573 1321.725706}
+bg6y {-29.507493 216.022854 0.549063 4.742367 2.575318 37.189580}
+
+### Drive box 1k, meas: 2023-03-20 added: 2023-04-06
+#bg6x {-6802.146110 -1618.389902 -580.081511 114.540846 9.926158 386.615711}
+#bg6y {4491.472202 215598.313134 9498.573907 3281.459929 20.158112 1222.409370}
+
+### Drive box 1k, 2023-01-20
+#bg6x {-90.602638 -13.226296 -8.338177 1.098247 3.393611 41.935521}
+#bg6y {-4.905251 62.600754 -3.800254 1.383737 2.306845 19.028182}
+
+### Drive box 1k
+#bg6x {-0.21756525226252 -0.683989105393629 0.191772587571329 -0.123558762170923 0.60574361345361 3.45899225232119}
+#bg6y {-6.42809824756391 468.431945003838 -22.385223568086 5.92796238052178 4.28764518836919 56.9727168733765}
+
+#bg6x {123.354114138527 -2164.52563951267 2049.07542524444 -771.849534145048 -0.214423220043076 205.869396719042}
+#bg6y {-14.6965399118829 124.36544672597 -15.271461004877 -144.888446248422 0.0190504406063305 38.6154157303711}
+
+### Drive box 1k
+#bg6x {123.354114138527 -2164.52563951267 2049.07542524444 -771.849534145048 -0.214423220043076 205.869396719042}
+#bg6y {-14.6965399118829 124.36544672597 -15.271461004877 -144.888446248422 0.0190504406063305 38.6154157303711}
+
+### Drive box 100R
+#bg6x {503.929025086195 -2620.0416510836 2676.62395825936 -997.614442198319 -0.298123853763368 156.863909861702} {}
+#bg6y {-5.66774555258142 42.9488064796141 -8.7665343696806 -49.6381514417813 0.0607826973032785 22.1237372112247} {}
+
+

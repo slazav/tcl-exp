@@ -1,0 +1,12 @@
+#!/usr/bin/rbridge370ac
+
+name {F4 resistance bridge}
+
+dev  rbridge
+
+db_dev {db}
+ch_names {R1K RSTILL R20MK RHE02  RHE04 RHE06 RHE08 RHE10  RMC RMC2 - - GMR1 GMR2 R20MK2 RSTILL2}
+db_names {R1K RSTILL R20MK RHE02  RHE04 RHE06 RHE08 RHE10  RMC RMC2 - - GMR1 GMR2 R20MK2 RSTILL2}
+
+timeout 60
+

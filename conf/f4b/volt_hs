@@ -1,0 +1,21 @@
+#!/usr/bin/datameas
+
+name           {volt_hs}          # program title
+period         {0.1}             # measurement period
+onoff           1                 # inital state of main switch
+save            1                 # inital state of save switch
+#tpos           0.5              # timestamp position: 0-beginning of measurement, 1-end of measuremen}
+db_dev          {db}                # database device
+db_name         {volt_hs} # database names
+gauge_dev       {mult1:DCV}    # gauge device
+dfmt            {%.3f}       # data format in the interface
+# data_convs      {{log(abs($x))/log(10)}}
+
+# timeplot parameters
+plot_ncols          1
+plot_maxt           10000
+plot_names          {P_VC}         # data names
+plots_x             {time}
+plots_y             {{}}
+plot_symbols        {circle}
+plots_zst           {x}

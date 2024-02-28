@@ -1,0 +1,13 @@
+#!/usr/bin/heater
+
+name       {DemagHTR}
+volt_dev   rbridge:ANALOG2u
+resistance 113
+gain       1
+v_units    V
+p_units    mW
+max_volt   5
+# db_dev     db
+# db_val    heat_mix
+# db_comm    comments
+mon_int    600

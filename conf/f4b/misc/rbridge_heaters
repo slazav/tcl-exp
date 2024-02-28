@@ -1,0 +1,14 @@
+#!/usr/bin/rbridge370ac
+
+name {F4 resistance bridge -- cell heaters}
+
+dev  rbridge
+
+db_dev {}
+
+ch_names {R1K RSTILL R20MK RHE02  RHE04 RHE06 RHE08 RHE10 RMC MC2  R1K2 -  heater1 heater2 heater3 heater4}
+db_names {R1K RSTILL R20MK RHE02  RHE04 RHE06 RHE08 RHE10 RMC RMC2 R1K2 -  heater1 heater2 heater3 heater4}
+
+
+timeout 60
+

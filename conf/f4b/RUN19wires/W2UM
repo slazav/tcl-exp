@@ -1,0 +1,45 @@
+#!/usr/bin/fork_cw
+
+## 1st channel!
+
+name           {W2UM}   {program name}
+
+lockin_dev   {adc1}     {lock-in device}
+lockin_pars  {-chan_x 5 -chan_y 6 -single 1 -divider 5\
+              -range 2500 -tconv 60 -show_adc 0\
+              -use_femto 1 -femto_editable 0 -femto_s1 0\
+              -femto_range 7 -femto_tconst 7}  {lock-in device parameters}
+
+gen_dev      {gen3}     {generator device}
+db_dev       {db}          {database device}
+res_db       {w2um}        {result database}
+sweep_db     {w2um_sweeps} {sweep database}
+pars_db      {w2um_pars}   {parameter database}
+
+limit_fmin   {0}        {sweep low limit}
+limit_fmax   {8000}      {sweep high limit}
+fmin         {1700}     {starting value for sweep low end}
+fmax         {1800}     {starting value for sweep high end}
+npts         {51}       {starting value for sweep number of points}
+dt           {1}        {starting value for measurement period}
+dtf          {2}        {starting value for first point delay}
+swap_xy      {0}        {starting value for first point delay}
+tfmt         {%H:%M:%S} {time format string for the interface}
+amp_fmt      {%.3e}     {amp format string for the interface}
+fre_fmt      {%.3f}     {fre format string for the interface}
+wid_fmt      {%.5f}     {wid format string for the interface}
+vertical     1          {vertical design}
+geometry     {380x1140} {window geometry}
+plot_maxt    {86000}    {timeplot span}
+adj_freq     {1}        {adjust central frequency, 0|1}
+adj_fspan    {1}        {adjust frequency span, 0|1}
+adj_drive    {0}        {adjust drive, 0|1}
+adj_dmin     {0.002}    {}
+adj_dmax     {10}       {}
+adj_time     {0}        {adjust timings, 0|1}
+adj_phase    {0}        {adjust phase, 0|1}
+fspan_size   {6}        {frequency span / width}
+amp_target   {10e-6}    {amplitude target}
+lin_offs     {1}        {lin offsets in fit}
+bg6x {-1210.64760755931 -1418.57234175486 10329.5377436085 -424.8900164267 -11.8763043481375 0.000487820719759339} {}
+bg6y {-288.340960284832 -2321.74365152668 -138.432028972202 -48.2578592118969 10.2895162324468 -0.546580740841889} {}

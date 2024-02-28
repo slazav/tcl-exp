@@ -1,0 +1,45 @@
+#!/usr/bin/fork_cw
+
+## 3rd channel!
+
+name           {W2NM}   {program name}
+
+lockin_dev   {adc1}     {lock-in device}
+lockin_pars  {-chan_x 9 -chan_y 10 -single 1 -divider 5\
+              -range 2500 -tconv 60 -show_adc 0\
+              -use_femto 1 -femto_editable 0 -femto_s1 0\
+              -femto_range 7 -femto_tconst 7}  {lock-in device parameters}
+
+gen_dev      {gen5}     {generator device}
+db_dev       {db}          {database device}
+res_db       {w2nm}        {result database}
+sweep_db     {w2nm_sweeps} {sweep database}
+pars_db      {w2nm_pars}   {parameter database}
+
+limit_fmin   {0}        {sweep low limit}
+limit_fmax   {inf}      {sweep high limit}
+fmin         {1010}     {starting value for sweep low end}
+fmax         {1020}     {starting value for sweep high end}
+npts         {51}       {starting value for sweep number of points}
+dt           {1}        {starting value for measurement period}
+dtf          {2}        {starting value for first point delay}
+swap_xy      {1}        {starting value for first point delay}
+tfmt         {%H:%M:%S} {time format string for the interface}
+amp_fmt      {%.3e}     {amp format string for the interface}
+fre_fmt      {%.3f}     {fre format string for the interface}
+wid_fmt      {%.5f}     {wid format string for the interface}
+vertical     1          {vertical design}
+geometry     {380x1140} {window geometry}
+plot_maxt    {86000}    {timeplot span}
+adj_freq     {1}        {adjust central frequency, 0|1}
+adj_fspan    {1}        {adjust frequency span, 0|1}
+adj_drive    {0}        {adjust drive, 0|1}
+adj_dmin     {0.002} {}
+adj_dmax     {10} {}
+adj_time     {0}        {adjust timings, 0|1}
+adj_phase    {0}        {adjust phase, 0|1}
+fspan_size   {6}        {frequency span / width}
+amp_target   {10e-6}    {amplitude target}
+lin_offs     {1}        {lin offsets in fit}
+bg6x {} {}
+bg6y {} {}

@@ -1,0 +1,13 @@
+#!/usr/bin/heater_ivc
+
+name       {IVC heater} {program title}
+volt       {5}        {voltage}
+volt_dev   {pst1}     {dc_source device}
+mon_int    10         {monitoring time step, s}
+db_dev     {db}       {database device (can be empty)}
+db_comm    {comments} {database name for text comments}
+db_mon     {DBATH:f1} {which value to monitor}
+mon_off    {280}      {above this value heater switched off}
+mon_on     {270}      {below this value heater switched on}
+mon_fmt    {%.3f}     {format for monitored value}
+state      {0}        {initial state}

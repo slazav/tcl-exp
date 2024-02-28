@@ -1,0 +1,48 @@
+#!/usr/bin/fork_cw
+
+name           {W0TA}   {program name}
+
+lockin_dev   {adc1}     {lock-in device}
+lockin_pars  {-chan_x 11 -chan_y 12 -single 1 -divider 5\
+              -range 2500 -tconv 60 -show_adc 0\
+              -use_femto 1 -femto_editable 0 -femto_s1 0\
+              -femto_range 7 -femto_tconst 7}  {lock-in device parameters}
+
+gen_dev      {gen6}     {generator device}
+db_dev       {db}          {database device}
+res_db       {w0ta}        {result database}
+sweep_db     {w0ta_sweeps} {sweep database}
+pars_db      {w0ta_pars}   {parameter database}
+
+limit_fmin   {0}        {sweep low limit}
+limit_fmax   {inf}      {sweep high limit}
+fmin         {1735.0}   {starting value for sweep low end}
+fmax         {1737.0}   {starting value for sweep high end}
+npts         {51}       {starting value for sweep number of points}
+dt           {1}        {starting value for measurement period}
+dtf          {1}        {starting value for first point delay}
+swap_xy      {0}        {starting value for first point delay}
+tfmt         {%H:%M:%S} {time format string for the interface}
+amp_fmt      {%.3e}     {amp format string for the interface}
+fre_fmt      {%.3f}     {fre format string for the interface}
+wid_fmt      {%.5f}     {wid format string for the interface}
+vertical     1          {vertical design}
+geometry     {380x1140} {window geometry}
+plot_maxt    {86000}    {timeplot span}
+adj_freq     {1}        {adjust central frequency, 0|1}
+adj_fmin     {1000}     {adjust freq min limit}
+adj_fmax     {5000}     {adjust freq max limit}
+adj_fspan    {1}        {adjust frequency span, 0|1}
+adj_drive    {0}        {adjust drive, 0|1}
+adj_time     {1}        {adjust timings, 0|1}
+adj_phase    {0}        {adjust phase, 0|1}
+fspan_size   {6}        {frequency span / width}
+amp_target   {2e-6}     {amplitude target}
+
+### Drive box 1k
+bg6x         {  -180.738242263388 32.0699403428483 -96.1992789927712 24.7626321548208 4.70742894802095 98.6795219086911}
+bg6y         {  -31.3834870109249 703.401477034557 16.8318509848797 124.278505566139 3.9498016926493 98.7350104389162}
+
+### Drive box 100R
+#bg6x         {-100.315173520482 -221.804589454462 126.971612996457 -28.328615853548 0.0175179239047131 115.509171333929} {}
+#bg6y         {8.83600762258544 11.708211619712 3.46197928786195 -0.476502092107989 2.84337883889745 18.3900182695917}  {}

@@ -1,0 +1,10 @@
+#!/usr/bin/mplex_f4
+# configuration for ADC
+
+name           {mplex}            # program title
+mplex_dev      {mplex1}           # multiplexer
+db_dev         {db}               # database device
+
+period         {10}               # measurement period
+plot_maxt      100000
+

@@ -1,0 +1,207 @@
+DeskTopSize 3x3
+
+SnapAttraction 10 SameType Screen 
+
+OpaqueMoveSize 5
+Style * ResizeOutline
+Style * WindowShadeSteps 0
+Style * DecorateTransient # transient windows have normal frame
+
+#EdgeScroll 100 100
+#EdgeResistance 500 0
+EdgeThickness 0
+
+# цвет рамок
+Style * ForeColor   black, BackColor #A0A0A0
+Style * HilightFore black, HilightBack #00A0A0
+Style * BorderWidth 3, HandleWidth 4
+
+AddToFunc StartFunction I Module FvwmPager
++ I Exec xsetroot -solid "#004060"
+
+AddToFunc RestartFunction I KillModule FvwmPager
++ I Module FvwmPager
+
+#####################################################
+# клавиаура
+# alt-стрелка -- переключение экранов
+Key Left        A       M       Scroll -100 +0
+Key Right       A       M       Scroll +100 +0
+Key Up          A       M       Scroll +0   -100
+Key Down        A       M       Scroll +0   +100
+
+# alt-ctrl-стрелка -- перемещение курсора
+Key Left        A       MC      CursorMove -1 +0
+Key Right       A       MC      CursorMove +1 +0
+Key Up          A       MC      CursorMove +0   -1
+Key Down        A       MC      CursorMove +0   +1
+# ctrl-, shift-, ctrl-shift- стрелка нужны для gimp
+
+Key Tab         A       M      -
+
+
+#####################################################
+# мышь
+# menu via stroke (!)
+# Окно двигается/перескалируется без поднятия 
+#  поднимать щелчком левой кнопки, опускать щелчком правой кнопки
+# F - corner, S - side, T - title, I - icon, R - root, W - window
+Mouse 3		R	A	Menu Main mouse -1p -1p
+Mouse 1		R	A	""
+Mouse 1		FS	A	Function "Resize-or-Raise-or-Shade"
+Mouse 2		FS	A	Function "Move-or-Raise-or-Shade"
+Mouse 3		FS	A	Function "Move-or-Lower-or-Shade"
+Mouse 1		T	A	Function "Move-or-Raise-or-Shade"
+Mouse 3		T	A	Function "Move-or-Lower-or-Shade"
+Mouse 1		I	A	Function "Move-or-Iconify-or-Raise"
+# buttons: 1 3 5 7 9              8 6 4 2
+Mouse 1         2       A       Close
+Mouse 2		2	A	All ($c) Close
+Mouse 3         2       A       Destroy
+Mouse 1		4    	A     	Maximize 100 100
+Mouse 2         4       A       Maximize 0 100
+Mouse 3         4       A       Maximize 100 0
+Mouse 1		6    	A     	Iconify
+Mouse 2		6    	A     	All ($c) Iconify On
+Mouse 3         6       A       All ($c) WindowShade On
+
+DestroyFunc Move-or-Raise-or-Shade
+AddToFunc Move-or-Raise-or-Shade M Move
++                       C Raise
++                       D WindowShade
+DestroyFunc Move-or-Lower-or-Shade
+AddToFunc Move-or-Lower-or-Shade M Move
++                       C Lower
++                       D WindowShade
+DestroyFunc Move-or-Iconify-or-Raise
+AddToFunc Move-or-Iconify-or-Raise M Move
++			  C Raise
++                         D Iconify
+DestroyFunc Resize-or-Raise-or-Shade
+AddToFunc Resize-or-Raise-or-Shade M Resize
++                         C Raise
++                         D WindowShade
+AddToFunc Resize-or-Lower-or-Shade M Resize
++                         C Lower
++                         D WindowShade
+#####################################################
+
+Style * Font "fixed"
+Style * IconFont "fixed"
+
+ButtonStyle	all	-- UseTitleStyle
+ButtonStyle 2 4 20x20@1 80x80@3 20x80@4 80x20@3
+ButtonStyle 4 5 30x70@1 70x30@3 50x30@3 70x50@4 70x30@3
+ButtonStyle 6 5 70x30@1 30x70@3 30x50@3 50x70@4 30x70@3
+
+MenuStyle * font "fixed"
+MenuStyle * Foreground black, Background #00A0A0
+MenuStyle * ActiveFore black, HilightBack #00A0A0
+
+MenuStyle * Greyed grey60  # default is invisible on backgroud grey80
+
+CopyMenuStyle * winops
+MenuStyle winops font "fixed"
+MenuStyle winops TitleWarpOff
+MenuStyle winops VerticalItemSpacing 1 2, VerticalTitleSpacing 1 2
+
+Style * SloppyFocus
+Style * MinOverlapPlacement
+Style * GrabFocusOff
+
+#AddToFunc InitFunction
+#+ I Modile FvwmPager
+
+
+DestroyMenu Main
+AddToMenu   Main
++ "xterm"   Exec xterm
++ "gimp"    Exec exec gimp
++ "hugin"   Exec exec hugin
++ "xfig"    Exec exec xfig
++ "mozilla" Exec exec firefox
++ "gqview"  Exec exec gqview
++ "" Nop
+
++ "comments"        Exec /home/ultservi/CONF/add_comm
++ "rbridge (T)"     Exec /home/ultservi/CONF/rbridge
++ "mplex"           Exec /home/ultservi/CONF/mplex_f4
++ "cell_press"      Exec /home/ultservi/CONF/cap_br
++ "magnet_mc"       Exec /home/ultservi/CONF/magnet_mc
++ "magnet_hs"       Exec /home/ultservi/CONF/magnet_hs
++ "magnet_nmr"      Exec /home/ultservi/CONF/magnet_nmr
++ "magnet_demag"    Exec /home/ultservi/CONF/demag_small
++ "heat_still"      Exec /home/ultservi/CONF/heat_still
++ "heat_demag_ps"   Exec /home/ultservi/CONF/heat_demag_ps
++ "heat_hs_shield"  Exec /home/ultservi/CONF/heat_hs_shield
++ "heat_ivc"        Exec /home/ultservi/CONF/heat_ivc
++ "volt_hs"         Exec /home/ultservi/CONF/volt_hs
++ "" Nop
++ "leak_phoenix"    Exec /home/ultservi/CONF/leak_phoenix
++ "noise"           Exec noise_int
+
++ "" Nop
++ "interface: W0TA"     Exec /home/ultservi/CONF/W0TA
++ "interface: W1TA"     Exec /home/ultservi/CONF/W1TA
++ "interface: W2TA"     Exec /home/ultservi/CONF/W2TA
+
++ "interface: W1BH"     Exec /home/ultservi/CONF/W1BH
++ "interface: W2BH"     Exec /home/ultservi/CONF/W2BH
++ "interface: W1BT"     Exec /home/ultservi/CONF/W1BT
++ "interface: W2BT"     Exec /home/ultservi/CONF/W2BT
+
++ "interface: W1A"     Exec /home/ultservi/CONF/W1A
++ "interface: W1B"     Exec /home/ultservi/CONF/W1B
++ "interface: W1C"     Exec /home/ultservi/CONF/W1C
+
++ "interface: W2A"     Exec /home/ultservi/CONF/W2A
++ "interface: W2B"     Exec /home/ultservi/CONF/W2B
++ "interface: W2C"     Exec /home/ultservi/CONF/W2C
++ "interface: W2D"     Exec /home/ultservi/CONF/W2D
+
++ "interface: MCTA"     Exec /home/ultservi/CONF/MCTA
+
++ "" Nop
++ "window op" Popup WinMenu
++ "restart"   Restart
+#+ "exit"      Quit
+
+DestroyMenu "WinMenu"
+AddToMenu "WinMenu" "Window Operations" Title
++ "Move"              Move
++ "Resize"            Resize
++ "(De)Iconify"       Iconify
++ "(Un)Maximize"      Maximize 100 100
++ "(Un)Maxwide"	      Maximize 100 0
++ "(Un)Maxtall"	      Maximize   0 100
++ "(Un)Shade"         WindowShade
++ "(Un)Stick"         Stick
++ "Raise"             Raise
++ "Lower"             Lower
++ ""				Nop
++ "Delete"	      Delete
++ "Close"	      Close
++ "Destroy"	      Destroy
++ ""				Nop
++ "Identify"	      Module FvwmIdent
++ "Switch to..."      WindowList
+
+
+#############################################################
+
+DestroyModuleConfig FvwmPager: *
+#*FvwmPager: UseSkipList
+*FvwmPager: Back #A0A0A0
+*FvwmPager: Fore black
+*FvwmPager: Font "fixed"
+*FvwmPager: Hilight #00B0B0
+#*FvwmPager: MiniIcons
+*FvwmPager: Balloons
+#*FvwmPager: BalloonFore black
+#*FvwmPager: BalloonBack bisque
+*FvwmPager: BalloonFont "fixed"
+*FvwmPager: Geometry 100x100-0-0
+*FvwmPager: WindowColors #000000 #A0A0A0 #000000 #009090
+*FvwmPager: SmallFont "fixed"
+*FvwmPager: LabelsAbove
+Style "FvwmPager" NoTitle, Sticky, WindowListSkip, CirculateSkip

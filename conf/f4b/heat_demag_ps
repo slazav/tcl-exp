@@ -1,0 +1,15 @@
+#!/usr/bin/heater_ps
+
+volt_on    {4.5}
+volt_res   {0.2}
+
+curr_res   {0.02}
+curr_fmt   {%.3f}
+
+mon_int     5
+volt_dev   {rbridge:ANALOG2u}
+db_dev     {db}
+db_curr_ps  {demag_vi:f1}
+db_curr_mg  {demag_pc:f1}
+db_comm    {}
+db_val     {}

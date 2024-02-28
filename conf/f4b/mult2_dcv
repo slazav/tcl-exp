@@ -1,0 +1,21 @@
+#!/usr/bin/datameas
+
+name           {mult2_dcv}           # program title
+period         {0.05}              # measurement period
+onoff           0                 # inital state of main switch
+save            0                 # inital state of save switch
+#tpos           0.5              # timestamp position: 0-beginning of measurement, 1-end of measuremen}
+db_dev          {}                # database device
+db_name         {} # database names
+gauge_dev       {mult2:DCV}    # gauge device
+dfmt            {%.3f}       # data format in the interface
+# data_convs      {{log(abs($x))/log(10)}}
+
+# timeplot parameters
+plot_ncols          1
+plot_maxt           10000
+plot_names          {P_VC}         # data names
+plots_x             {time}
+plots_y             {{}}
+plot_symbols        {circle}
+plots_zst           {x}

@@ -1,0 +1,13 @@
+#!/usr/bin/heater
+
+name       {H4 heater}
+volt_dev   rbridge:ANALOG1u
+#resistance 203.3
+#gain       0.1633
+v_units    V
+#p_units    uW
+max_volt   10
+db_dev     db
+db_val    heater4
+db_comm    comments
+mon_int    600

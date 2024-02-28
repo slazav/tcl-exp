@@ -1,0 +1,24 @@
+#!/home/ultservi/nmr_meas
+# configuration for nmr_meas
+
+name           {nanobeam cont}   {program name}
+onoff          1                {initial state of main switch}
+loop           0                {state of lock-in loop}
+
+gauge_dev     {osc1:lockin(AB):XY}     {Lock-in device name}
+
+gen_dev        {gen0}          {2-ch generator}
+gen_fmin       2138000         {generator min freq, Hz}
+gen_fmax       2140000         {generator max freq, Hz}
+gen_npt        200             {generator number of points}
+
+db_dev         {}                {db device}
+db_nmr_lockin  wire_mc_cont_lockin {database for nmr lockin parameters (range, tconst)}
+db_nmr_gen     wire_mc_cont_gen    {database for nmr generator parameters (exc_amp, exc_ph, comp_amp, comp_ph)}
+db_nmr_cal     {}                  {database for nmr calibration (exc_gain, exc_turn, comp_gain, comp_turn)}
+db_nmr_res     wire_mc_cont        {database for nmr resonance curves (fre x y)}
+db_nmr_q       {}                  {database for nmr reasured resonance parameters (fre q)}
+
+autosave 1
+autorepeat 0
+#use_comp 0

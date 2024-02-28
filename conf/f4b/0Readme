@@ -1,0 +1,6 @@
+This folder contains configuration for measurement GUI programs at
+Fridge4 rack computer. Programs are in my tcl-exp package. They
+should be installed into system.
+
+This folder is backed up to //luna/fst/py/Milikelvin/fridge4_2019/CONF
+Do not modify or add anything there!

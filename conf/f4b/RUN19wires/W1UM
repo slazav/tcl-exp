@@ -1,0 +1,43 @@
+#!/usr/bin/fork_cw
+
+name           {W1UM}   {program name}
+
+lockin_dev   {adc1}     {lock-in device}
+lockin_pars  {-chan_x 9 -chan_y 10 -single 1 -divider 5\
+              -range 2500 -tconv 60 -show_adc 0\
+              -use_femto 1 -femto_editable 0 -femto_s1 0\
+              -femto_range 7 -femto_tconst 7}  {lock-in device parameters}
+
+gen_dev      {gen5}     {generator device}
+db_dev       {db}          {database device}
+res_db       {w1um}        {result database}
+sweep_db     {w1um_sweeps} {sweep database}
+pars_db      {w1um_pars}   {parameter database}
+
+limit_fmin   {0}        {sweep low limit}
+limit_fmax   {8000}      {sweep high limit}
+fmin         {3150}     {starting value for sweep low end}
+fmax         {3160}     {starting value for sweep high end}
+npts         {51}       {starting value for sweep number of points}
+dt           {1}        {starting value for measurement period}
+dtf          {2}        {starting value for first point delay}
+swap_xy      {0}        {starting value for first point delay}
+tfmt         {%H:%M:%S} {time format string for the interface}
+amp_fmt      {%.3e}     {amp format string for the interface}
+fre_fmt      {%.3f}     {fre format string for the interface}
+wid_fmt      {%.5f}     {wid format string for the interface}
+vertical     1          {vertical design}
+geometry     {380x1140} {window geometry}
+plot_maxt    {86000}    {timeplot span}
+adj_freq     {1}        {adjust central frequency, 0|1}
+adj_fspan    {1}        {adjust frequency span, 0|1}
+adj_drive    {0}        {adjust drive, 0|1}
+adj_dmin     {0.002}    {}
+adj_dmax     {10}       {}
+adj_time     {0}        {adjust timings, 0|1}
+adj_phase    {0}        {adjust phase, 0|1}
+fspan_size   {6}        {frequency span / width}
+amp_target   {10e-6}    {amplitude target}
+lin_offs     {1}        {lin offsets in fit}
+bg6x {1189.00352137779 -743.008977215472 1920.00186204696 -266.19827353001 9.37179501709467 6.21078523596038} {}
+bg6y {844.209138393329 -30971.2435674252 1037.69620001722 -200.762628304626 10.3382068650447 9.17923166796069} {}

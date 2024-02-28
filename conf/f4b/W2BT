@@ -1,0 +1,58 @@
+#!/usr/bin/fork_cw
+
+name           {W2BT}   {program name}
+
+lockin_dev   {adc2}     {lock-in device}
+lockin_pars  {-chan_x 11 -chan_y 12 -single 1 -divider 5\
+              -range 2500 -tconv 60 -show_adc 0\
+              -use_femto 1 -femto_editable 0 -femto_s1 0\
+              -femto_range 5 -femto_tconst 7}  {lock-in device parameters}
+
+gen_dev      {gen14}     {generator device}
+db_dev       {db}          {database device}
+res_db       {w2bt}        {result database}
+sweep_db     {w2bt_sweeps} {sweep database}
+pars_db      {w2bt_pars}   {parameter database}
+
+limit_fmin   {0}        {sweep low limit}
+limit_fmax   {inf}      {sweep high limit}
+fmin         {6850}     {starting value for sweep low end}
+fmax         {6950}     {starting value for sweep high end}
+npts         {51}       {starting value for sweep number of points}
+dt           {1}        {starting value for measurement period}
+dtf          {10}       {starting value for first point delay}
+swap_xy      {0}        {starting value for first point delay}
+tfmt         {%H:%M:%S} {time format string for the interface}
+amp_fmt      {%.3e}     {amp format string for the interface}
+fre_fmt      {%.3f}     {fre format string for the interface}
+wid_fmt      {%.5f}     {wid format string for the interface}
+vertical     1          {vertical design}
+#geometry     {380x1155} {window geometry}
+plot_maxt    {86000}    {timeplot span}
+adj_freq     {1}        {adjust central frequency, 0|1}
+adj_fmin     {1000}     {adjust freq min limit}
+adj_fmax     {8000}     {adjust freq max limit}
+adj_fspan    {1}        {adjust frequency span, 0|1}
+adj_drive    {0}        {adjust drive, 0|1}
+adj_time     {0}        {adjust timings, 0|1}
+adj_phase    {0}        {adjust phase, 0|1}
+fspan_size   {6}        {frequency span / width}
+amp_target   {2e-6}     {amplitude target}
+error_limit  {0}      {skip fit result if RMS point deviation divided by amplitude > error_limit}
+
+# measured and added 22.09.2023
+bg6x {204.792201 -775.011827 1224.384185 -60.904057 12.727031 -2.886490}
+bg6y {271.715275 -798.635009 33.064128 -5.058200 11.676593 1.060623}
+
+# After switching to chan 14. Measured and added 2023-05-02.
+# Should be valid after 2023-04-25 11:19
+#bg6x {-4308.942318 6198.746567 467.097840 -80.419696 11.982414 -0.001149}
+#bg6y {3104.577576 -3416.594373 -1427.912243 149.215656 11.518803 0.000094}
+
+# meas: 2023-03-20 added: 2023-04-06
+#bg6x {6489.384575 -10007.894597 1727.212121 -61.661143 12.078759 -0.000024}
+#bg6y {-3684.627341 3664.925124 1587.801908 -157.583418 12.107134 0.000001}
+
+# added 25.01.2023
+#bg6x {5981.960295 -9255.741833 1581.078235 -54.437167 12.129090 -0.000042}
+#bg6y {-2795.741396 2833.515181 1587.603689 -151.905442 12.139387 0.000012}

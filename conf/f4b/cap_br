@@ -1,0 +1,12 @@
+#!/usr/bin/meas_f4_capbr
+
+name         {cell_cap}  {program name}
+capbr_dev    {lcr_meter:C-D}        {capacitance bridge}
+cap_factor   {1e12}                 {cap multiplyer}
+db_dev       {db}                     {database device}
+avrg         {11}                   {number of averages}
+avrg_delay   {1}                  {delay between averages}
+tfmt         {%H:%M:%S} {time format string for the interface}
+period       {1}        {measurement period}
+plot_maxt    {600}      {timeplot span}
+
